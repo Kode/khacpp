@@ -346,41 +346,33 @@ static value file_flush( value o ) {
 	return alloc_bool(true);
 }
 
+#include <Kore/pch.h>
+#include <Kore/IO/FileReader.h>
+
 /**
 	file_contents : f:string -> string
 	<doc>Read the content of the file [f] and return it.</doc>
 **/
 static value file_contents( value name ) {
-	buffer s;
+	using namespace Kore;
+
+	buffer s = NULL;
 	int len;
-	int p;
 	val_check(name,string);
 	fio f(val_filename(name));
-        const char *fname = val_string(name);
+	const char* fname = val_string(name);
 	gc_enter_blocking();
-	f.io = fopen(fname,"rb");
-	if( f.io == NULL )
-		file_error("file_contents",&f);
-	fseek(f.io,0,SEEK_END);
-	len = ftell(f.io);
-	fseek(f.io,0,SEEK_SET);
-	gc_exit_blocking();
-	s = alloc_buffer_len(len);
-	p = 0;
-	gc_enter_blocking();
-	while( len > 0 ) {
-		int d;
-		POSIX_LABEL(file_contents);
-		d = (int)fread((char*)buffer_data(s)+p,1,len,f.io);
-		if( d <= 0 ) {
-			HANDLE_FINTR(f.io,file_contents);
-			fclose(f.io);
-			file_error("file_contents",&f);
+	{
+		FileReader file;
+		if (file.open(fname)) {
+			len = static_cast<int>(file.size());
+			s = alloc_buffer_len(len);
+			file.read(buffer_data(s), static_cast<uint>(len));
 		}
-		p += d;
-		len -= d;
-	}	
-	fclose(f.io);
+		else {
+			file_error("file_contents", &f);
+		}
+	}
 	gc_exit_blocking();
 	return buffer_val(s);
 }

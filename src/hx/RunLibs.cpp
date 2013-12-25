@@ -23,7 +23,7 @@ const HX_CHAR *hxRunLibrary()
 {
    std_register_prims();
    regexp_register_prims();
-   zlib_register_prims();
+   //zlib_register_prims();
     
    try { 
       __hxcpp_lib_main();
