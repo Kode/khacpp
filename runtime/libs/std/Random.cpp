@@ -78,7 +78,7 @@ static rnd *rnd_init( void *data ) {
    #ifdef HX_WINRT
 	int pid = Windows::Security::Cryptography::CryptographicBuffer::GenerateRandomNumber();
    #else
-	int pid = getpid();
+	int pid = _getpid();
    #endif
 
 	unsigned int time;

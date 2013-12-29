@@ -300,7 +300,7 @@ static void do_parse_xml( const char *xml, const char **lp, int *line, value cal
 					ERROR("Expected node name");
 				{
 					value v = copy_string(start,p - start);
-					if( strcmpi(parentname,val_string(v)) != 0 ) {
+					if( _strcmpi(parentname,val_string(v)) != 0 ) {
 						buffer b = alloc_buffer("Expected </");
 						buffer_append(b,parentname);
 						buffer_append(b,">");

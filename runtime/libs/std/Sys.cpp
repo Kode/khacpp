@@ -107,7 +107,7 @@ static value put_env( value e, value v ) {
 	val_buffer(b,e);
 	buffer_append_sub(b,"=",1);
 	val_buffer(b,v);
-	if( putenv(buffer_data(b)) != 0 )
+	if( _putenv(buffer_data(b)) != 0 )
 		return alloc_null();
 #else
 	val_check(e,string);
@@ -194,7 +194,7 @@ static value get_cwd() {
    #else
 	char buf[256];
 	int l;
-	if( getcwd(buf,256) == NULL )
+	if( _getcwd(buf,256) == NULL )
 		return alloc_null();
 	l = (int)strlen(buf);
 	if( buf[l-1] != '/' && buf[l-1] != '\\' ) {
@@ -212,7 +212,7 @@ static value get_cwd() {
 static value set_cwd( value d ) {
    #ifndef HX_WINRT
 	val_check(d,string);
-	if( chdir(val_string(d)) )
+	if( _chdir(val_string(d)) )
 		return alloc_null();
    #endif
 	return alloc_bool(true);
@@ -332,7 +332,7 @@ static value file_exists( value path ) {
 static value file_delete( value path ) {
 	val_check(path,string);
 	gc_enter_blocking();
-	if( unlink(val_string(path)) != 0 )
+	if( _unlink(val_string(path)) != 0 )
 	{
 		gc_exit_blocking();
 		return alloc_null();
@@ -457,7 +457,7 @@ static value sys_create_dir( value path, value mode ) {
 	val_check(mode,int);
 	gc_enter_blocking();
 #ifdef NEKO_WINDOWS
-	if( mkdir(val_string(path)) != 0 )
+	if( _mkdir(val_string(path)) != 0 )
 #else
 	if( mkdir(val_string(path),val_int(mode)) != 0 )
 #endif
@@ -476,7 +476,7 @@ static value sys_create_dir( value path, value mode ) {
 static value sys_remove_dir( value path ) {
 	val_check(path,string);
 	gc_enter_blocking();
-	if( rmdir(val_string(path)) != 0 )
+	if( _rmdir(val_string(path)) != 0 )
 	{
 		gc_exit_blocking();
 		return alloc_null();
@@ -703,7 +703,7 @@ static value sys_getch( value b ) {
 #elif defined(NEKO_WINDOWS)
 	val_check(b,bool);
 	gc_enter_blocking();
-	int result = val_bool(b)?getche():getch();
+	int result = val_bool(b)?_getche():_getch();
 	gc_exit_blocking();
 	return alloc_int( result );
 #	else
