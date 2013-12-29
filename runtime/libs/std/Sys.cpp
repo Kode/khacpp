@@ -40,6 +40,10 @@ int __sys_prims() { return 0; }
 #	include <termios.h>
 #	include <sys/time.h>
 #	include <sys/times.h>
+#   define _getcwd getcwd
+#   define _chdir chdir
+#   define _unlink unlink
+#   define _rmdir rmdir
 #ifndef ANDROID
 #	include <locale.h>
 #ifndef BLACKBERRY

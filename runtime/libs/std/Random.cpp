@@ -24,6 +24,7 @@
 #	include <sys/time.h>
 #	include <sys/types.h>
 #	include <unistd.h>
+#   define _getpid getpid
 #endif
 
 

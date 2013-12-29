@@ -26,8 +26,7 @@
 
 #ifndef NEKO_WINDOWS
 #  include <strings.h>
-#  undef strcmpi
-#  define strcmpi(a,b) strcasecmp(a,b)
+#  define _strcmpi(a,b) strcasecmp(a,b)
 #else
 #	include <string.h>
 #endif
