@@ -10,6 +10,7 @@ enum { gFillWithJunk = 0 } ;
 
 #ifdef ANDROID
 #include <android/log.h>
+#include <sys/atomics.h>
 #endif
 
 #ifdef HX_WINDOWS
@@ -31,6 +32,25 @@ static bool sgAllocInit = 0;
 static bool sgInternalEnable = false;
 static void *sgObject_root = 0;
 int gInAlloc = false;
+
+#if HX_HAS_ATOMIC
+  #if defined(HX_MACOS) || defined(HX_WINDOWS) || defined(HX_LINUX)
+  enum { MAX_MARK_THREADS = 4 };
+  #else
+  enum { MAX_MARK_THREADS = 2 };
+  #endif
+#else
+  enum { MAX_MARK_THREADS = 1 };
+#endif
+
+
+enum
+{
+   MEM_INFO_USAGE = 0,
+   MEM_INFO_RESERVED = 1,
+   MEM_INFO_CURRENT = 2,
+   MEM_INFO_LARGE = 3,
+};
 
 
 #ifndef HXCPP_GC_MOVING
@@ -63,6 +83,16 @@ static int gCollectTraceCount = 0;
 #endif
 
 
+//#define PROFILE_COLLECT
+
+
+#ifdef PROFILE_COLLECT
+   #define STAMP(t) double t = __hxcpp_time_stamp();
+#else
+   #define STAMP(t)
+#endif
+
+
 static int sgTimeToNextTableUpdate = 0;
 
 
@@ -91,28 +121,6 @@ extern void scriptMarkStack(hx::MarkContext *);
 //#define DEBUG_ALLOC_PTR ((char *)0xb68354)
 
 
-
-/*
-class IDAllocator
-{
-   QuickVec<Int> mSpare;
-   int  mMax;
-   
-public:
-   IDAllocator() : mMax(0) { }
-   int getNext()
-   {
-      if (mSpare.empty())
-         return mMax++;
-      return mSpare.pop();
-   }
-   void release(int inID)
-   {
-      mSpare.push(inID);
-   }
-   int max() { return mMax; }
-};
-*/
 
 #ifndef USE_POSIX_MEMALIGN
 
@@ -250,11 +258,97 @@ OBJ = ENDIAN_OBJ_NEXT_BYTE = start is measured from the header pointer
 #endif
 
 
+void CriticalGCError(const char *inMessage)
+{
+   // Can't perfrom normal handling because it needs the GC system
+
+   #ifdef ANDROID
+   __android_log_print(ANDROID_LOG_ERROR, "HXCPP", "Critical Error: %s", inMessage);
+   #else
+   printf("Critical Error: %s\n", inMessage);
+   #endif
+
+
+   #if __has_builtin(__builtin_trap)
+   __builtin_trap();
+   #else
+   (* (volatile int *) 0) = 0;
+   #endif
+}
+
+
+
+
 
 enum AllocType { allocNone, allocString, allocObject, allocMarked };
 
+struct BlockDataInfo *gBlockStack = 0;
+typedef hx::QuickVec<hx::Object *> ObjectStack;
+
+// For threaded marking
+static int sActiveThreads = 0;
+static int sRunningThreads = 0;
+static MySemaphore *sThreadWake[MAX_MARK_THREADS];
+static MySemaphore *sMarkDone = 0;
+
+
+struct AtomicLock
+{
+   AtomicLock() : mCount(0) { }
+
+   void Lock()
+   {
+      if (sActiveThreads)
+      {
+         while(true)
+         {
+             if (HxAtomicInc(&mCount)==0)
+                break;
+             // nanosleep?
+             HxAtomicDec(&mCount);
+         }
+      }
+      else
+         mCount++;
+   }
+   inline bool locked() { return mCount>0; }
+   bool TryLock()
+   {
+      if (sActiveThreads)
+      {
+         if (HxAtomicInc(&mCount)==0)
+            return true;
+         HxAtomicDec(&mCount);
+         return false;
+      }
+      else
+      {
+         if (mCount>0)
+            return false;
+         mCount++;
+         return true;
+      }
+   }
+   void Unlock()
+   {
+      if (sActiveThreads)
+        HxAtomicDec(&mCount);
+      else
+        mCount--;
+   }
+
+   volatile int mCount;
+};
+typedef TAutoLock<AtomicLock> AutoAtomic;
+
+AtomicLock gMarkMutex;
+namespace hx { void MarkerReleaseWorkerLocked(); }
+
+
 struct BlockDataInfo
 {
+   enum { MAX_STACK = 32 };
+
    int mId;
    int mGroupId;
    int mUsedRows;
@@ -283,6 +377,7 @@ union BlockData
       info.mPinned = 0;
       info.mPtr = this;
    }
+   inline int GetFreeRows() const { return (IMMIX_USEFUL_LINES - getUsedRows()); }
    inline int GetFreeData() const { return (IMMIX_USEFUL_LINES - getUsedRows())<<IMMIX_LINE_BITS; }
    void ClearEmpty()
    {
@@ -593,9 +688,9 @@ union BlockData
    register size_t ptr_i = ((size_t)inPtr)-sizeof(int); \
    unsigned int flags =  *((unsigned int *)ptr_i); \
  \
+   char *block = (char *)(ptr_i & IMMIX_BLOCK_BASE_MASK); \
    if ( flags & (IMMIX_ALLOC_SMALL_OBJ | IMMIX_ALLOC_MEDIUM_OBJ) ) \
    { \
-      char *block = (char *)(ptr_i & IMMIX_BLOCK_BASE_MASK); \
       char *base = block + ((ptr_i & IMMIX_BLOCK_OFFSET_MASK)>>IMMIX_LINE_BITS); \
       *base |= IMMIX_ROW_MARKED; \
  \
@@ -608,6 +703,9 @@ union BlockData
       } \
    }
 
+
+
+
 namespace hx
 {
 
@@ -619,19 +717,141 @@ struct MarkInfo
    const char *mMember;
 };
 
+struct MarkChunk
+{
+   enum { SIZE = 31 };
+
+   MarkChunk() : count(0) { }
+   Object *stack[SIZE];
+   int    count;
+
+   inline void push(Object *inObj)
+   {
+      stack[count++] = inObj;
+   }
+   inline Object *pop()
+   {
+      if (count)
+         return stack[--count];
+      return 0;
+   }
+
+};
+
+struct GlobalChunks
+{
+   AtomicLock lock;
+   hx::QuickVec< MarkChunk * >   chunks;
+   hx::QuickVec< MarkChunk * > spare;
+
+   MarkChunk *pushJob(MarkChunk *inChunk)
+   {
+      AutoAtomic l(lock);
+      chunks.push(inChunk);
+
+      if (sActiveThreads)
+      {
+         // Wake someone up...
+         for(int i=0;i<sActiveThreads;i++)
+            if (!(sRunningThreads & (1<<i)))
+            {
+               sRunningThreads |= (1<<i);
+               sThreadWake[i]->Set();
+            }
+      }
+
+      if (spare.size()==0)
+         return new MarkChunk;
+      return spare.pop();
+   }
+
+   MarkChunk *popJob(MarkChunk *inChunk,int inThreadId)
+   {
+      while(true)
+      {
+         lock.Lock();
+         if (inChunk)
+         {
+            spare.push(inChunk);
+            inChunk = 0;
+         }
+
+         if (chunks.size())
+         {
+            MarkChunk *result = chunks.pop();
+            lock.Unlock();
+            return result;
+         }
+         if (inThreadId<0)
+         {
+            lock.Unlock();
+            return 0;
+         }
+
+         sRunningThreads &= ~(1<<inThreadId);
+         // Last one out, turn off the lights
+         if (sRunningThreads==0)
+         {
+            lock.Unlock();
+            for(int i=0;i<sActiveThreads;i++)
+               if (i!=inThreadId)
+                  sThreadWake[i]->Set();
+            sMarkDone->Set();
+            return 0;
+         }
+         else // wait to be woken....
+         {
+            lock.Unlock();
+            sThreadWake[inThreadId]->Wait();
+            if (sRunningThreads==0)
+               return 0;
+         }
+      }
+   }
+
+   void free(MarkChunk *inChunk)
+   {
+      AutoAtomic l(lock);
+      spare.push(inChunk);
+   }
+
+   MarkChunk *alloc()
+   {
+      AutoAtomic l(lock);
+      if (spare.size()==0)
+         return new MarkChunk;
+      return spare.pop();
+   }
+};
+
+GlobalChunks sGlobalChunks;
+
 class MarkContext
 {
+    int       mPos;
+    MarkInfo  *mInfo;
+    int       mThreadId;
+    MarkChunk *marking;
+    MarkChunk *spare;
+
 public:
     enum { StackSize = 8192 };
 
-    MarkContext()
+    char      *block;
+
+    MarkContext(int inThreadId = -1)
     {
        mInfo = new MarkInfo[StackSize];
+       mThreadId = inThreadId;
        mPos = 0;
-       mDepth = 0;
+       marking = sGlobalChunks.alloc();
+       spare = sGlobalChunks.alloc();
+       block = 0;
     }
     ~MarkContext()
     {
+       if (marking) sGlobalChunks.free(marking);
+       if (spare) sGlobalChunks.free(spare);
        delete [] mInfo;
        // TODO: Free slabs
     }
@@ -677,34 +897,94 @@ public:
        }
     }
 
-    inline void PushMark(hx::Object *inMarker)
+    void pushObj(hx::Object *inObject)
     {
-       if (mDepth > 32)
+       if (marking->count < MarkChunk::SIZE)
        {
-          mDeque.push(inMarker);
+          //printf("push %d\n", marking->count);
+          marking->push(inObject);
+          // consider pushing spare if any thread is waiting?
+       }
+       else if (spare->count==0)
+       {
+          // Swap ...
+          MarkChunk *tmp = spare;
+          spare = marking;
+          marking = tmp;
+          //printf("swap %d\n", marking->count);
+          marking->push(inObject);
        }
        else
        {
-          ++mDepth;
-          inMarker->__Mark(this);
-          --mDepth;
+          //printf("push job %d\n", marking->count);
+          marking = sGlobalChunks.pushJob(marking);
+          marking->push(inObject);
        }
+    }
+
+    void init()
+    {
+       block = 0;
+       if (!marking)
+          marking = sGlobalChunks.alloc();
+    }
+
+    void releaseJobs()
+    {
+       if (marking && marking->count)
+       {
+          sGlobalChunks.chunks.push(marking);
+          marking = 0;
+       }
+       if (spare->count)
+          spare = sGlobalChunks.pushJob(spare);
     }
 
     void Process()
     {
-       while(mDeque.some_left())
-          mDeque.pop()->__Mark(this);
-    }
+       if (!marking)
+          marking = sGlobalChunks.popJob(marking,mThreadId);
 
-    int mDepth;
-    int mPos;
-    MarkInfo *mInfo;
-    // Last in, first out
-    hx::QuickVec<hx::Object *> mDeque;
-    // First in, first out
-    //QuickDeque<hx::Object *> mDeque;
+       while(marking)
+       {
+          hx::Object *obj = marking->pop();
+          if (obj)
+          {
+             block = (char *)(((size_t)obj) & IMMIX_BLOCK_BASE_MASK);
+             obj->__Mark(this);
+          }
+          else if (spare->count)
+          {
+             // Swap ...
+             MarkChunk *tmp = spare;
+             spare = marking;
+             marking = tmp;
+          }
+          else
+          {
+             marking = sGlobalChunks.popJob(marking,mThreadId);
+          }
+       }
+    }
 };
+
+
+/*
+void MarkerReleaseWorkerLocked( )
+{
+   //printf("Release...\n");
+   for(int i=0;i<sActiveThreads;i++)
+   {
+      if ( ! (sRunningThreads & (1<<i) ) )
+      {
+         //printf("Wake %d\n",i);
+         sRunningThreads |= (1<<i);
+         sThreadWake[i]->Set();
+         return;
+      }
+   }
+}
+*/
 
 #ifdef HXCPP_DEBUG
 void MarkSetMember(const char *inName,hx::MarkContext *__inCtx)
@@ -736,46 +1016,59 @@ void MarkAlloc(void *inPtr,hx::MarkContext *__inCtx)
 void MarkObjectAlloc(hx::Object *inPtr,hx::MarkContext *__inCtx)
 {
    MARK_ROWS
-
-   #ifdef HXCPP_DEBUG
-   if (gCollectTrace && gCollectTrace==inPtr->__GetClass().GetPtr())
+   if (flags & IMMIX_ALLOC_IS_OBJECT)
    {
-		gCollectTraceCount++;
-		if (gCollectTraceDoPrint)
-          __inCtx->Trace();
-   }
-   #endif
-   
-   #ifdef HXCPP_DEBUG
-      // Recursive mark so stack stays intact..
-      if (gCollectTrace)
-         inPtr->__Mark(__inCtx);
-      else
-   #endif
+      #ifdef HXCPP_DEBUG
+      if (gCollectTrace && gCollectTrace==inPtr->__GetClass().GetPtr())
+      {
+         gCollectTraceCount++;
+         if (gCollectTraceDoPrint)
+             __inCtx->Trace();
+      }
+      #endif
+      
+      #ifdef HXCPP_DEBUG
+         // Recursive mark so stack stays intact..
+         if (gCollectTrace)
+            inPtr->__Mark(__inCtx);
+         else
+      #endif
 
       // There is a slight performance gain by calling recursively, but you
       //   run the risk of stack overflow.  Also, a parallel mark algorithm could be
       //   done when the marking is stack based.
       //inPtr->__Mark(__inCtx);
-      __inCtx->PushMark(inPtr);
+      if (block==__inCtx->block)
+         inPtr->__Mark(__inCtx);
+      else
+         __inCtx->pushObj(inPtr);
+   }
 }
 
 
 
 
+#ifdef HXCPP_DEBUG
+#define FILE_SCOPE
+#else
+#define FILE_SCOPE static
+#endif
 
 // --- Roots -------------------------------
 
+FILE_SCOPE MyMutex *sGCRootLock = 0;
 typedef std::set<hx::Object **> RootSet;
 static RootSet sgRootSet;
 
 void GCAddRoot(hx::Object **inRoot)
 {
+   AutoLock lock(*sGCRootLock);
    sgRootSet.insert(inRoot);
 }
 
 void GCRemoveRoot(hx::Object **inRoot)
 {
+   AutoLock lock(*sGCRootLock);
    sgRootSet.erase(inRoot);
 }
 
@@ -784,11 +1077,6 @@ void GCRemoveRoot(hx::Object **inRoot)
 
 // --- Finalizers -------------------------------
 
-#ifdef HXCPP_DEBUG
-#define FILE_SCOPE
-#else
-#define FILE_SCOPE static
-#endif
 
 class WeakRef;
 typedef hx::QuickVec<WeakRef *> WeakRefs;
@@ -1066,6 +1354,8 @@ public:
 #endif
 
 
+class GlobalAllocator *sGlobalAlloc = 0;
+
 class GlobalAllocator
 {
    enum { LOCAL_POOL_SIZE = 2 };
@@ -1081,6 +1371,8 @@ public:
       mLargeAllocForceRefresh = mLargeAllocSpace;
       // Start at 1 Meg...
       mTotalAfterLastCollect = 1<<20;
+      mCurrentRowsInUse = 0;
+      mAllBlocksCount = 0;
       for(int p=0;p<LOCAL_POOL_SIZE;p++)
          mLocalPool[p] = 0;
    }
@@ -1221,6 +1513,8 @@ public:
 
          if (!result)
             result = GetEmptyBlock(pass==0);
+         else
+            mCurrentRowsInUse += result->GetFreeRows();
       }
 
       if (sMultiThreadMode)
@@ -1298,6 +1592,7 @@ public:
                mAllBlocks.push(block);
                mEmptyBlocks.push(block);
             }
+            mAllBlocksCount = mAllBlocks.size();
             #ifdef SHOW_MEM_EVENTS
             GCLOG("Blocks %d = %d k\n", mAllBlocks.size(), (mAllBlocks.size() << IMMIX_BLOCK_BITS)>>10);
             #endif
@@ -1307,6 +1602,7 @@ public:
       BlockData *block = mEmptyBlocks[mNextEmpty++];
       block->ClearEmpty();
       mActiveBlocks.insert(block);
+      mCurrentRowsInUse += IMMIX_USEFUL_LINES;
       return block;
    }
 
@@ -1711,27 +2007,27 @@ public:
    {
       gByteMarkID = (gByteMarkID+1) & 0xff;
       gMarkID = gByteMarkID << 24;
+      gBlockStack = 0;
 
       if (inDoClear)
          ClearRowMarks();
 
-      hx::MarkClassStatics(&mMarker);
+      mMarker.init();
 
-      mMarker.Process();
+      hx::MarkClassStatics(&mMarker);
 
       for(hx::RootSet::iterator i = hx::sgRootSet.begin(); i!=hx::sgRootSet.end(); ++i)
       {
          hx::Object *&obj = **i;
          if (obj)
-         {
             hx::MarkObjectAlloc(obj , &mMarker );
-         }
       }
 
       // Mark zombies too....
       for(int i=0;i<hx::sZombieList.size();i++)
          hx::MarkObjectAlloc(hx::sZombieList[i] , &mMarker );
 
+      // Mark local stacks
       for(int i=0;i<mLocalAllocs.size();i++)
          MarkLocalAlloc(mLocalAllocs[i] , &mMarker);
 
@@ -1739,13 +2035,66 @@ public:
       scriptMarkStack(&mMarker);
       #endif
 
+      if (MAX_MARK_THREADS>1)
+      {
+         if (!sMarkDone)
+         {
+            sMarkDone = new MySemaphore();
+            for(int i=0;i<MAX_MARK_THREADS;i++)
+               CreateMarker(i);
+         }
 
-      mMarker.Process();
+         mMarker.releaseJobs();
+
+         // Unleash the workers...
+         sActiveThreads = MAX_MARK_THREADS;
+         sRunningThreads = (1<<sActiveThreads) - 1;
+         for(int i=0;i<sActiveThreads;i++)
+            sThreadWake[i]->Set();
+
+         sMarkDone->Wait();
+         sActiveThreads = 0;
+      }
+      else
+      {
+         mMarker.Process();
+      }
 
       hx::FindZombies(mMarker);
 
-
       hx::RunFinalizers();
+   }
+
+   void MarkerLoop(int inId)
+   {
+      hx::MarkContext context(inId);
+      while(true)
+      {
+         sThreadWake[inId]->Wait();
+         context.Process();
+      }
+   }
+
+   static THREAD_FUNC_TYPE SMarkerFunc( void *inInfo )
+   {
+      sGlobalAlloc->MarkerLoop((int)(size_t)inInfo);
+      THREAD_FUNC_RET;
+   }
+
+   void CreateMarker(int inId)
+   {
+      sThreadWake[inId] = new MySemaphore();
+
+      void *info = (void *)(size_t)inId;
+    #ifdef HX_WINRT
+      // TODO
+    #elif defined(HX_WINDOWS)
+      bool ok = _beginthreadex(0,0,SMarkerFunc,info,0,0) != 0;
+    #else
+      pthread_t result = 0;
+      int created = pthread_create(&result,0,SMarkerFunc,info);
+      bool ok = created==0;
+    #endif
    }
 
    int Collect(bool inMajor, bool inForceCompact)
@@ -1755,6 +2104,7 @@ public:
       int here = 0;
       GCLOG("=== Collect === %p\n",&here);
       #endif
+      STAMP(t0)
      
       int largeAlloced = mLargeAllocated;
       LocalAllocator *this_local = 0;
@@ -1780,7 +2130,11 @@ public:
 
       // Now all threads have mTopOfStack & mBottomOfStack set.
 
+      STAMP(t1)
+
       MarkAll(true);
+
+      STAMP(t2)
 
       // Reclaim ...
 
@@ -1816,6 +2170,8 @@ public:
          else
             idx++;
       }
+
+      STAMP(t3)
 
       mTotalAfterLastCollect = MemUsage();
       int blockSize =  mAllBlocks.size()<<IMMIX_BLOCK_BITS;
@@ -1894,6 +2250,7 @@ public:
 
 
       // IMMIX suggest filling up in creation order ....
+      mRowsInUse = 0;
       for(int i=0;i<mAllBlocks.size();i++)
       {
          BlockData *block = mAllBlocks[i];
@@ -1908,6 +2265,8 @@ public:
                mRecycledBlock.push(block);
          }
       }
+      mAllBlocksCount   = mAllBlocks.size();
+      mCurrentRowsInUse = mRowsInUse;
 
 
       if (sMultiThreadMode)
@@ -1924,7 +2283,28 @@ public:
       GCLOG("Collect Done\n");
       #endif
 
+      #ifdef PROFILE_COLLECT
+      STAMP(t4)
+      GCLOG("Collect time %.2f  %.2f/%.2f/%.2f/%.2f\n", (t4-t0)*1000,
+              (t1-t0)*1000, (t2-t1)*1000, (t3-t2)*1000, (t4-t3)*1000 );
+      #endif
+
       return want_more;
+   }
+
+   size_t MemLarge()
+   {
+      return mLargeAllocated;
+   }
+
+   size_t MemReserved()
+   {
+      return mLargeAllocated + (mAllBlocksCount*IMMIX_USEFUL_LINES<<IMMIX_LINE_BITS);
+   }
+
+   size_t MemCurrent()
+   {
+      return mLargeAllocated + (mCurrentRowsInUse<<IMMIX_LINE_BITS);
    }
 
    size_t MemUsage()
@@ -1952,10 +2332,12 @@ public:
 
 
    size_t mRowsInUse;
+   size_t mCurrentRowsInUse;
    size_t mLargeAllocSpace;
    size_t mLargeAllocForceRefresh;
    size_t mLargeAllocated;
    size_t mTotalAfterLastCollect;
+   size_t mAllBlocksCount;
 
    hx::MarkContext mMarker;
 
@@ -1972,7 +2354,6 @@ public:
    LocalAllocator *mLocalPool[LOCAL_POOL_SIZE];
 };
 
-GlobalAllocator *sGlobalAlloc = 0;
 
 
 namespace hx
@@ -1983,6 +2364,12 @@ void MarkConservative(int *inBottom, int *inTop,hx::MarkContext *__inCtx)
    #ifdef SHOW_MEM_EVENTS
    GCLOG("Mark conservative %p...%p (%d)\n", inBottom, inTop, (inTop-inBottom) );
    #endif
+
+   if (sizeof(int)==4 && sizeof(void *)==8)
+   {
+      // Can't start pointer on last integer boundary...
+      inTop--;
+   }
 
 
    void *prev = 0;
@@ -2162,6 +2549,11 @@ public:
 
    void ExitGCFreeZone()
    {
+      #ifdef HXCPP_DEBUG
+      if (!mGCFreeZone)
+         CriticalGCError("GCFree Zone mismatch");
+      #endif
+
       if (sMultiThreadMode)
       {
          AutoLock lock(*gThreadStateChangeLock);
@@ -2200,6 +2592,10 @@ public:
 
    void *Alloc(int inSize,bool inIsObject)
    {
+      #ifdef HXCPP_DEBUG
+      if (mGCFreeZone)
+         CriticalGCError("Alloacting from a GC-free thread");
+      #endif
       if (hx::gPauseForCollect)
          PauseForCollect();
 
@@ -2482,6 +2878,7 @@ void InitAlloc()
    sGlobalAlloc = new GlobalAllocator();
    sgFinalizers = new FinalizerList();
    sFinalizerLock = new MyMutex();
+   sGCRootLock = new MyMutex();
    hx::Object tmp;
    void **stack = *(void ***)(&tmp);
    sgObject_root = stack[0];
@@ -2540,6 +2937,8 @@ void *InternalNew(int inSize,bool inIsObject)
       return tla->Alloc(inSize,inIsObject);
    }
 }
+
+
 
 // Force global collection - should only be called from 1 thread.
 int InternalCollect(bool inMajor,bool inCompact)
@@ -2619,6 +3018,25 @@ void UnregisterCurrentThread()
 
 
 
+namespace hx
+{
+
+void *Object::operator new( size_t inSize, bool inContainer )
+{
+   #if defined(HXCPP_DEBUG)
+   if (inSize>=IMMIX_LARGE_OBJ_SIZE)
+      throw Dynamic(HX_CSTRING("Object size violation"));
+   #endif
+
+   LocalAllocator *tla = GetLocalAlloc();
+
+   return tla->Alloc(inSize,inContainer);
+}
+
+}
+
+
+
 int __hxcpp_gc_trace(Class inClass,bool inPrint)
 {
     #if  !defined(HXCPP_DEBUG)
@@ -2638,6 +3056,31 @@ int __hxcpp_gc_trace(Class inClass,bool inPrint)
     #endif
 }
 
+int   __hxcpp_gc_large_bytes()
+{
+   return sGlobalAlloc->MemLarge();
+}
+
+int   __hxcpp_gc_reserved_bytes()
+{
+   return sGlobalAlloc->MemReserved();
+}
+
+int __hxcpp_gc_mem_info(int inWhich)
+{
+   switch(inWhich)
+   {
+      case MEM_INFO_USAGE:
+         return (int)sGlobalAlloc->MemUsage();
+      case MEM_INFO_RESERVED:
+         return (int)sGlobalAlloc->MemReserved();
+      case MEM_INFO_CURRENT:
+         return (int)sGlobalAlloc->MemCurrent();
+      case MEM_INFO_LARGE:
+         return (int)sGlobalAlloc->MemLarge();
+   }
+   return 0;
+}
 
 int   __hxcpp_gc_used_bytes()
 {
@@ -2694,7 +3137,7 @@ int __hxcpp_obj_id(Dynamic inObj)
    hx::Object *obj = inObj->__GetRealObject();
    if (!obj) return 0;
    #ifdef HXCPP_USE_OBJECT_MAP
-   return sGlobalAlloc->GetObjectID(inObj.GetPtr());
+   return sGlobalAlloc->GetObjectID(obj);
    #else
    return (int)(obj);
    #endif

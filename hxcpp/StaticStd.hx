@@ -1,0 +1,17 @@
+package hxcpp;
+
+@:cppFileCode( 'extern "C" void std_register_prims();')
+@:buildXml("
+<target id='haxe'>
+  <lib name='${HXCPP}/lib/${BINDIR}/libstd${LIBEXTRA}${LIBEXT}'/>
+   <lib name='wsock32.lib' if='windows'/>
+</target>
+")
+@:keep class StaticStd
+{
+   static function __init__()
+   {
+     untyped __cpp__("std_register_prims();");
+   }
+}
+

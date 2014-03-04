@@ -25,7 +25,16 @@ typedef HMODULE Module;
 #ifdef HX_WINRT
 Module hxLoadLibrary(String inLib) { return LoadPackagedLibrary(inLib.__WCStr(),0); }
 #else
-Module hxLoadLibrary(String inLib) { return LoadLibraryW(inLib.__WCStr()); }
+Module hxLoadLibrary(String inLib)
+{
+   HMODULE result = LoadLibraryW(inLib.__WCStr());
+   if (gLoadDebug)
+   {
+      if (result)
+         printf("Loaded module : %S.\n", inLib.__WCStr());
+   }
+   return result;
+}
 #endif
 
 void *hxFindSymbol(Module inModule, const char *inSymbol) { return (void *)GetProcAddress(inModule,inSymbol); }
@@ -93,46 +102,53 @@ public:
 
    Dynamic __run()
    {
-      if (mArgCount!=0) throw HX_INVALID_ARG_COUNT;
       HX_STACK_FRAME("extern", "cffi",0,"extern::cffi", __FILE__, __LINE__,0);
+      if (mArgCount!=0) throw HX_INVALID_ARG_COUNT;
+      if (mProc==0) hx::Throw( HX_NULL_FUNCTION_POINTER );
       return ((prim_0)mProc)();
    }
    Dynamic __run(D a)
    {
-      if (mArgCount!=1) throw HX_INVALID_ARG_COUNT;
       HX_STACK_FRAME("extern", "cffi",0,  "extern::cffi", __FILE__, __LINE__,0);
+      if (mArgCount!=1) throw HX_INVALID_ARG_COUNT;
+      if (mProc==0) hx::Throw( HX_NULL_FUNCTION_POINTER );
       return ((prim_1)mProc)(a.GetPtr());
    }
    Dynamic __run(D a,D b)
    {
-      if (mArgCount!=2) throw HX_INVALID_ARG_COUNT;
       HX_STACK_FRAME("extern", "cffi",0,  "extern::cffi", __FILE__, __LINE__,0);
+      if (mArgCount!=2) throw HX_INVALID_ARG_COUNT;
+      if (mProc==0) hx::Throw( HX_NULL_FUNCTION_POINTER );
       return ((prim_2)mProc)(a.GetPtr(),b.GetPtr());
    }
    Dynamic __run(D a,D b,D c)
    {
-      if (mArgCount!=3) throw HX_INVALID_ARG_COUNT;
       HX_STACK_FRAME("extern", "cffi",0,  "extern::cffi", __FILE__, __LINE__,0);
+      if (mArgCount!=3) throw HX_INVALID_ARG_COUNT;
+      if (mProc==0) hx::Throw( HX_NULL_FUNCTION_POINTER );
       return ((prim_3)mProc)(a.GetPtr(),b.GetPtr(),c.GetPtr());
    }
    Dynamic __run(D a,D b,D c,D d)
    {
-      if (mArgCount!=4) throw HX_INVALID_ARG_COUNT;
       HX_STACK_FRAME("extern", "cffi",0,  "extern::cffi", __FILE__, __LINE__,0);
+      if (mArgCount!=4) throw HX_INVALID_ARG_COUNT;
+      if (mProc==0) hx::Throw( HX_NULL_FUNCTION_POINTER );
       return ((prim_4)mProc)(a.GetPtr(),b.GetPtr(),c.GetPtr(),d.GetPtr());
    }
    Dynamic __run(D a,D b,D c,D d,D e)
    {
-      if (mArgCount!=5) throw HX_INVALID_ARG_COUNT;
       HX_STACK_FRAME("extern", "cffi",0,  "extern::cffi", __FILE__, __LINE__,0);
+      if (mArgCount!=5) throw HX_INVALID_ARG_COUNT;
+      if (mProc==0) hx::Throw( HX_NULL_FUNCTION_POINTER );
       return ((prim_5)mProc)(a.GetPtr(),b.GetPtr(),c.GetPtr(),d.GetPtr(),e.GetPtr());
    }
 
    Dynamic __Run(const Array<Dynamic> &inArgs)
    {
+      HX_STACK_FRAME("extern", "cffi",0,  "extern::cffi", __FILE__, __LINE__,0);
       if (mArgCount!=-1 && mArgCount!=inArgs->length)
          throw HX_INVALID_ARG_COUNT;
-      HX_STACK_FRAME("extern", "cffi",0,  "extern::cffi", __FILE__, __LINE__,0);
+      if (mProc==0) hx::Throw( HX_NULL_FUNCTION_POINTER );
       return ((prim_mult)mProc)( (hx::Object **)inArgs->GetBase(), inArgs->length );
    }
 
@@ -193,27 +209,27 @@ String GetEnv(const char *inPath)
 
 String FindHaxelib(String inLib)
 {
-   bool gLoadDebug = getenv("HXCPP_LOAD_DEBUG");
+   bool loadDebug = getenv("HXCPP_LOAD_DEBUG");
 
    // printf("FindHaxelib %S\n", inLib.__s);
    String haxepath = GetEnv("HAXEPATH");
-   if (gLoadDebug) printf("HAXEPATH env:%s\n", haxepath.__s);
+   if (loadDebug) printf("HAXEPATH env:%s\n", haxepath.__s);
    if (haxepath.length==0)
    {
        String home = GetEnv("HOME") + HX_CSTRING("/.haxelib");
        haxepath = GetFileContents(home);
-       if (gLoadDebug) printf("HAXEPATH home:%s\n", haxepath.__s);
+       if (loadDebug) printf("HAXEPATH home:%s\n", haxepath.__s);
    }
    else
    {
       haxepath += HX_CSTRING("/lib");
    }
-   if (gLoadDebug) printf("HAXEPATH dir:%s\n", haxepath.__s);
+   if (loadDebug) printf("HAXEPATH dir:%s\n", haxepath.__s);
 
    if (haxepath.length==0)
    {
        haxepath = GetFileContents(HX_CSTRING("/etc/.haxepath"));
-       if (gLoadDebug) printf("HAXEPATH etc:%s\n", haxepath.__s);
+       if (loadDebug) printf("HAXEPATH etc:%s\n", haxepath.__s);
    }
 
    if (haxepath.length==0)
@@ -223,7 +239,7 @@ String FindHaxelib(String inLib)
       #else
       haxepath = HX_CSTRING("/usr/lib/haxe/lib");
       #endif
-       if (gLoadDebug) printf("HAXEPATH default:%s\n", haxepath.__s);
+       if (loadDebug) printf("HAXEPATH default:%s\n", haxepath.__s);
    }
 
    String dir = haxepath + HX_CSTRING("/") + inLib + HX_CSTRING("/");
@@ -231,7 +247,7 @@ String FindHaxelib(String inLib)
 
    String dev = dir + HX_CSTRING(".dev");
    String path = GetFileContents(dev);
-   if (gLoadDebug) printf("Read dev location from file :%s, got %s\n", dev.__s, path.__s);
+   if (loadDebug) printf("Read dev location from file :%s, got %s\n", dev.__s, path.__s);
    if (path.length==0)
    {
       path = GetFileContents(dir + HX_CSTRING(".current"));

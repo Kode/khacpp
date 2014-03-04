@@ -28,9 +28,15 @@
 <set name="LIBEXTRA" value=".iphoneos" if="iphoneos" unless="HXCPP_ARMV7" />
 <set name="LIBEXTRA" value="-x86" if="blackberry"/>
 <set name="LIBEXTRA" value="" if="blackberry" unless="simulator" />
+<set name="LIBEXTRA" value="-x86" if="HXCPP_X86" />
+<set name="LIBEXTRA" value="-v7" if="HXCPP_ARMV7" unless="LIBEXTRA" />
+<set name="LIBEXTRA" value="-x86" if="tizen"/>
+<set name="LIBEXTRA" value="" if="tizen" unless="simulator" />
 <set name="LIBPREFIX" value="lib" if="iphoneos"/>
 <set name="LIBPREFIX" value="lib" if="iphonesim"/>
 <set name="LIBPREFIX" value="lib" if="static_link"/>
+<set name="LIBEXT" value=".a" />
+<set name="LIBEXT" value=".lib" if="windows"/>
 
 
 <set name="haxelink" value="exe" unless="static_link"/>
@@ -38,6 +44,13 @@
 <set name="haxelink" value="dll" if="android"/>
 <set name="haxelink" value="dll" if="dll_import"/>
 
+<set name="HXCPP_IOS_STDCPP" value="1" unless="HXCPP_CPP11" if="iphoneos"/>
+<set name="HXCPP_IOS_STDCPP" value="1" unless="HXCPP_CPP11" if="iphonesim"/>
+
+<set name="DESTDIR" value="bin" />
+<set name="DESTDIR" value="lib" if="static_link" unless="HXCPP_IOS_STDCPP"/>
+<set name="NDLLDIR" value="ndll" />
+<set name="NDLLDIR" value="lib" if="static_link" />
 
 <include name="${HXCPP_CONFIG}" section="vars" noerror="1"/>
 
@@ -48,6 +61,12 @@
 <!-- You can use replace="1" to change the compiler, or omit to add flags -->
 
 <include name="${toolchain}-toolchain.xml"/>
+
+<section if="static_link" >
+   <set name="MSVC_LIB_VERSION" value="-${MSVC_VER}" if="windows" />
+</section>
+
+
 
 
 <!-- Library files & targets -------------------------------------->
@@ -163,14 +182,12 @@
   <dir name="obj"/>
 </target>
 
-<set name="IOS_EXT" value=".iphoneos-v7.a" if="HXCPP_ARMV7" />
-<set name="IOS_EXT" value=".iphoneos.a" unless="HXCPP_ARMV7" />
-
 <target id="haxe" tool="linker" toolid="${haxelink}" output="${HAXE_OUTPUT}${DBG}">
   <files id="haxe"/>
   <depend name="Options.txt"/>
-  <ext value="${IOS_EXT}" if="iphoneos" unless="dll_import" />
-  <ext value=".iphonesim.a" if="iphonesim" unless="dll_import" />
+  <ext value="${LIBEXTRA}.a" if="iphoneos" unless="dll_import" />
+  <ext value="${LIBEXTRA}.a" if="iphonesim" unless="dll_import" />
+  <ext value="${LIBEXTRA}.so" if="android"/>
   <files id="__main__" unless="static_link" />
   <files id="__lib__" if="static_link"/>
   <files id="runtime" unless="dll_import" />

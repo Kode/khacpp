@@ -234,26 +234,30 @@ public:
 
 THREAD_FUNC_TYPE hxThreadFunc( void *inInfo )
 {
-	int dummy = 0;
-	hx::RegisterCurrentThread(&dummy);
+   // info[1] will the the "top of stack" - values under this
+   //  (ie info[0] and other stack values) will be in the GC conservative range
+	hxThreadInfo *info[2];
+   info[0] = (hxThreadInfo *)inInfo;
+   info[1] = 0;
 
-	hxThreadInfo *info = (hxThreadInfo *)inInfo;
-	tlsCurrentThread = info;
+	hx::RegisterCurrentThread((int *)&info[1]);
+
+	tlsCurrentThread = info[0];
 
 	// Release the creation function
-	info->mSemaphore->Set();
+	info[0]->mSemaphore->Set();
 
     // Call the debugger function to annouce that a thread has been created
-    __hxcpp_dbg_threadCreatedOrTerminated(info->GetThreadNumber(), true);
+    __hxcpp_dbg_threadCreatedOrTerminated(info[0]->GetThreadNumber(), true);
 
-	if ( info->mFunction.GetPtr() )
+	if ( info[0]->mFunction.GetPtr() )
 	{
 		// Try ... catch
-		info->mFunction->__run();
+		info[0]->mFunction->__run();
 	}
 
     // Call the debugger function to annouce that a thread has terminated
-    __hxcpp_dbg_threadCreatedOrTerminated(info->GetThreadNumber(), false);
+    __hxcpp_dbg_threadCreatedOrTerminated(info[0]->GetThreadNumber(), false);
 
 	hx::UnregisterCurrentThread();
 
@@ -273,6 +277,7 @@ Dynamic __hxcpp_thread_create(Dynamic inStart)
 	hxThreadInfo *info = new hxThreadInfo(inStart, threadNumber);
 
 	hx::GCPrepareMultiThreaded();
+	hx::EnterGCFreeZone();
 
    #if defined(HX_WINRT)
 
@@ -291,18 +296,28 @@ Dynamic __hxcpp_thread_create(Dynamic inStart)
    }
 
    #elif defined(HX_WINDOWS)
-      _beginthreadex(0,0,hxThreadFunc,info,0,0);
+      bool ok = _beginthreadex(0,0,hxThreadFunc,info,0,0) != 0;
    #else
-      pthread_t result;
-      pthread_create(&result,0,hxThreadFunc,info);
-	#endif
+      pthread_t result = 0;
+      int created = pthread_create(&result,0,hxThreadFunc,info);
+      bool ok = created==0;
+   #endif
 
 
-	hx::EnterGCFreeZone();
-	info->mSemaphore->Wait();
-	hx::ExitGCFreeZone();
-	info->CleanSemaphore();
-	return info;
+     if (ok)
+     {
+        #ifndef HX_WINDOWS
+        pthread_detach(result);
+        #endif
+        info->mSemaphore->Wait();
+     }
+
+    hx::ExitGCFreeZone();
+    info->CleanSemaphore();
+
+    if (!ok)
+       throw Dynamic( HX_CSTRING("Could not create thread") );
+    return info;
 }
 
 static hx::Object *sMainThreadInfo = 0;

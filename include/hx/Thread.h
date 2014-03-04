@@ -18,10 +18,81 @@
 #include <errno.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <stdio.h>
 #endif
 
 #ifdef RegisterClass
 #undef RegisterClass
+#endif
+
+#if defined(ANDROID)
+
+#define HX_HAS_ATOMIC 1
+#include <sys/atomics.h>
+inline bool HxAtomicExchangeIf(int inTest, int inNewVal,volatile int *ioWhere)
+   { return __atomic_cmpxchg(inTest, inNewVal, ioWhere)==inNewVal; }
+// Returns old value naturally
+inline int HxAtomicInc(volatile int *ioWhere)
+   { return __atomic_inc(ioWhere); }
+inline int HxAtomicDec(volatile int *ioWhere)
+   { return __atomic_dec(ioWhere); }
+
+#elif defined(HX_WINDOWS)
+
+inline bool HxAtomicExchangeIf(int inTest, int inNewVal,volatile int *ioWhere)
+   { return InterlockedCompareExchange((volatile LONG *)ioWhere, inNewVal, inTest)==inNewVal; }
+// Make it return old value
+inline int HxAtomicInc(volatile int *ioWhere)
+   { return InterlockedIncrement((volatile LONG *)ioWhere)-1; }
+inline int HxAtomicDec(volatile int *ioWhere)
+   { return InterlockedDecrement((volatile LONG *)ioWhere)+1; }
+
+#define HX_HAS_ATOMIC 1
+
+#elif defined(HX_MACOS) || defined(IPHONE)
+#include <libkern/OSAtomic.h>
+
+#define HX_HAS_ATOMIC 1
+
+inline bool HxAtomicExchangeIf(int inTest, int inNewVal,volatile int *ioWhere)
+   { return OSAtomicCompareAndSwap32Barrier(inTest, inNewVal, ioWhere); }
+inline int HxAtomicInc(volatile int *ioWhere)
+   { return OSAtomicIncrement32Barrier(ioWhere)-1; }
+inline int HxAtomicDec(volatile int *ioWhere)
+   { return OSAtomicDecrement32Barrier(ioWhere)-1; }
+
+
+#elif defined(HX_LINUX)
+
+#define HX_HAS_ATOMIC 1
+
+inline bool HxAtomicExchangeIf(int inTest, int inNewVal,volatile int *ioWhere)
+   { return __sync_bool_compare_and_swap(ioWhere, inTest, inNewVal); }
+// Returns old value naturally
+inline int HxAtomicInc(volatile int *ioWhere)
+   { return __sync_fetch_and_add(ioWhere,1); }
+inline int HxAtomicDec(volatile int *ioWhere)
+   { return __sync_fetch_and_sub(ioWhere,1); }
+
+#else
+
+#define HX_HAS_ATOMIC 0
+
+inline int HxAtomicExchangeIf(int inTest, int inNewVal,volatile int *ioWhere)
+{
+   if (*ioWhere == inTest)
+   {
+      *ioWhere = inNewVal;
+      return true;
+   }
+   return false;
+}
+inline int HxAtomicInc(volatile int *ioWhere)
+   { return (*ioWhere)++; }
+inline int HxAtomicDec(volatile int *ioWhere)
+   { return (*ioWhere)--; }
+
+
 #endif
 
 
@@ -280,26 +351,30 @@ struct MySemaphore
       spec.tv_sec = tv.tv_sec + isec;
 
       AutoLock lock(mMutex);
-      if (mSet) {
-          mSet = false;
-          return true;
+
+      int result = 0;
+      // Wait for set to be true...
+      while( !mSet &&  (result=pthread_cond_timedwait( &mCondition, &mMutex.mMutex, &spec )) != ETIMEDOUT)
+      {
+         if (result!=0)
+         {
+            // Error - something's gone wrong...
+            /*
+            if (result==EINVAL) 
+               printf("ERROR: Condition EINVAL\n");
+            else if (result==EPERM)
+               printf("ERROR: Condition EPERM\n");
+            else
+               printf("ERROR: Condition unknown error\n");
+            */
+            break;
+         }
+         // Condition signalled - but try mSet again ...
       }
 
-      while (pthread_cond_timedwait
-           ( &mCondition, &mMutex.mMutex, &spec ) != ETIMEDOUT) {
-          if (mSet) {
-              mSet = false;
-              return true;
-          }
-      }
-
-      if (mSet) {
-          mSet = false;
-          return true;
-      }
-      else {
-          return false;
-      }
+      bool wasSet = mSet;
+      mSet = false;
+      return wasSet;
    }
    void Clean()
    {

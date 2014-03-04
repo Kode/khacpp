@@ -23,7 +23,25 @@ public:
       mType = inType;
       mHandle = inData;
       mFinalizer = 0;
+      mMarkSize = 0;
    }
+
+   Abstract_obj(int inType,int inSize, finalizer inFinalizer)
+   {
+      mType = inType;
+      mFinalizer = 0;
+      mMarkSize = 0;
+      mHandle = 0;
+      if (inSize)
+      {
+         mMarkSize = inSize;
+         mHandle = malloc(inSize);
+         memset(mHandle,0,mMarkSize);
+      }
+
+      SetFinalizer(inFinalizer);
+   }
+
 
    virtual int __GetType() const { return mType; }
    virtual hx::ObjectPtr<Class_obj> __GetClass() const { return 0; }
@@ -38,6 +56,10 @@ public:
    {
       if (mFinalizer)
          mFinalizer->Mark();
+      if (mMarkSize>=sizeof(void *) && mHandle)
+      {
+         hx::MarkConservative((int *)mHandle, ((int *)mHandle) + (mMarkSize/sizeof(int)), __inCtx );
+      }
    }
 
    #ifdef HXCPP_VISIT_ALLOCS
@@ -52,7 +74,8 @@ public:
    {
       if (!inFinalizer)
       {
-         mFinalizer->Detach();
+         if (mFinalizer)
+            mFinalizer->Detach();
          mFinalizer = 0;
       }
       else
@@ -62,10 +85,19 @@ public:
          mFinalizer->mFinalizer = inFinalizer;
       }
    }
+   void Clear()
+   {
+      SetFinalizer(0);
+      mType = 0;
+      if (mMarkSize && mHandle)
+         free(mHandle);
+      mHandle = 0;
+   }
 
    hx::InternalFinalizer *mFinalizer;
    void *mHandle;
    int mType;
+   int mMarkSize;
 };
 
 typedef ObjectPtr<Abstract_obj> Abstract;
@@ -122,10 +154,13 @@ void val_throw(hx::Object * arg1) THROWS
 }
 
 
-void hx_fail(const char * arg1,const char * arg2,int arg3)
+void hx_fail(const char * inMessage,const char * inFile,int inLine)
 {
-   fprintf(stderr,"Terminal error %s, File %s, line %d\n", arg1,arg2,arg3);
-   exit(1);
+   if (inFile!=0 && inLine!=0)
+      throw Dynamic( HX_CSTRING("Failure ") + String(inMessage) + HX_CSTRING(" @ ") +
+                    String(inFile) + HX_CSTRING(":") + Dynamic(inLine) );
+   else
+      throw Dynamic( HX_CSTRING("Failure ") + String(inMessage) );
 }
 
 
@@ -222,6 +257,24 @@ hx::Object * alloc_abstract(vkind arg1,void * arg2)
 {
    int type = (int)(intptr_t)arg1;
    return new hx::Abstract_obj(type,arg2);
+}
+
+hx::Object *create_abstract(vkind inKind,int inMemSize, hx::finalizer inFree )
+{
+   int type = (int)(intptr_t)inKind;
+
+   return new hx::Abstract_obj(type,inMemSize,inFree);
+}
+
+
+void free_abstract(hx::Object *obj)
+{
+   if (obj)
+   {
+      hx::Abstract_obj *abstract = dynamic_cast<hx::Abstract_obj *>(obj);
+      if (abstract)
+         abstract->Clear();
+   }
 }
 
 hx::Object * alloc_best_int(int arg1) { return Dynamic(arg1).GetPtr(); }
