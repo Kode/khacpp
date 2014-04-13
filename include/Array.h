@@ -154,6 +154,13 @@ public:
 
    void reserve(int inN);
 
+   // Set numeric values to 0, pointers to null, bools to false
+   void zero(Dynamic inFirst, Dynamic inCount);
+
+   int Memcmp(ArrayBase *inArray);
+
+   // Copy section of other array.
+   void Blit(int inDestElement, ArrayBase *inSourceArray, int inSourceElement, int inElementCount);
 
    String join(String inSeparator);
 
@@ -255,9 +262,20 @@ public:
 
    // Does not check for size valid - use with care
    inline ELEM_ &__unsafe_get(int inIndex) { return * (ELEM_ *)(mBase + inIndex*sizeof(ELEM_)); }
-   inline void __unsafe_set(int inIndex, const ELEM_ &inValue)
+   inline ELEM_ & __unsafe_set(int inIndex, const ELEM_ &inValue)
    {
-      * (ELEM_ *)(mBase + inIndex*sizeof(ELEM_)) = inValue;
+      return * (ELEM_ *)(mBase + inIndex*sizeof(ELEM_)) = inValue;
+   }
+
+   inline int memcmp(Array<ELEM_> inOther)
+   {
+      return ArrayBase::Memcmp(inOther.GetPtr());
+   }
+
+   inline void blit(int inDestElement,  Array<ELEM_> inSourceArray,
+                    int inSourceElement, int inElementCount)
+   {
+      ArrayBase::Blit(inDestElement, inSourceArray.GetPtr(), inSourceElement, inElementCount);
    }
 
 

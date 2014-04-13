@@ -1,4 +1,52 @@
 
+* Add BlackBerry and Tizen binaries
+* Fix issues when using names like ANDROID or IPHONE in an enum
+* Added more info in verbose mode (setenv HXCPP_VERBOSE)
+* Refactor build files to allow greater customisation
+* Fix bug with 'lock' where some threads may not get released
+* Add optimised arrays access
+* Add optimised memory operations for arrays and haxe.io.Bytes
+* Avoid blocking in gethostbyname
+* Upgrade run tool output and layout
+* Restore sys_time for windows
+
+3.1.1
+------------------------------------------------------------
+* Fixed MSVC support for 64-bit targets (vc11, vc12)
+* Initial work on cpp.Pointer (not fully functional)
+* Fixed callstack when throwing from native function
+
+3.1.0
+------------------------------------------------------------
+
+* VC 2013 support - used as default now
+* Add winxp compatibility flags
+* Allow cross-compiling from mac to linux
+* Added NSString helper conversion
+* Better auto-detection for android toolchain
+* Allow foreign threads to easily attach and detach from GC system
+* Weak references to closures keep object alive
+* Added HXCPP_API_LEVEL define to allow for future compatibility
+* Fixed clearing finalizers twice
+* Int multiply and minus are performed with integers now
+* Fix comparing +- infinities
+* Use multiple threads in the mark phase of GC
+* IOS now defaults cpp11 binary linkage
+* Added HXCPP_VERBOSE environment var to enable extra output
+* Fixed spin loop in pthread_cond_wait
+* Added ability to link several .a files into a single .a file
+* Removed dependence on STL runtime for supplied modules
+* Renamed some directories to be more standard
+* Moved some extra build files into obj directory
+* Use sys.io.Process instead of Sys.command to avoid threading slowdown writing to console
+* Add hxcpp.Builder to help with building multiple binaries
+* Add android x86 support
+* Drop pre-compiled support for everything excepth windows,mac,linux,ios and android
+* Allow libraries and files to accumulated in the build.xml
+* Supply pre-build lib files for static linking on supported platforms
+* Support for static linking of all modules
+* Support for hxcpp-debugger project
+* Binaries have been removed from repo, and are built using a server
 * Use build.n script to build all appropriate binaries
 * Some initial support for mysql and sqlite databases
 * Add free_abstract for safe releasing of data references

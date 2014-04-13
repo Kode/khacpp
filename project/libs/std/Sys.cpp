@@ -19,8 +19,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#ifndef EPPC
 #include <sys/types.h>
 #include <sys/stat.h>
+#endif
 
 
 int __sys_prims() { return 0; }
@@ -32,19 +34,21 @@ int __sys_prims() { return 0; }
 #       include <locale.h>
 #else
 #	include <errno.h>
+#ifndef EPPC
 #	include <unistd.h>
 #	include <dirent.h>
-#	include <limits.h>
 #	include <termios.h>
 #	include <sys/time.h>
 #	include <sys/times.h>
+#endif
+#	include <limits.h>
 #   define _getcwd getcwd
 #   define _chdir chdir
 #   define _unlink unlink
 #   define _rmdir rmdir
 #ifndef ANDROID
 #	include <locale.h>
-#ifndef BLACKBERRY
+#if !defined(BLACKBERRY) && !defined(EPPC)
 #	include <xlocale.h>
 #endif
 #endif
@@ -139,6 +143,8 @@ static value sys_sleep( value f ) {
 
 #elif defined(NEKO_WINDOWS)
 	Sleep((DWORD)(val_number(f) * 1000));
+#elif defined(EPPC)
+//TODO: Implement sys_sleep for EPPC
 #else
 	{
 		struct timespec t;
@@ -146,8 +152,10 @@ static value sys_sleep( value f ) {
 		t.tv_sec = (int)val_number(f);
 		t.tv_nsec = (int)((val_number(f) - t.tv_sec) * 1e9);
 		while( nanosleep(&t,&tmp) == -1 ) {
-			if( errno != EINTR )
+			if( errno != EINTR ) {
+				gc_exit_blocking();
 				return alloc_null();
+         }
 			t = tmp;
 		}
 	}
@@ -193,6 +201,8 @@ static value set_time_locale( value l ) {
 static value get_cwd() {
    #ifdef HX_WINRT
    return alloc_string("ms-appdata:///local/");
+   #elif defined(EPPC)
+   return alloc_null();
    #else
 	char buf[256];
 	int l;
@@ -212,7 +222,7 @@ static value get_cwd() {
 	<doc>Set current working directory</doc>
 **/
 static value set_cwd( value d ) {
-   #ifndef HX_WINRT
+   #if !defined(HX_WINRT) && !defined(EPPC)
 	val_check(d,string);
 	if( _chdir(val_string(d)) )
 		return alloc_null();
@@ -252,6 +262,8 @@ static value sys_string() {
 	return alloc_string("BlackBerry");
 #elif defined(EMSCRIPTEN)
 	return alloc_string("Emscripten");
+#elif defined(EPPC)
+	return alloc_string("EPPC");
 #else
 #error Unknow system string
 #endif
@@ -276,7 +288,7 @@ static value sys_is64() {
 	<doc>Run the shell command and return exit code</doc>
 **/
 static value sys_command( value cmd ) {
-   #if defined(HX_WINRT) || defined(EMSCRIPTEN)
+   #if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC)
 	return alloc_int( -1 );
    #else
 	val_check(cmd,string);
@@ -308,12 +320,16 @@ static value sys_exit( value ecode ) {
 	<doc>Returns true if the file or directory exists.</doc>
 **/
 static value sys_exists( value path ) {
+	#ifdef EPPC
+	return alloc_bool(true);
+	#else
 	struct stat st;
 	val_check(path,string);
 	gc_enter_blocking();
 	bool result =  stat(val_string(path),&st) == 0;
 	gc_exit_blocking();
 	return alloc_bool(result);
+	#endif
 }
 
 /**
@@ -332,6 +348,9 @@ static value file_exists( value path ) {
 	<doc>Delete the file. Exception on error.</doc>
 **/
 static value file_delete( value path ) {
+	#ifdef EPPC
+	return alloc_bool(true);
+	#else
 	val_check(path,string);
 	gc_enter_blocking();
 	if( _unlink(val_string(path)) != 0 )
@@ -341,6 +360,7 @@ static value file_delete( value path ) {
 	}
 	gc_exit_blocking();
 	return alloc_bool(true);
+	#endif
 }
 
 /**
@@ -380,6 +400,9 @@ static value sys_rename( value path, value newname ) {
 	<doc>Run the [stat] command on the given file or directory.</doc>
 **/
 static value sys_stat( value path ) {
+	#ifdef EPPC
+	return alloc_null();
+	#else
 	struct stat s;
 	value o;
 	val_check(path,string);
@@ -404,6 +427,7 @@ static value sys_stat( value path ) {
 	STATF(size);
 	STATF(mode);
 	return o;
+	#endif
 }
 
 /**
@@ -422,6 +446,9 @@ static value sys_stat( value path ) {
 	</doc>
 **/
 static value sys_file_type( value path ) {
+	#ifdef EPPC
+	return alloc_null();
+	#else
 	struct stat s;
 	val_check(path,string);
 	gc_enter_blocking();
@@ -448,6 +475,7 @@ static value sys_file_type( value path ) {
 		return alloc_string("sock");
 #endif
 	return alloc_null();
+	#endif
 }
 
 /**
@@ -455,6 +483,9 @@ static value sys_file_type( value path ) {
 	<doc>Create a directory with the specified rights</doc>
 **/
 static value sys_create_dir( value path, value mode ) {
+	#ifdef EPPC
+	return alloc_bool(true);
+	#else
 	val_check(path,string);
 	val_check(mode,int);
 	gc_enter_blocking();
@@ -469,6 +500,7 @@ static value sys_create_dir( value path, value mode ) {
 	}
 	gc_exit_blocking();
 	return alloc_bool(true);
+	#endif
 }
 
 /**
@@ -476,6 +508,9 @@ static value sys_create_dir( value path, value mode ) {
 	<doc>Remove a directory. Exception on error</doc>
 **/
 static value sys_remove_dir( value path ) {
+	#ifdef EPPC
+	return alloc_bool(true);
+	#else
 	val_check(path,string);
 	gc_enter_blocking();
 	if( _rmdir(val_string(path)) != 0 )
@@ -484,6 +519,7 @@ static value sys_remove_dir( value path ) {
 		return alloc_null();
 	}
 	return alloc_bool(true);
+	#endif
 }
 
 /**
@@ -493,7 +529,6 @@ static value sys_remove_dir( value path ) {
 static value sys_time() {
 #ifdef NEKO_WINDOWS
 #define EPOCH_DIFF	(134774*24*60*60.0)
-   /*
 	SYSTEMTIME t;
 	FILETIME ft;
     ULARGE_INTEGER ui;
@@ -503,8 +538,10 @@ static value sys_time() {
     ui.LowPart = ft.dwLowDateTime;
     ui.HighPart = ft.dwHighDateTime;
 	return alloc_float( ((double)ui.QuadPart) / 10000000.0 - EPOCH_DIFF );
-   */
-   return alloc_null();
+#elif defined(EPPC)
+	time_t tod;
+	time(&tod);
+	return alloc_float ((double)tod);
 #else
 	struct timeval tv;
 	if( gettimeofday(&tv,NULL) != 0 )
@@ -527,6 +564,8 @@ static value sys_cpu_time() {
 	if( !GetProcessTimes(GetCurrentProcess(),&unused,&unused,&stime,&utime) )
 		return alloc_null();
 	return alloc_float( ((double)(utime.dwHighDateTime+stime.dwHighDateTime)) * 65.536 * 6.5536 + (((double)utime.dwLowDateTime + (double)stime.dwLowDateTime) / 10000000) );
+#elif defined(EPPC)
+	return alloc_float ((double)(CLOCKS_PER_SEC * clock()));
 #else
 	struct tms t;
 	times(&t);
@@ -587,7 +626,7 @@ static value sys_read_dir( value p) {
 	}
 	FindClose(handle);
 	gc_exit_blocking();
-#else
+#elif !defined(EPPC)
 	DIR *d;
 	struct dirent *e;
 	gc_enter_blocking();
@@ -630,6 +669,8 @@ static value file_full_path( value path ) {
 	if( GetFullPathNameA(val_string(path),MAX_PATH+1,buf,NULL) == 0 )
 		return alloc_null();
 	return alloc_string(buf);
+#elif defined(EPPC)
+	return path;
 #else
 	char buf[PATH_MAX];
 	val_check(path,string);
@@ -659,6 +700,8 @@ static value sys_exe_path() {
 	if( _NSGetExecutablePath(path, &path_len) )
 		return alloc_null();
 	return alloc_string(path);
+#elif defined(EPPC)
+	return alloc_string("");
 #else
 	const char *p = getenv("_");
 	if( p != NULL )
@@ -712,7 +755,7 @@ static value sys_env() {
 	<doc>Read a character from stdin with or without echo</doc>
 **/
 static value sys_getch( value b ) {
-#if defined(HX_WINRT) || defined(EMSCRIPTEN)
+#if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC)
    return alloc_null();
 #elif defined(NEKO_WINDOWS)
 	val_check(b,bool);
@@ -720,7 +763,7 @@ static value sys_getch( value b ) {
 	int result = val_bool(b)?_getche():_getch();
 	gc_exit_blocking();
 	return alloc_int( result );
-#	else
+#else
 	// took some time to figure out how to do that
 	// without relying on ncurses, which clear the
 	// terminal on initscr()
@@ -747,6 +790,8 @@ static value sys_getch( value b ) {
 static value sys_get_pid() {
 #	ifdef NEKO_WINDOWS
 	return alloc_int(GetCurrentProcessId());
+#elif defined(EPPC)
+	return alloc_int(1);
 #	else
 	return alloc_int(getpid());
 #	endif
