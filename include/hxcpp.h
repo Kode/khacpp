@@ -39,6 +39,9 @@ typedef int64_t  __int64;
 #ifdef HX_LINUX
 #include <unistd.h>
 #include <cstdio>
+#if defined(__LP64__) || defined(_LP64)
+#define HXCPP_M64
+#endif
 #endif
 
 
