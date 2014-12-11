@@ -39,13 +39,11 @@ typedef int64_t  __int64;
 #ifdef HX_LINUX
 #include <unistd.h>
 #include <cstdio>
+#endif
+
 #if defined(__LP64__) || defined(_LP64)
 #define HXCPP_M64
 #endif
-#endif
-
-
-
 
 // Some compilers are over-enthusiastic about what they #define ...
 //#ifdef NULL
