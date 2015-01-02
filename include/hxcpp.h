@@ -8,25 +8,40 @@
 
 
 #ifdef _MSC_VER
-#include <typeinfo.h>
-namespace hx { typedef ::type_info type_info; }
+   #include <typeinfo.h>
+   namespace hx { typedef ::type_info type_info; }
+   #undef TRUE
+   #undef FALSE
+   #undef BOOLEAN
+   #undef ERROR
+   #undef NO_ERROR
+   #undef DELETE
+   #undef OPTIONS
+   #undef IN
+   #undef OUT
+   #undef ALTERNATE
+   #undef OPTIONAL
+   #undef DOUBLE_CLICK
+   #undef DIFFERENCE
+   #undef POINT
+   #undef RECT
 #else
-#include <typeinfo>
-#include <stdint.h>
-namespace hx { typedef std::type_info type_info; }
-#ifndef EMSCRIPTEN
-using hx::type_info;
-#ifdef __MINGW32__
-#include <stdint.h>
-#else
-typedef int64_t  __int64;
-#endif
-#endif
+   #include <typeinfo>
+   #include <stdint.h>
+   namespace hx { typedef std::type_info type_info; }
+   #ifndef EMSCRIPTEN
+      using hx::type_info;
+      #ifdef __MINGW32__
+         #include <stdint.h>
+      #else
+         typedef int64_t  __int64;
+      #endif
+   #endif
 #endif
 
 #if defined(EMSCRIPTEN) || defined(IPHONE)
-#include <unistd.h>
-#include <cstdlib>
+  #include <unistd.h>
+  #include <cstdlib>
 #endif
 
 
@@ -37,8 +52,8 @@ typedef int64_t  __int64;
 #include <wchar.h>
 
 #ifdef HX_LINUX
-#include <unistd.h>
-#include <cstdio>
+  #include <unistd.h>
+  #include <cstdio>
 #endif
 
 #if defined(__LP64__) || defined(_LP64)
@@ -71,6 +86,7 @@ typedef int64_t  __int64;
 #endif
 
 typedef char HX_CHAR;
+
 
 #define HX_STRINGI(s,len) ::String( (const HX_CHAR *)(("\xff\xff\xff\xff" s)) + 4 ,len)
 
@@ -118,6 +134,13 @@ typedef char HX_CHAR;
 #endif
 
 
+#ifdef HXCPP_BIG_ENDIAN
+#define HX_HCSTRING(s,h0,h1,h2,h3) ::String( (const HX_CHAR *)((h3 h2 h1 h0 "\x80\x00\x00\x00" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
+#else
+#define HX_HCSTRING(s,h0,h1,h2,h3) ::String( (const HX_CHAR *)((h0 h1 h2 h3 "\x00\x00\x00\x80" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
+#endif
+
+
 #pragma warning(disable:4251)
 #pragma warning(disable:4800)
 
@@ -139,12 +162,34 @@ typedef float Float;
 typedef double Float;
 #endif
 
+// Extended mapping - cpp namespace
+namespace cpp
+{
+   typedef signed char Int8;
+   typedef unsigned char UInt8;
+   typedef char Char;
+   typedef signed short Int16;
+   typedef unsigned short UInt16;
+   typedef signed int Int32;
+   typedef unsigned int UInt32;
+   #ifdef _WIN32
+   typedef __int64 Int64;
+   typedef unsigned __int64 UInt64;
+   // TODO - EMSCRIPTEN?
+   #elif !defined(EMSCRIPTEN)
+   typedef int64_t Int64;
+   typedef uint64_t UInt64;
+   #endif
+   typedef float Float32;
+   typedef double Float64;
+};
+// Extended mapping - old way
+namespace haxe { namespace io { typedef unsigned char Unsigned_char__; } }
+
 // --- Forward decalarations --------------------------------------------
 
-namespace haxe { namespace io { typedef unsigned char Unsigned_char__; } }
 namespace cpp { class CppInt32__; }
 namespace hx { class Object; }
-namespace hx { class FieldMap; }
 namespace hx { class FieldRef; }
 namespace hx { class IndexRef; }
 namespace hx { template<typename O> class ObjectPtr; }

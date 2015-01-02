@@ -1,7 +1,7 @@
 <xml>
  <flag value="-DHXCPP_DEBUG" if="debug"/>
  <flag value="-DSTATIC_LINK" if="static_link"/>
- <flag value="-DHXCPP_M64" if="HXCPP_M64"/>
+ <flag value="-DHXCPP_M64" if="HXCPP_M64||HXCPP_ARM64"/>
  <flag value="-DHXCPP_VISIT_ALLOCS" />
  <flag value="-Dhaxe_210" if="haxe_210"/>
  <flag value="-DHXCPP_MULTI_THREADED" if="HXCPP_MULTI_THREADED"/>
@@ -11,12 +11,15 @@
  <flag value="-DHXCPP_STACK_LINE" if="HXCPP_STACK_LINE"/>
  <flag value="-DHXCPP_STACK_VARS" if="HXCPP_STACK_VARS"/>
  <flag value="-DHXCPP_DEBUGGER" if="HXCPP_DEBUGGER"/>
+ <flag value="-DHXCPP_PARANOID" if="HXCPP_PARANOID"/>
  <flag value="-DHXCPP_GC_MOVING" if="HXCPP_GC_MOVING"/>
+ <flag value="-DHXCPP_GC_CHECK_POINTER" if="HXCPP_GC_CHECK_POINTER"/>
  <flag value="-DHXCPP_DLL_IMPORT" if="dll_import"/>
  <flag value="-I${dll_import_include}" if="dll_import_include"/>
  <flag value="-DHXCPP_DLL_EXPORT" if="dll_export"/>
  <flag value="-DHXCPP_SCRIPTABLE" if="scriptable"/>
+ <flag value="-DHXCPP_STRICT_CASTS" if="HXCPP_STRICT_CASTS"/>
  <flag value='-DHXCPP_DEBUG_HOST="${HXCPP_DEBUG_HOST}"' if="HXCPP_DEBUG_HOST" />
- <flag value='-DHXCPP_API_LEVEL=${HXCPP_API_LEVEL}' if="HXCPP_API_LEVEL" />
- <flag value='-DHXCPP_API_LEVEL=0' unless="HXCPP_API_LEVEL" />
+ <flag value='-DHXCPP_API_LEVEL=${removeQuotes:hxcpp_api_level}' if="hxcpp_api_level" />
+ <flag value='-DHXCPP_API_LEVEL=0' unless="hxcpp_api_level" />
 </xml>

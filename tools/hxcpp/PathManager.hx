@@ -106,7 +106,7 @@ class PathManager
          
          try
          {
-            output = ProcessManager.runProcess(Sys.getEnv ("HAXEPATH"), "haxelib", [ "path", name ], true, false);  
+            output = ProcessManager.runProcess(Sys.getEnv ("HAXEPATH"), "haxelib", [ "path", name ], true, false);
          }
          catch (e:Dynamic) {}
          
@@ -114,10 +114,10 @@ class PathManager
          
          var lines = output.split("\n");
          var result = "";
-         
+         var re = new EReg("^-D " + haxelib + "(=.*)?$", ""); //matches "-D hxcpp=3.1.0" or "-D hxcpp", but not "-D hxcpp-extras"
          for (i in 1...lines.length)
          {
-            if (StringTools.trim(lines[i]) == "-D " + haxelib)
+            if (re.match(StringTools.trim(lines[i])))
             {
                result = StringTools.trim(lines[i - 1]);
             }

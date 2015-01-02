@@ -27,6 +27,8 @@
 #define EXT "so"
 #elif defined(EMSCRIPTEN)
 #define EXT "ll"
+//#elif defined(NEKO_GCC)
+//todo - NEKO_EXT ?
 #else
 #include <mach-o/dyld.h>
 #define EXT "dylib"
@@ -111,7 +113,7 @@ void *LoadNekoFunc(const char *inName)
 
 
    #ifdef HX_WINDOWS
-   void *result = GetProcAddress((HMODULE)sNekoDllHandle,inName);
+   void *result = (void *)GetProcAddress((HMODULE)sNekoDllHandle,inName);
    #else
    void *result = dlsym(sNekoDllHandle,inName);
    #endif
@@ -133,6 +135,18 @@ neko_value *gNekoNewArray = 0;
 neko_value gNekoNull = 0;
 neko_value gNekoTrue = 0;
 neko_value gNekoFalse = 0;
+
+
+namespace
+{
+void CheckInitDynamicNekoLoader()
+{
+   if (!gNekoNull)
+   {
+      printf("Haxe code is missing a call to hxcpp.NekoInit.nekoInit().\n");
+   }
+}
+}
 
 
 /*
@@ -177,6 +191,7 @@ static val_ocall1_func dyn_val_ocall1 = 0;
 
 neko_value api_alloc_string(const char *inString)
 {
+   CheckInitDynamicNekoLoader();
    neko_value neko_string = dyn_alloc_string(inString);
    if (gNeko2HaxeString)
       return dyn_val_call1(*gNeko2HaxeString,neko_string);
@@ -194,7 +209,7 @@ double api_val_float(neko_value  arg1) { return *(double *)( ((char *)arg1) + 4 
 double api_val_number(neko_value  arg1) { return neko_val_is_int(arg1) ? neko_val_int(arg1) : api_val_float(arg1); }
 
 
-neko_value api_alloc_bool(bool arg1) { return arg1 ? gNekoTrue : gNekoFalse; }
+neko_value api_alloc_bool(bool arg1) { CheckInitDynamicNekoLoader(); return arg1 ? gNekoTrue : gNekoFalse; }
 neko_value api_alloc_int(int arg1) { return neko_alloc_int(arg1); }
 neko_value api_alloc_empty_object()
 {
@@ -273,24 +288,6 @@ char * api_buffer_data(neko_buffer inBuffer)
 
 
 
-const wchar_t *api_val_wstring(neko_value  arg1)
-{
-
-	int len = api_val_strlen(arg1);
-	unsigned char *ptr = (unsigned char *)api_val_string(arg1);
-	wchar_t *result = (wchar_t *)dyn_alloc_private((len+1)*sizeof(wchar_t));
-	for(int i=0;i<len;i++)
-		result[i] = ptr[i];
-	result[len] = 0;
-	return result;
-}
-
-wchar_t * api_val_dup_wstring(neko_value inVal)
-{
-	return (wchar_t *)api_val_wstring(inVal);
-}
-
-
 
 char * api_val_dup_string(neko_value inVal)
 {
@@ -311,16 +308,93 @@ neko_value api_alloc_string_len(const char *inStr,int inLen)
 }
 
 
+
 neko_value api_alloc_wstring_len(const wchar_t *inStr,int inLen)
 {
-	char *result = dyn_alloc_private(inLen+1);
-	for(int i=0;i<inLen;i++)
-		result[i] = inStr[i];
-	result[inLen] = 0;
-   return api_alloc_string_len(result,inLen);
+  int len = 0;
+  const wchar_t *chars = inStr;
+  for(int i=0;i<inLen;i++)
+   {
+      int c = chars[i];
+      if( c <= 0x7F ) len++;
+      else if( c <= 0x7FF ) len+=2;
+      else if( c <= 0xFFFF ) len+=3;
+      else len+= 4;
+   }
+
+   char *result = dyn_alloc_private(len);//+1?
+   unsigned char *data =  (unsigned char *) &result[0];
+   for(int i=0;i<inLen;i++)
+   {
+      int c = chars[i];
+      if( c <= 0x7F )
+         *data++ = c;
+      else if( c <= 0x7FF )
+      {
+         *data++ = 0xC0 | (c >> 6);
+         *data++ = 0x80 | (c & 63);
+      }
+      else if( c <= 0xFFFF )
+      {
+         *data++ = 0xE0 | (c >> 12);
+         *data++ = 0x80 | ((c >> 6) & 63);
+         *data++ = 0x80 | (c & 63);
+      }
+      else
+      {
+         *data++ = 0xF0 | (c >> 18);
+         *data++ = 0x80 | ((c >> 12) & 63);
+         *data++ = 0x80 | ((c >> 6) & 63);
+         *data++ = 0x80 | (c & 63);
+      }
+   }
+   //result[len] = 0;
+
+   return api_alloc_string_len(result,len);
 }
 
 
+
+const wchar_t *api_val_wstring(neko_value  arg1)
+{
+	int len = api_val_strlen(arg1);
+
+   unsigned char *b = (unsigned char *)api_val_string(arg1);
+   wchar_t *result = (wchar_t *)dyn_alloc_private((len+1)*sizeof(wchar_t));
+   int l = 0;
+
+   for(int i=0;i<len;)
+   {
+       int c = b[i++];
+       if (c==0) break;
+       else if( c < 0x80 )
+       {
+           result[l++] = c;
+       }
+       else if( c < 0xE0 )
+           result[l++] = ( ((c & 0x3F) << 6) | (b[i++] & 0x7F) );
+       else if( c < 0xF0 )
+       {
+           int c2 = b[i++];
+           result[l++] = ( ((c & 0x1F) << 12) | ((c2 & 0x7F) << 6) | ( b[i++] & 0x7F) );
+       }
+       else
+       {
+           int c2 = b[i++];
+           int c3 = b[i++];
+           result[l++] = ( ((c & 0x0F) << 18) | ((c2 & 0x7F) << 12) | ((c3 << 6) & 0x7F) | (b[i++] & 0x7F) );
+       }
+   }
+   result[l] = '\0';
+
+   return result;
+}
+
+
+wchar_t * api_val_dup_wstring(neko_value inVal)
+{
+	return (wchar_t *)api_val_wstring(inVal);
+}
 
 
 
@@ -371,7 +445,11 @@ int api_alloc_kind()
 	id += 4;
 	return result;
 }
-neko_value api_alloc_null() { return gNekoNull; }
+neko_value api_alloc_null()
+{
+   CheckInitDynamicNekoLoader();
+   return gNekoNull;
+}
 
 
 void api_hx_error()
@@ -667,7 +745,11 @@ void *LoadFunc(const char *inName)
       __android_log_print(ANDROID_LOG_ERROR, "CFFILoader.h", "Could not API %s", inName);
       return 0;
       #else
+      #ifdef NEKO_COMPATIBLE
+      fprintf(stderr,"Could not link plugin to process (hxCFFILoader.h %d) - with neko\n",__LINE__);
+      #else
       fprintf(stderr,"Could not link plugin to process (hxCFFILoader.h %d)\n",__LINE__);
+      #endif
       exit(1);
       #endif
    }

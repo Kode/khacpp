@@ -1,12 +1,14 @@
 <xml>
 
+<!-- make sure hxcpp.n is up to date -->
+<pleaseUpdateHxcppTool version="1" />
+
 <!-- You can override the exes an "exe" section on your own .hxcpp_config -->
 <!-- You can use replace="1" to change the compiler, or omit to add flags -->
 
 <!-- Library files & targets -------------------------------------->
 
-<!-- Additional dependencies for haxe target -->
-<files id="haxe">
+<files id="hxcpp-depends">
   <depend name="${HXCPP}/include/hxcpp.h"/>
   <depend name="${HXCPP}/include/Array.h"/>
   <depend name="${HXCPP}/include/Dynamic.h"/>
@@ -25,52 +27,53 @@
   <depend name="${HXCPP}/include/hx/CFFILoader.h"/>
   <depend name="${HXCPP}/include/hx/StdLibs.h"/>
   <depend name="${HXCPP}/include/hx/OS.h"/>
-  <depend name="${HXCPP}/src/hx/RedBlack.h"/>
   <depend name="${HXCPP}/include/hx/Scriptable.h"/>
   <depend name="${HXCPP}/toolchain/haxe-target.xml"/>
   <depend name="${HXCPP}/toolchain/${toolchain}-toolchain.xml" ifExists="${HXCPP}/toolchain/${toolchain}-toolchain.xml"/>
-  <depend name="${HXCPP}/run.n"/>
+  <depend name="${HXCPP}/hxcpp.n" ifExists="${HXCPP}/hxcpp.n" />
+</files>
+ 
+
+
+<!-- Additional dependencies for haxe target -->
+<files id="haxe">
+  <depend files="hxcpp-depends"/>
   <options name="Options.txt"/>
 
   <precompiledheader name="hxcpp" dir="${HXCPP}/include" if="USE_PRECOMPILED_HEADERS"/>
 </files>
 
 <files id="__main__">
+  <depend files="hxcpp-depends"/>
+  <options name="Options.txt"/>
   <compilerflag value="-DHX_DECLARE_MAIN"/>
-  <depend name="${HXCPP}/include/hx/Macros.h"/>
-  <depend name="${HXCPP}/toolchains/${toolchain}-toolchain.xml" ifExists="${HXCPP}/toolchains/${toolchain}-toolchain.xml"/>
 </files>
 
 <files id="__lib__">
+  <depend files="hxcpp-depends"/>
+  <options name="Options.txt"/>
   <compilerflag value="-DHX_DECLARE_MAIN"/>
-  <depend name="${HXCPP}/include/hx/Macros.h"/>
-  <depend name="${HXCPP}/toolchains/${toolchain}-toolchain.xml" ifExists="${HXCPP}/toolchains/${toolchain}-toolchain.xml"/>
 </files>
 
+
+<files id="cppia" dir="${HXCPP}" >
+  <depend files="hxcpp-depends"/>
+  <options name="Options.txt"/>
+  <depend name="${HXCPP}/src/hx/cppia/Cppia.h" />
+  <depend name="${HXCPP}/src/hx/cppia/CppiaStream.h" />
+
+  <file name = "src/hx/cppia/Cppia.cpp" />
+  <file name = "src/hx/cppia/CppiaCtx.cpp" />
+  <file name = "src/hx/cppia/ArrayBuiltin.cpp" />
+  <file name = "src/hx/cppia/StringBuiltin.cpp" />
+  <file name = "src/hx/cppia/GLobalBuiltin.cpp" />
+  <file name = "src/hx/cppia/HaxeNative.cpp" />
+  <file name = "src/hx/cppia/CppiaVars.cpp" />
+</files>
+
+
 <files id="runtime" dir="${HXCPP}">
-  <depend name="${HXCPP}/include/hxcpp.h"/>
-  <depend name="${HXCPP}/include/Array.h"/>
-  <depend name="${HXCPP}/include/Dynamic.h"/>
-  <depend name="${HXCPP}/include/hxString.h"/>
-  <depend name="${HXCPP}/include/hxMath.h"/>
-  <depend name="${HXCPP}/include/null.h"/>
-  <depend name="${HXCPP}/include/Class.h"/>
-  <depend name="${HXCPP}/include/Enum.h"/>
-  <depend name="${HXCPP}/include/hx/Debug.h"/>
-  <depend name="${HXCPP}/include/hx/Object.h"/>
-  <depend name="${HXCPP}/include/hx/Operators.h"/>
-  <depend name="${HXCPP}/include/hx/Macros.h"/>
-  <depend name="${HXCPP}/include/hx/Thread.h"/>
-  <depend name="${HXCPP}/include/hx/GC.h"/>
-  <depend name="${HXCPP}/include/hx/CFFI.h"/>
-  <depend name="${HXCPP}/include/hx/CFFIAPI.h"/>
-  <depend name="${HXCPP}/include/hx/CFFILoader.h"/>
-  <depend name="${HXCPP}/include/hx/StdLibs.h"/>
-  <depend name="${HXCPP}/include/hx/OS.h"/>
-  <depend name="${HXCPP}/src/hx/RedBlack.h"/>
-  <depend name="${HXCPP}/toolchain/haxe-target.xml"/>
-  <depend name="${HXCPP}/toolchain/${toolchain}-toolchain.xml" ifExists="${HXCPP}/toolchain/${toolchain}-toolchain.xml"/>
-  <depend name="${HXCPP}/run.n"/>
+  <depend files="hxcpp-depends"/>
   <options name="Options.txt"/>
 
 
@@ -92,8 +95,6 @@
   <file name = "src/hx/Object.cpp"/>
   <file name = "src/hx/StdLibs.cpp"/>
   <file name = "src/hx/Debug.cpp"/>
-  <file name = "src/hx/Cppia.cpp" if="scriptable"/>
-  <file name = "src/hx/CppiaBuiltin.cpp" if="scriptable"/>
   <file name = "src/hx/Thread.cpp"/>
   <file name = "src/hx/RunLibs.cpp" if="static_link"/>
 
@@ -125,13 +126,11 @@
   <files id="__main__" unless="static_link" />
   <files id="__lib__" if="static_link"/>
   <files id="runtime" unless="dll_import" />
+  <files id="cppia" if="scriptable" />
   <lib name="-lpthread" if="linux" unless="static_link" />
   <lib name="-ldl" if="linux" unless="static_link" />
 </target>
 
-<!-- Add user config if provided, "exes" section ------------------>
-
-<include name="${HXCPP_CONFIG}" section="exes" if ="HXCPP_CONFIG" noerror="1"/>
 
 </xml>
 

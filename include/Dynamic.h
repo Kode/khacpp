@@ -40,7 +40,12 @@ public:
    inline operator double () const { return mPtr ? mPtr->__ToDouble() : 0.0; }
    inline operator float () const { return mPtr ? (float)mPtr->__ToDouble() : 0.0f; }
    inline operator int () const { return mPtr ? mPtr->__ToInt() : 0; }
+   inline operator unsigned int () const { return mPtr ? mPtr->__ToInt() : 0; }
+   inline operator short () const { return mPtr ? mPtr->__ToInt() : 0; }
+   inline operator unsigned short () const { return mPtr ? mPtr->__ToInt() : 0; }
    inline operator unsigned char () const { return mPtr ? mPtr->__ToInt() : 0; }
+   inline operator char () const { return mPtr ? mPtr->__ToInt() : 0; }
+   inline operator signed char () const { return mPtr ? mPtr->__ToInt() : 0; }
    inline operator bool() const { return mPtr && mPtr->__ToInt(); }
    inline bool operator !() const { return !mPtr || !mPtr->__ToInt(); }
 
@@ -57,7 +62,7 @@ public:
    RETURN_ Cast() const { return RETURN_(*this); }
 
    template<typename CLASS_>
-   bool IsClass() { return CLASS_(mPtr).mPtr; }
+   bool IsClass() { return CLASS_(mPtr,false).mPtr; }
 
 	static void __boot();
 
@@ -178,6 +183,9 @@ public:
 
 namespace hx
 {
+
+inline hx::Object *DynamicPtr(Dynamic inVal) { return inVal.mPtr; }
+
 typedef Dynamic (*MemberFunction0)(hx::Object *inObj);
 typedef Dynamic (*MemberFunction1)(hx::Object *inObj,const Dynamic &inArg0);
 typedef Dynamic (*MemberFunction2)(hx::Object *inObj,const Dynamic &inArg0,const Dynamic &inArg1);
@@ -273,6 +281,8 @@ template<>
 inline bool Dynamic::IsClass<null>() { return !mPtr; }
 template<>
 inline bool Dynamic::IsClass<String>() { return mPtr && mPtr->__GetClass()==hx::GetStringClass(); }
+template<>
+inline bool Dynamic::IsClass<Dynamic>() { return mPtr; }
 
 inline String Dynamic::operator+(const String &s) const { return Cast<String>() + s; }
 

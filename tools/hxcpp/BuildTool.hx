@@ -18,6 +18,7 @@ typedef Hash<T> = haxe.ds.StringMap<T>;
 #end
 typedef FileGroups = Hash<FileGroup>;
 typedef Targets = Hash<Target>;
+typedef Prelinkers = Hash<Prelinker>;
 typedef Linkers = Hash<Linker>;
 
 class BuildTool
@@ -27,15 +28,19 @@ class BuildTool
    var mIncludePath:Array<String>;
    var mCompiler:Compiler;
    var mStripper:Stripper;
+   var mPrelinkers:Prelinkers;
    var mLinkers:Linkers;
+   var mCopyFiles:Array<CopyFile>;
    var mFileGroups:FileGroups;
    var mTargets:Targets;
+   var mFileStack:Array<String>;
    var m64:Bool;
    var m32:Bool;
 
    public static var os="";
    public static var sAllowNumProcs = true;
    public static var sCompileThreadCount = 1;
+   public static var sReportedThreads = -1;
    public static var HXCPP = "";
    public static var is64 = false;
    public static var isWindows = false;
@@ -61,8 +66,11 @@ class BuildTool
       compileCache = "";
       mStripper = null;
       mTargets = new Targets();
+      mPrelinkers = new Prelinkers();
       mLinkers = new Linkers();
       mCurrentIncludeFile = "";
+      mFileStack = [];
+      mCopyFiles = [];
       mIncludePath = inIncludePath;
       instance = this;
 
@@ -78,22 +86,6 @@ class BuildTool
 
 
       include("toolchain/setup.xml");
-
-      if (sAllowNumProcs)
-      {
-         var thread_var = mDefines.exists("HXCPP_COMPILE_THREADS") ?
-            mDefines.get("HXCPP_COMPILE_THREADS") : Sys.getEnv("HXCPP_COMPILE_THREADS");
-
-         if (thread_var == null)
-         {
-            sCompileThreadCount = getNumberOfProcesses();
-         }
-         else
-         {
-            sCompileThreadCount = (Std.parseInt(thread_var)<2) ? 1 : Std.parseInt(thread_var);
-         }
-         Log.v("Using " + sCompileThreadCount + " compile threads");
-      }
 
 
 
@@ -119,10 +111,13 @@ class BuildTool
 
       setupAppleDirectories(mDefines);
 
+      if (isMsvc())
+         mDefines.set("isMsvc","1");
 
       include("toolchain/finish-setup.xml");
 
 
+      pushFile(inMakefile,"makefile");
       var make_contents = "";
       try {
          make_contents = sys.io.File.getContent(inMakefile);
@@ -132,14 +127,24 @@ class BuildTool
          //Sys.exit(1);
       }
 
-      if (!mDefines.exists("HXCPP_COMPILE_THREADS"))
-         mDefines.set("HXCPP_COMPILE_THREADS", Std.string(getNumberOfProcesses()));
 
       var xml_slow = Xml.parse(make_contents);
       var xml = new Fast(xml_slow.firstElement());
-      
-      parseXML(xml,"");
 
+      parseXML(xml,"");
+      popFile();
+
+      include("toolchain/" + mDefines.get("toolchain") + "-toolchain.xml");
+      
+      if (mDefines.exists("HXCPP_CONFIG"))
+         include(mDefines.get("HXCPP_CONFIG"),"exes",true);
+      
+      if (Log.verbose) Log.println ("");
+      
+      // MSVC needs this before the toolchain file, Emscripten wants to set HXCPP_COMPILE_THREADS
+      // If not already calculated in "setup"
+      getThreadCount();
+      
       if (mDefines.exists("HXCPP_COMPILE_CACHE"))
       {
          compileCache = mDefines.get("HXCPP_COMPILE_CACHE");
@@ -173,8 +178,10 @@ class BuildTool
 
       if (useCache)
       {
-         Log.info("", "Using compiler cache \"" + compileCache + "\"");
+         Log.info("", "\x1b[33;1mUsing compiler cache: " + compileCache + "\x1b[0m");
       }
+      
+      if (Log.verbose) Log.println ("");
 
       if (inTargets.remove("clear"))
          for(target in mTargets.keys())
@@ -186,6 +193,47 @@ class BuildTool
 
       for(target in inTargets)
          buildTarget(target);
+      
+      if (threadExitCode != 0)
+         Sys.exit(threadExitCode);
+   }
+
+   public function pushFile(inFilename:String, inWhy:String, inSection:String="")
+   {
+      Log.info("", " - \x1b[1mParsing " + inWhy + ":\x1b[0m " + inFilename + (inSection == "" ? "" : " (section \"" + inSection + "\")"));
+      mFileStack.push(inFilename);
+   }
+
+   public function popFile()
+   {
+      mFileStack.pop();
+   }
+
+   public static function getThreadCount() : Int
+   {
+      if (instance==null)
+         return sCompileThreadCount;
+      var defs = instance.mDefines;
+      if (sAllowNumProcs)
+      {
+         var thread_var = defs.exists("HXCPP_COMPILE_THREADS") ?
+            defs.get("HXCPP_COMPILE_THREADS") : Sys.getEnv("HXCPP_COMPILE_THREADS");
+         
+         if (thread_var == null)
+         {
+            sCompileThreadCount = getNumberOfProcesses();
+         }
+         else
+         {
+            sCompileThreadCount = (Std.parseInt(thread_var)<2) ? 1 : Std.parseInt(thread_var);
+         }
+         if (sCompileThreadCount!=sReportedThreads)
+         {
+            sReportedThreads = sCompileThreadCount;
+            Log.v("\x1b[33;1mUsing compile threads: " + sCompileThreadCount + "\x1b[0m");
+         }
+      }
+      return sCompileThreadCount;
    }
 
    public static function setThreadError(inCode:Int)
@@ -326,6 +374,14 @@ class BuildTool
       switch(target.mTool)
       {
          case "linker":
+            if (mPrelinkers.exists(target.mToolID))
+            {
+               var result = mPrelinkers.get(target.mToolID).prelink(target,objs, mCompiler);
+               if (result != "")
+                  objs.push(result);
+               //throw "Missing linker :\"" + target.mToolID + "\"";
+            }
+            
             if (!mLinkers.exists(target.mToolID))
             {
                Log.error ("Could not find linker for \"" + target.mToolID + "\"");
@@ -336,7 +392,12 @@ class BuildTool
             if (exe!="" && mStripper!=null)
                if (target.mToolID=="exe" || target.mToolID=="dll")
                   mStripper.strip(exe);
+
       }
+
+      for(copyFile in mCopyFiles)
+         if (copyFile.toolId==null || copyFile.toolId==target.mToolID)
+            copyFile.copy(target.mOutputDir);
 
       if (restoreDir!="")
          Sys.setCwd(restoreDir);
@@ -385,6 +446,11 @@ class BuildTool
       var c = inBase;
       if (inBase==null || inXML.has.replace)
       {
+         if (!inXML.has.id)
+            Log.e("Compiler element defined without 'id' attribute included from:" + mFileStack);
+         if (!inXML.has.exe)
+            Log.e("Compiler element defined without 'exe' attribute included from:" + mFileStack);
+
          c = new Compiler(substitute(inXML.att.id),substitute(inXML.att.exe),mDefines.exists("USE_GCC_FILETYPES"));
          if (mDefines.exists("USE_PRECOMPILED_HEADERS"))
             c.setPCH(mDefines.get("USE_PRECOMPILED_HEADERS"));
@@ -413,9 +479,11 @@ class BuildTool
                   var full_name = findIncludeFile(name);
                   if (full_name!="")
                   {
+                     pushFile(full_name,"compiler");
                      var make_contents = sys.io.File.getContent(full_name);
                      var xml_slow = Xml.parse(make_contents);
                      createCompiler(new Fast(xml_slow.firstElement()),c);
+                     popFile();
                   }
                   else if (!el.has.noerror)
                   {
@@ -447,7 +515,18 @@ class BuildTool
                         file.mDepends.push( substitute(f.att.name) );
                   group.mFiles.push( file );
                case "section" : createFileGroup(el,group,inName);
-               case "depend" : group.addDepend( substitute(el.att.name) );
+               case "depend" :
+                  if (el.has.name)
+                     group.addDepend( substitute(el.att.name) );
+                  else if (el.has.files)
+                  {
+                     var name = substitute(el.att.files);
+                     if (!mFileGroups.exists(name))
+                         Log.error( "Could not find filegroup for depend node:" + name ); 
+                     group.addDependFiles(mFileGroups.get(name));
+                  }
+                  else
+                     Log.error("depend node must have 'name' or 'files' attribute");
                case "hlsl" :
                   group.addHLSL( substitute(el.att.name), substitute(el.att.profile),
                   substitute(el.att.variable), substitute(el.att.target)  );
@@ -458,6 +537,22 @@ class BuildTool
                   group.addCompilerFlag( substitute(el.att.value) );
                case "precompiledheader" : 
                   group.setPrecompiled( substitute(el.att.name), substitute(el.att.dir) );
+               case "include" : 
+                  var subbed_name = substitute(el.att.name);
+                  var full_name = findIncludeFile(subbed_name);
+                  if (full_name!="")
+                  {
+                     pushFile(full_name, "FileGroup");
+                     var make_contents = sys.io.File.getContent(full_name);
+                     var xml_slow = Xml.parse(make_contents);
+                     createFileGroup(new Fast(xml_slow.firstElement()), group, inName);
+                     popFile();
+                  } 
+                  else
+                  {
+                     Log.error("Could not find include file \"" + subbed_name + "\"");
+
+                  }
             }
       }
 
@@ -466,7 +561,7 @@ class BuildTool
 
    public function createLinker(inXML:Fast,inBase:Linker):Linker
    {
-      var l = (inBase!=null && !inXML.has.replace) ? inBase : new Linker(inXML.att.exe);
+      var l = (inBase!=null && !inXML.has.replace) ? inBase : new Linker(substitute(inXML.att.exe));
       for(el in inXML.elements)
       {
          if (valid(el,""))
@@ -490,10 +585,31 @@ class BuildTool
       return l;
    }
 
+   public function createPrelinker(inXML:Fast,inBase:Prelinker):Prelinker
+   {
+      var l = (inBase!=null && !inXML.has.replace) ? inBase : new Prelinker(substitute(inXML.att.exe));
+      for(el in inXML.elements)
+      {
+         if (valid(el,""))
+            switch(el.name)
+            {
+               case "flag" : l.mFlags.push(substitute(el.att.value));
+               //case "ext" : l.mExt = (substitute(el.att.value));
+               case "outflag" : l.mOutFlag = (substitute(el.att.value));
+               case "expandAr" : l.mExpandArchives = substitute(el.att.value) != "";
+               case "fromfile" : l.mFromFile = (substitute(el.att.value));
+               case "exe" : l.mExe = (substitute(el.att.name));
+               case "section" : createPrelinker(el,l);
+            }
+      }
+
+      return l;
+   }
+
    public function createStripper(inXML:Fast,inBase:Stripper):Stripper
    {
       var s = (inBase!=null && !inXML.has.replace) ? inBase :
-                 new Stripper(inXML.att.exe);
+                 new Stripper(substitute(inXML.att.exe));
       for(el in inXML.elements)
       {
          if (valid(el,""))
@@ -513,7 +629,7 @@ class BuildTool
       if (target==null)
       {
          var output = inXML.has.output ? substitute(inXML.att.output) : "";
-         var tool = inXML.has.tool ? inXML.att.tool : "";
+         var tool = inXML.has.tool ? substitute(inXML.att.tool) : "";
          var toolid = inXML.has.toolid ? substitute(inXML.att.toolid) : "";
          target = new Target(output,tool,toolid);
       }
@@ -624,6 +740,9 @@ class BuildTool
    // Setting HXCPP_COMPILE_THREADS to 2x number or cores can help with hyperthreading
    public static function getNumberOfProcesses():Int
    {
+      var cache = Log.verbose;
+      Log.verbose = false;
+      
       var result = null;
       if (isWindows)
       {
@@ -635,10 +754,10 @@ class BuildTool
       }
       else if (isLinux)
       {
-         result = ProcessManager.runProcessLine("", "nproc", [], true, false);
+         result = ProcessManager.runProcessLine("", "nproc", [], true, false, true, true);
          if (result == null)
          {
-            var cpuinfo = ProcessManager.runProcess("", "cat", [ "/proc/cpuinfo" ], true, false);
+            var cpuinfo = ProcessManager.runProcess("", "cat", [ "/proc/cpuinfo" ], true, false, true, true);
             if (cpuinfo != null)
             {      
                var split = cpuinfo.split("processor");
@@ -649,12 +768,14 @@ class BuildTool
       else if (isMac)
       {
          var cores = ~/Total Number of Cores: (\d+)/;
-         var output = ProcessManager.runProcess("", "/usr/sbin/system_profiler", [ "-detailLevel", "full", "SPHardwareDataType" ], true, false);
+         var output = ProcessManager.runProcess("", "/usr/sbin/system_profiler", [ "-detailLevel", "full", "SPHardwareDataType" ], true, false, true, true);
          if (cores.match(output))
          {
             result = cores.matched(1); 
          }
       }
+      
+      Log.verbose = cache;
       
       if (result == null || Std.parseInt(result) < 1)
       {   
@@ -683,6 +804,12 @@ class BuildTool
    {
       return instance.mDefines.get("toolchain")=="msvc";
    }
+
+   public static function isMingw()
+   {
+      return instance.mDefines.get("toolchain")=="mingw";
+   }
+
 
    // Process args and environment.
    static public function main()
@@ -719,6 +846,8 @@ class BuildTool
          }
       }
 
+      if (defines.exists("HXCPP_NO_COLOUR") || defines.exists("HXCPP_NO_COLOR"))
+         Log.colorSupported = false;
       Log.verbose = defines.exists("HXCPP_VERBOSE");
       exitOnThreadError = defines.exists("HXCPP_EXIT_ON_ERROR");
 
@@ -754,6 +883,8 @@ class BuildTool
          }
          else if (arg=="-v" || arg=="-verbose")
             Log.verbose = true;
+         else if (arg=="-nocolor")
+            Log.colorSupported = false;
          else if (arg.substr(0,2)=="-I")
             include_path.push(PathManager.standardize(arg.substr(2)));
          else if (makefile.length==0)
@@ -824,9 +955,12 @@ class BuildTool
       }
       else
       {
-         Log.info("", "\x1b[33;1mUsing makefile: " + makefile + "\x1b[0m");
-         Log.info("", "\x1b[33;1mReading HXCPP config: " + defines.get("HXCPP_CONFIG") + "\x1b[0m");
-         Log.info("", "\x1b[33;1mUsing target toolchain: " + defines.get("toolchain") + "\x1b[0m");
+         Log.v("\x1b[33;1mUsing makefile: " + makefile + "\x1b[0m");
+         Log.v("\x1b[33;1mReading HXCPP config: " + defines.get("HXCPP_CONFIG") + "\x1b[0m");
+         if (defines.exists("toolchain"))
+            Log.v("\x1b[33;1mUsing target toolchain: " + defines.get("toolchain") + "\x1b[0m");
+         else
+            Log.v("\x1b[33;1mNo specified toolchain\x1b[0m");
          if (Log.verbose) Log.println("");
  
 
@@ -898,27 +1032,13 @@ class BuildTool
       }
       else if (defines.exists("tizen"))
       {
-         if (defines.exists ("simulator"))
-         {
-            defines.set("toolchain","tizen-x86");
-         }
-         else
-         {
-            defines.set("toolchain","tizen");
-         }
+         defines.set("toolchain","tizen");
          defines.set("tizen","tizen");
          defines.set("BINDIR","Tizen");
       }
       else if (defines.exists("blackberry"))
       {
-         if (defines.exists("simulator"))
-         {
-            defines.set("toolchain", "blackberry-x86");
-         }
-         else
-         {
-            defines.set("toolchain", "blackberry");
-         }
+         defines.set("toolchain", "blackberry");
          defines.set("blackberry","blackberry");
          defines.set("BINDIR","BlackBerry");
       }
@@ -935,12 +1055,11 @@ class BuildTool
          defines.set("gph","gph");
          defines.set("BINDIR","GPH");
       }
-      else if (defines.exists("mingw") || defines.exists("HXCPP_MINGW") )
+      else if (defines.exists ("gcw0"))
       {
-         set64(defines,m64);
-         defines.set("toolchain","mingw");
-         defines.set("mingw","mingw");
-         defines.set("BINDIR",m64 ? "Windows64":"Windows");
+         defines.set ("toolchain", "gcw0");
+         defines.set ("gcw0", "gcw0");
+         defines.set ("BINDIR", "GCW0");
       }
       else if (defines.exists("cygwin") || defines.exists("HXCPP_CYGWIN"))
       {
@@ -966,16 +1085,40 @@ class BuildTool
          else
          {
             set64(defines,m64);
-            defines.set("toolchain","msvc");
             defines.set("windows","windows");
-            //msvc = true;
-            if ( defines.exists("winrt") )
+            defines.set("BINDIR",m64 ? "Windows64":"Windows");
+
+            // Choose between MSVC and MINGW
+            var useMsvc = false;
+
+            if (defines.exists("mingw") || defines.exists("HXCPP_MINGW") || defines.exists("minimingw"))
+               useMsvc = false;
+            else if ( defines.exists("winrt") || defines.exists("HXCPP_MSVC_VER"))
+               useMsvc = true;
+            else
             {
-               defines.set("BINDIR",m64 ? "WinRTx64":"WinRTx86");
+                for(i in 8...24)
+                {
+                   if (Sys.getEnv("VS" + i + "0COMNTOOLS")!=null)
+                   {
+                      useMsvc = true;
+                      break;
+                   }
+                }
+
+                Log.v("Using default windows compiler : " + (useMsvc ? "MSVC" : "MinGW") );
+            }
+
+            if (useMsvc)
+            {
+               defines.set("toolchain","msvc");
+               if ( defines.exists("winrt") )
+                  defines.set("BINDIR",m64 ? "WinRTx64":"WinRTx86");
             }
             else
             {
-               defines.set("BINDIR",m64 ? "Windows64":"Windows");
+               defines.set("toolchain","mingw");
+               defines.set("mingw","mingw");
             }
          }
       }
@@ -1020,6 +1163,9 @@ class BuildTool
 
    function setupAppleDirectories(defines:Hash<String>)
    {
+      if (defines.exists("HXCPP_CLEAN_ONLY"))
+         return;
+
       if (defines.exists("apple") && !defines.exists("DEVELOPER_DIR"))
       {
          var developer_dir = ProcessManager.runProcessLine("", "xcode-select", ["--print-path"], true, false);
@@ -1089,15 +1235,11 @@ class BuildTool
             switch(el.name)
             {
                case "set" : 
-                  var name = el.att.name;
+                  var name = substitute(el.att.name);
                   var value = substitute(el.att.value);
                   mDefines.set(name,value);
-                  if (name == "BLACKBERRY_NDK_ROOT")
-                  {
-                     Setup.setupBlackBerryNativeSDK(mDefines);
-                  }
                case "unset" : 
-                  var name = el.att.name;
+                  var name = substitute(el.att.name);
                   mDefines.remove(name);
                case "setup" : 
                   var name = substitute(el.att.name);
@@ -1105,16 +1247,16 @@ class BuildTool
                case "echo" : 
                   Log.info(substitute(el.att.value));
                case "setenv" : 
-                  var name = el.att.name;
+                  var name = substitute(el.att.name);
                   var value = substitute(el.att.value);
                   mDefines.set(name,value);
                   Sys.putEnv(name,value);
                case "error" : 
                   var error = substitute(el.att.value);
-                  throw(error);
+                  Log.error(error);
                case "path" : 
                   var path = substitute(el.att.name);
-                  Log.info("", "Adding path " + path);
+                  Log.info("", " - \x1b[1mAdding path:\x1b[0m " + path);
                   var sep = mDefines.exists("windows_host") ? ";" : ":";
                   var add = path + sep + Sys.getEnv("PATH");
                   Sys.putEnv("PATH", add);
@@ -1123,20 +1265,27 @@ class BuildTool
                   mCompiler = createCompiler(el,mCompiler);
                case "stripper" : 
                   mStripper = createStripper(el,mStripper);
-               case "linker" : 
-                  if (mLinkers.exists(el.att.id))
-                     createLinker(el,mLinkers.get(el.att.id));
+               case "prelinker" : 
+                  var name = substitute(el.att.id);
+                  if (mPrelinkers.exists(name))
+                     createPrelinker(el,mPrelinkers.get(name));
                   else
-                     mLinkers.set( el.att.id, createLinker(el,null) );
+                     mPrelinkers.set(name, createPrelinker(el,null) );
+               case "linker" : 
+                  var name = substitute(el.att.id);
+                  if (mLinkers.exists(name))
+                     createLinker(el,mLinkers.get(name));
+                  else
+                     mLinkers.set(name, createLinker(el,null) );
                case "files" : 
-                  var name = el.att.id;
+                  var name = substitute(el.att.id);
                   if (mFileGroups.exists(name))
                      createFileGroup(el, mFileGroups.get(name), name);
                   else
                      mFileGroups.set(name,createFileGroup(el,null,name));
                case "include" : 
                   var name = substitute(el.att.name);
-                  var section = el.has.section ? el.att.section : "";
+                  var section = el.has.section ? substitute(el.att.section) : "";
                   include(name, section, el.has.noerror);
                case "target" : 
                   var name = substitute(el.att.id);
@@ -1149,11 +1298,27 @@ class BuildTool
                      createTarget(el,mTargets.get(name));
                   else
                      mTargets.set( name, createTarget(el,null) );
+               case "copyFile" : 
+                  mCopyFiles.push(
+                      new CopyFile(substitute(el.att.name),
+                                   substitute(el.att.from),
+                                   el.has.allowMissing ?  subBool(el.att.allowMissing) : false,
+                                   el.has.toolId ?  substitute(el.att.toolId) : null ) );
                case "section" : 
                   parseXML(el,"");
+
+               case "pleaseUpdateHxcppTool" : 
+                  checkToolVersion( substitute(el.att.version) );
             }
          }
       }
+   }
+
+   public function checkToolVersion(inVersion:String)
+   {
+      var ver = Std.parseInt(inVersion);
+      if (ver<1)
+         Log.error("Your version of hxcpp.n is out-of-date.  Please update.");
    }
 
 
@@ -1162,6 +1327,8 @@ class BuildTool
       var full_name = findIncludeFile(inName);
       if (full_name!="")
       {
+         pushFile(full_name, "include", inSection);
+         // TODO - use mFileStack?
          var oldInclude = mCurrentIncludeFile;
          mCurrentIncludeFile = full_name;
 
@@ -1171,6 +1338,7 @@ class BuildTool
          parseXML(new Fast(xml_slow.firstElement()),inSection);
 
          mCurrentIncludeFile = oldInclude;
+         popFile();
       }
       else if (!inAllowMissing)
       {
@@ -1205,6 +1373,13 @@ class BuildTool
             sub = PathManager.getHaxelib(sub.substr(8));
             sub = PathManager.standardize(sub);
          }
+         else if (sub.substr(0,13)=="removeQuotes:")
+         {
+            sub = mDefines.get(sub.substr(13));
+            var len = sub.length;
+            if (len>1 && sub.substr(0,1)=="\"" && sub.substr(len-1)=="\"")
+               sub = sub.substr(1,len-2);
+         }
          else
             sub = mDefines.get(sub);
 
@@ -1213,6 +1388,12 @@ class BuildTool
       }
 
       return str;
+   }
+
+   public function subBool(str:String):Bool
+   {
+      var result = substitute(str);
+      return result=="t" || result=="true" || result=="1";
    }
 
    public function valid(inEl:Fast,inSection:String):Bool

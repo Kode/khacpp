@@ -21,9 +21,15 @@
 <set name="STD_MODULE_LINK" value="static_link" if="static_link"/>
 
 
-<set name="LIBEXTRA" value=".iphonesim" if="iphonesim"/>
-<set name="LIBEXTRA" value=".iphoneos-v7" if="iphoneos"/>
-<set name="LIBEXTRA" value=".iphoneos" if="iphoneos" unless="HXCPP_ARMV7" />
+<set name="LIBEXTRA" value=".iphonesim-64" if="iphonesim"/>
+<set name="LIBEXTRA" value=".iphonesim" if="iphonesim" unless="HXCPP_M64"/>
+<section if="iphoneos">
+	<set name="LIBEXTRA" value=".iphoneos-v7" if="HXCPP_ARMV7"/>
+	<set name="LIBEXTRA" value=".iphoneos-v7s" if="HXCPP_ARMV7S"/>
+	<set name="LIBEXTRA" value=".iphoneos-64" if="HXCPP_ARM64"/>
+	<set name="HXCPP_ARMV6" value="1" unless="LIBEXTRA"/>
+	<set name="LIBEXTRA" value=".iphoneos" if = "HXCPP_ARMV6"/>
+</section>
 <set name="LIBEXTRA" value="-x86" if="blackberry"/>
 <set name="LIBEXTRA" value="" if="blackberry" unless="simulator" />
 <set name="LIBEXTRA" value="-x86" if="HXCPP_X86" />
@@ -34,7 +40,7 @@
 <set name="LIBPREFIX" value="lib" if="iphonesim"/>
 <set name="LIBPREFIX" value="lib" if="static_link"/>
 <set name="LIBEXT" value=".a" />
-<set name="LIBEXT" value=".lib" if="windows"/>
+<set name="LIBEXT" value=".lib" if="windows" unless="mingw" />
 
 
 <set name="haxelink" value="exe" unless="static_link"/>
@@ -53,12 +59,16 @@
 
 <set name="IPHONE_VER" value="4.2" unless="IPHONE_VER" />
 
-<!-- You can override the exes an "exe" section on your own .hxcpp_config -->
-<!-- You can use replace="1" to change the compiler, or omit to add flags -->
 
-<include name="toolchain/${toolchain}-toolchain.xml"/>
+<section if="isMsvc">
+   <set name="HXCPP_WINXP_COMPAT" value="1" unless="HXCPP_NO_WINXP_COMPAT" />
+   <unset name="HXCPP_WINXP_COMPAT" if="HXCPP_M64" />
+   <setup name="msvc"/>
 
-
+   <section if="static_link" >
+      <set name="MSVC_LIB_VERSION" value="-${MSVC_VER}" />
+   </section>
+</section>
 </xml>
 
 

@@ -1,6 +1,8 @@
 #ifndef INCLUDED_HX_SCRIPTABLE
 #define INCLUDED_HX_SCRIPTABLE
 
+#include <setjmp.h> 
+
 #include <typeinfo>
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Winvalid-offsetof"
@@ -16,6 +18,15 @@ struct ScriptNamedFunction : public ScriptFunction
    const char *name;
 };
 
+enum
+{
+   bcrBreak    = 0x01,
+   bcrContinue = 0x02,
+   bcrReturn   = 0x04,
+
+   bcrLoop     = (bcrBreak | bcrContinue),
+};
+
 struct CppiaCtx
 {
    CppiaCtx();
@@ -24,6 +35,11 @@ struct CppiaCtx
    unsigned char *stack;
    unsigned char *pointer;
    unsigned char *frame;
+
+   jmp_buf *returnJumpBuf;
+   jmp_buf *loopJumpBuf;
+
+   unsigned int breakContReturn;
 
    template<typename T>
    void push(T inValue)
@@ -42,6 +58,7 @@ struct CppiaCtx
    String runString(void *vtable);
    void runVoid(void *vtable);
    Dynamic runObject(void *vtable);
+   hx::Object *runObjectPtr(void *vtable);
 
    void push(bool &inValue)
    {
@@ -74,7 +91,6 @@ struct CppiaCtx
       pointer += sizeof(hx::Object *);
    }
 
-
    inline void returnBool(bool b)
    {
       *(int *)frame = b;
@@ -96,7 +112,24 @@ struct CppiaCtx
       *(hx::Object **)frame = d.mPtr;
    }
 
-   hx::Object *getThis() { return *(hx::Object **)frame; }
+   void longJump()
+   {
+      longjmp(*returnJumpBuf,1);
+   }
+
+   inline hx::Object *getThis(bool inCheckPtr=true)
+   {
+      #ifdef HXCPP_CHECK_POINTER
+         if (inCheckPtr)
+         {
+            if (!*(hx::Object **)frame) NullReference("This", false);
+            #ifdef HXCPP_GC_CHECK_POINTER
+            GCCheckPointer(*(hx::Object **)frame);
+            #endif
+         }
+      #endif
+      return *(hx::Object **)frame;
+   }
 
    inline bool getBool(int inPos=0)
    {
@@ -118,39 +151,24 @@ struct CppiaCtx
    {
       return *(hx::Object **)(frame+inPos);
    }
-
-
-   /*
-   bool popBool()
+   inline hx::Object *getObjectPtr(int inPos=0)
    {
-      pointer-=sizeof(int);
-      return *(int *)pointer;
+      return *(hx::Object **)(frame+inPos);
    }
 
-   int popInt()
-   {
-      pointer-=sizeof(int);
-      return *(int *)pointer;
-   }
 
-   Float popFloat()
-   {
-      pointer-=sizeof(Float);
-      return *(Float *)pointer;
-   }
-   String popString()
-   {
-      pointer-=sizeof(String);
-      return *(String *)pointer;
-   }
-   Dynamic popObject()
-   {
-      pointer-=sizeof(hx::Object *);
-      return Dynamic(*(hx::Object **)pointer);
-   }
-   */
+   void breakFlag() { breakContReturn |= bcrBreak; }
+   void continueFlag() { breakContReturn |= bcrContinue; }
+   void returnFlag() { breakContReturn |= bcrReturn; }
 
-
+   void breakJump()
+   {
+      longjmp(*loopJumpBuf,2);
+   }
+   void continueJump()
+   {
+      longjmp(*loopJumpBuf,3);
+   }
 };
 
 enum SignatureChar
@@ -253,6 +271,7 @@ void __scriptable_load_abc(Array<unsigned char> inBytes);
    Dynamic mDelegate; \
    hx::Object *__GetRealObject() { return mDelegate.mPtr; } \
    void __Visit(HX_VISIT_PARAMS) { HX_VISIT_OBJECT(mDelegate.mPtr); } \
+   void ** __GetScriptVTable() { return __scriptVTable; } \
    public: \
    static hx::Object *__script_create(void **inVTable,hx::Object *inDelegate) { \
     __ME *result = new __ME(); \

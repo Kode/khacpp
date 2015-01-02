@@ -48,7 +48,7 @@ int __sys_prims() { return 0; }
 #   define _rmdir rmdir
 #ifndef ANDROID
 #	include <locale.h>
-#if !defined(BLACKBERRY) && !defined(EPPC)
+#if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0)
 #	include <xlocale.h>
 #endif
 #endif
@@ -169,7 +169,7 @@ static value sys_sleep( value f ) {
 	<doc>Set the locale for LC_TIME, returns true on success</doc>
 **/
 static value set_time_locale( value l ) {
-#ifdef ANDROID
+#if defined(ANDROID) || defined(GCW0)
         return alloc_null();
 #else
 
@@ -625,16 +625,16 @@ static value sys_read_dir( value p) {
 			break;
 	}
 	FindClose(handle);
-	gc_exit_blocking();
 #elif !defined(EPPC)
 	DIR *d;
 	struct dirent *e;
+   const char *name = val_string(p);
 	gc_enter_blocking();
-	d = opendir(val_string(p));
+	d = opendir(name);
 	if( d == NULL )
 	{
 		gc_exit_blocking();
-		return alloc_null();
+      val_throw(alloc_string("Invalid directory"));
 	}
 	while( true ) {
 		e = readdir(d);

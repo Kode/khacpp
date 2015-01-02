@@ -7,7 +7,7 @@ namespace hx
 // --- hxClassOf --------------------------------------------------------------
 //
 // Gets the class definition that relates to a specific type.
-// Most classes have their own class data, by the standard types (non-classes)
+// Most classes have their own class data, but the standard types (non-classes)
 //  use the template traits to get the class
 
 
@@ -72,6 +72,12 @@ struct StorageInfo
    int          offset;
    String       name;
 };
+struct StaticInfo
+{
+   FieldStorage type;
+   void         *address;
+   String       name;
+};
 
 }
 #endif
@@ -89,6 +95,7 @@ public:
              #endif
              #ifdef HXCPP_SCRIPTABLE
              ,const hx::StorageInfo *inStorageInfo
+             ,const hx::StaticInfo *inStaticInfo
              #endif
              );
 
@@ -125,6 +132,7 @@ public:
 
 	inline bool CanCast(hx::Object *inPtr) { return mCanCast ? mCanCast(inPtr) : VCanCast(inPtr); }
 
+   void registerScriptable(bool inOverwrite);
   
 	hx::CanCastFunc     mCanCast;
 
@@ -135,6 +143,7 @@ public:
    Class              GetSuper();
    #ifdef HXCPP_SCRIPTABLE
    const hx::StorageInfo*  GetMemberStorage(String inName);
+   const hx::StaticInfo*  GetStaticStorage(String inName);
    #endif
 
    static Class       Resolve(String inName);
@@ -156,6 +165,7 @@ public:
 
    #ifdef HXCPP_SCRIPTABLE
    const hx::StorageInfo*    mMemberStorageInfo;
+   const hx::StaticInfo*    mStaticStorageInfo;
    #endif
 };
 
@@ -165,6 +175,9 @@ void __hxcpp_boot_std_classes();
 
 
 // --- All classes should be registered with this function via the "__boot" method
+#ifdef RegisterClass
+#undef RegisterClass
+#endif
 
 namespace hx
 {
@@ -179,6 +192,7 @@ Class RegisterClass(const String &inClassName, CanCastFunc inCanCast,
                     #endif
                     #ifdef HXCPP_SCRIPTABLE
                     ,const hx::StorageInfo *inStorageInfo=0
+                    ,const hx::StaticInfo *inStaticInfo=0
                     #endif
                     );
 

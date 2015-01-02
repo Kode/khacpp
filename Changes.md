@@ -1,4 +1,34 @@
 
+* Reverted change that automatically threw 'BadCast'.  Now required HXCPP_STRICT_CASTS
+------------------------------------------------------------
+* Cached dynamic versions of small ints and 1-char-strings for speed
+* Added support for weak hashes - needs latest haxe version
+* Use internal hash structure for maps - now faster.  New version of haxe makes it faster still.
+* Changed the way development versions are bootstrapped to avoid committing binaries
+* Improved mingw support
+* Dont append -debug to dll name
+* Reorder xml includes to allow early parts to correctly influence older parts
+* Fix busy wait in semaphore lock
+* Fixed GC issue when constructing exrernal primitive objects
+* Added armv7s and arm64 targets for ios
+* Some fixes for neko cffi - wstring and warning for neko_init
+* Fix file read (and copy) from thread
+------------------------------------------------------------
+* Compile fix for blackberry
+* Pass on haxe_api_level
+* Add -nocolor flag
+------------------------------------------------------------
+* Add support for prelinker
+* Cygwin toolchain fix
+* Add HXCPP_NO_COLOUR  and HXCPP_NO_M32
+* Fix windows trace output
+* Add initial support for GCWO compile
+* Fix bug with losing GC references in Array.sort
+* Fix bug with zombie marking
+* Add support for optimised sort routines
+* Add support for haxe.ds.Vector optimisation
+* Add support for cpp.Pointer, cpp.NativeArray, cpp.NativeString
+------------------------------------------------------------
 * Add BlackBerry and Tizen binaries
 * Fix issues when using names like ANDROID or IPHONE in an enum
 * Added more info in verbose mode (setenv HXCPP_VERBOSE)

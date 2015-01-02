@@ -22,6 +22,9 @@ typedef int64_t __int64;
 #ifdef TIZEN
 extern "C" EXPORT_EXTRA void AppLogInternal(const char* pFunction, int lineNumber, const char* pFormat, ...);
 #endif
+#ifdef GCW0
+#include <unistd.h>
+#endif
 
 #include <string>
 #include <vector>
@@ -139,15 +142,27 @@ int __hxcpp_irand(int inMax)
 void __hxcpp_stdlibs_boot()
 {
    #if defined(HX_WINDOWS) && !defined(HX_WINRT)
-   AttachConsole(ATTACH_PARENT_PROCESS);
-   if (GetConsoleWindow() != NULL)
+   HMODULE kernel32 = LoadLibraryA("kernel32");
+   if (kernel32)
    {
-      if (_fileno(stdout) == -1 || _get_osfhandle(_fileno(stdout)) == -1)
-         freopen("CONOUT$", "w", stdout);
-      if (_fileno(stderr) == -1 || _get_osfhandle(_fileno(stderr)) == -1)
-         freopen("CONOUT$", "w", stderr);
-      if (_fileno(stdin) == -1 || _get_osfhandle(_fileno(stdin)) == -1)
-         freopen("CONIN$", "r", stdin);
+      typedef BOOL (WINAPI *AttachConsoleFunc)(DWORD);
+      typedef HWND (WINAPI *GetConsoleWindowFunc)(void);
+      AttachConsoleFunc attach = (AttachConsoleFunc)GetProcAddress(kernel32,"AttachConsole");
+      GetConsoleWindowFunc getConsole = (GetConsoleWindowFunc)GetProcAddress(kernel32,"GetConsoleWindow");
+      if (attach && getConsole)
+      {
+         attach( /*ATTACH_PARENT_PROCESS*/ (DWORD)-1 );
+
+         if (getConsole())
+         {
+            if (_fileno(stdout) < 0 || _get_osfhandle(fileno(stdout)) < 0)
+               freopen("CONOUT$", "w", stdout);
+            if (_fileno(stderr) < 0 || _get_osfhandle(fileno(stderr)) < 0)
+               freopen("CONOUT$", "w", stderr);
+            if (_fileno(stdin) < 0 || _get_osfhandle(fileno(stdin)) < 0)
+               freopen("CONIN$", "r", stdin);
+         }
+      }
    }
    #endif
    
@@ -326,10 +341,13 @@ void __hxcpp_println(Dynamic &inV)
 
 bool __instanceof(const Dynamic &inValue, const Dynamic &inType)
 {
-   if (inType==hx::Object::__SGetClass()) return true;
-   if (inValue==null()) return false;
+   if (inType==hx::Object::__SGetClass())
+      return true;
+   if (inValue==null())
+      return false;
    Class c = inType;
-   if (c==null()) return false;
+   if (c==null())
+      return false;
    return c->CanCast(inValue.GetPtr());
 }
 
@@ -481,7 +499,7 @@ int  __hxcpp_field_to_id( const char *inFieldName )
    String str(inFieldName,strlen(inFieldName));
 
    // Make into "const" string that will not get collected...
-   str = String((HX_CHAR *)hx::InternalCreateConstBuffer(str.__s,(str.length+1) * sizeof(HX_CHAR)), str.length );
+   str = String((HX_CHAR *)hx::InternalCreateConstBuffer(str.__s,(str.length+1) * sizeof(HX_CHAR),true), str.length );
 
    if (sgFieldToStringAlloc<=sgFieldToStringSize+1)
    {

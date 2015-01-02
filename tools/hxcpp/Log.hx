@@ -13,7 +13,7 @@ class Log
    public static var mute:Bool;
    public static var verbose:Bool = false;
    
-   private static var colorSupported:Null<Bool>;
+   public  static var colorSupported:Null<Bool> = null;
    private static var sentWarnings = new Map<String,Bool>();
 
    public static var printMutex:Mutex;
@@ -25,13 +25,17 @@ class Log
 
    public static function initMultiThreaded()
    {
-     if (printMutex!=null)
+     if (printMutex==null)
         printMutex = new Mutex();
    }
    
+   public static function e(message:String):Void
+   {
+      error(message);
+   }
    public static function error(message:String, verboseMessage:String = "", e:Dynamic = null, terminate:Bool = true):Void
    {
-      if (message != "" && !mute)
+      if (!mute)
       {
          var output;
          if (verbose && verboseMessage != "")
@@ -40,7 +44,10 @@ class Log
          }
          else
          {
-            output = "\x1b[31;1mError:\x1b[0m \x1b[1m" + message + "\x1b[0m\n";  
+            if (message=="")
+               output = "\x1b[31;1mError\x1b[0m\n";
+            else
+               output = "\x1b[31;1mError:\x1b[0m \x1b[1m" + message + "\x1b[0m\n";
          }
          if (printMutex!=null)
             printMutex.acquire();
@@ -129,7 +136,7 @@ class Log
          }
          else
          {
-            colorSupported = (Sys.getEnv("ANSICON") != null);
+            colorSupported = (Sys.getEnv("TERM") == "xterm" || Sys.getEnv("ANSICON") != null);
          }
       }
       

@@ -11,6 +11,13 @@
 #endif
 
 
+#if !defined(HX_WINRT) && !defined(EPPC)
+#include <sys/types.h>
+#include <sys/stat.h>
+#endif
+
+
+
 #ifdef HXCPP_LOAD_DEBUG
 bool gLoadDebug = true;
 #else
@@ -38,7 +45,7 @@ Module hxLoadLibrary(String inLib)
 #endif
 
 void *hxFindSymbol(Module inModule, const char *inSymbol) { return (void *)GetProcAddress(inModule,inSymbol); }
-#elif (defined (IPHONE) || defined(EMSCRIPTEN)) && !defined(HXCPP_DLL_IMPORT) && !defined(HXCPP_DLL_EXPORT)
+#elif (defined (IPHONE) || defined(EMSCRIPTEN) || defined(STATIC_LINK)) && !defined(HXCPP_DLL_IMPORT) && !defined(HXCPP_DLL_EXPORT)
 
 typedef void *Module;
 Module hxLoadLibrary(const String &) { return 0; }
@@ -51,7 +58,7 @@ typedef void *Module;
 Module hxLoadLibrary(String inLib)
 {
    int flags = RTLD_GLOBAL;
-   #if defined(HXCPP_RTLD_LAZY) || defined(IPHONE) || defined(EMSCRIPTEN)
+   #if defined(HXCPP_RTLD_LAZY) || defined(IPHONE) || defined(EMSCRIPTEN) || defined(STATIC_LINK)
    flags |= RTLD_LAZY;
    #else
    flags |= RTLD_NOW;
@@ -196,7 +203,7 @@ String GetFileContents(String inFile)
    if (bytes<1)
       return null();
    buf[bytes]='\0';
-   return String(buf,strlen(buf));
+   return String(buf,strlen(buf)).dup();
 }
 
 #ifndef HX_WINRT
@@ -212,19 +219,41 @@ String FindHaxelib(String inLib)
    bool loadDebug = getenv("HXCPP_LOAD_DEBUG");
 
    // printf("FindHaxelib %S\n", inLib.__s);
-   String haxepath = GetEnv("HAXEPATH");
-   if (loadDebug) printf("HAXEPATH env:%s\n", haxepath.__s);
+
+   String haxepath;
+
+   #if !defined(HX_WINRT) && !defined(EPPC)
+      struct stat s;
+      if ( (stat(".haxelib",&s)==0 && (s.st_mode & S_IFDIR) ) )
+         haxepath = HX_CSTRING(".haxelib");
+      if (loadDebug)
+          printf( haxepath.length ? "Found local .haxelib\n" : "No local .haxelib\n");
+   #endif
+
    if (haxepath.length==0)
    {
-       String home = GetEnv("HOME") + HX_CSTRING("/.haxelib");
-       haxepath = GetFileContents(home);
-       if (loadDebug) printf("HAXEPATH home:%s\n", haxepath.__s);
+      haxepath = GetEnv("HAXEPATH");
+      if (loadDebug)
+         printf("HAXEPATH env:%s\n", haxepath.__s);
+      if (haxepath.length==0)
+      {
+          #ifdef _WIN32
+          String home = GetEnv("HOMEDRIVE") + GetEnv("HOMEPATH") + HX_CSTRING("/.haxelib");
+          #else
+          String home = GetEnv("HOME") + HX_CSTRING("/.haxelib");
+          #endif
+          haxepath = GetFileContents(home);
+          if (loadDebug)
+             printf("HAXEPATH home:%s\n", haxepath.__s);
+      }
+      else
+      {
+         haxepath += HX_CSTRING("/lib");
+      }
    }
-   else
-   {
-      haxepath += HX_CSTRING("/lib");
-   }
-   if (loadDebug) printf("HAXEPATH dir:%s\n", haxepath.__s);
+
+   if (loadDebug)
+      printf("HAXEPATH dir:%s\n", haxepath.__s);
 
    if (haxepath.length==0)
    {
@@ -235,7 +264,7 @@ String FindHaxelib(String inLib)
    if (haxepath.length==0)
    {
       #ifdef _WIN32
-      haxepath = HX_CSTRING("C:\\Program Files\\Motion-Twin\\haxe\\lib");
+      haxepath = HX_CSTRING("C:\\HaxeToolkit\\haxe\\lib");
       #else
       haxepath = HX_CSTRING("/usr/lib/haxe/lib");
       #endif
@@ -273,7 +302,7 @@ typedef std::map<std::string,void *> RegistrationMap;
 RegistrationMap *sgRegisteredPrims=0;
 
 
-#if (defined(IPHONE) || defined(EMSCRIPTEN)) && !defined(HXCPP_DLL_IMPORT) && !defined(HXCPP_DLL_EXPORT)
+#if (defined(IPHONE) || defined(EMSCRIPTEN) || defined(STATIC_LINK)) && !defined(HXCPP_DLL_IMPORT) && !defined(HXCPP_DLL_EXPORT)
 
 Dynamic __loadprim(String inLib, String inPrim,int inArgCount)
 {
@@ -294,6 +323,9 @@ Dynamic __loadprim(String inLib, String inPrim,int inArgCount)
    if (sgRegisteredPrims)
    {
       void *registered = (*sgRegisteredPrims)[full_name.__CStr()];
+      // Try with lib name ...
+      if (!registered)
+         registered = (*sgRegisteredPrims)[(inLib + HX_CSTRING("_") + full_name).__CStr()];
       if (registered)
       {
          return Dynamic( new ExternalPrimitive(registered,inArgCount,HX_CSTRING("registered@")+full_name) );
@@ -304,12 +336,13 @@ Dynamic __loadprim(String inLib, String inPrim,int inArgCount)
    return null();
 }
 
-void *__hxcpp_get_proc_address(String inLib, String inPrim,bool)
+void *__hxcpp_get_proc_address(String inLib, String inPrim,bool ,bool inQuietFail)
 {
    if (sgRegisteredPrims)
       return (*sgRegisteredPrims)[inPrim.__CStr()];
 
-   printf("Primitive not found : %s\n", inPrim.__CStr() );
+   if (!inQuietFail)
+      printf("Primitive not found : %s\n", inPrim.__CStr() );
    return 0;
 }
 
@@ -319,7 +352,7 @@ void *__hxcpp_get_proc_address(String inLib, String inPrim,bool)
 
 extern "C" void *hx_cffi(const char *inName);
 
-void *__hxcpp_get_proc_address(String inLib, String full_name,bool inNdllProc)
+void *__hxcpp_get_proc_address(String inLib, String full_name,bool inNdllProc,bool inQuietFail)
 {
 #ifdef ANDROID
    inLib = HX_CSTRING("lib") + inLib;
@@ -354,7 +387,11 @@ void *__hxcpp_get_proc_address(String inLib, String full_name,bool inNdllProc)
 
    String bin =
 #ifdef _WIN32
+  #ifdef HXCPP_M64
+    HX_CSTRING("Windows64");
+  #else
     HX_CSTRING("Windows");
+  #endif
 // Unix...
 #elif defined(__APPLE__)
   #ifdef HXCPP_M64
@@ -400,6 +437,10 @@ void *__hxcpp_get_proc_address(String inLib, String full_name,bool inNdllProc)
    if (!module && sgRegisteredPrims)
    {
       void *registered = (*sgRegisteredPrims)[full_name.__CStr()];
+      // Try with lib name ...
+      if (!registered)
+         registered = (*sgRegisteredPrims)[(inLib + HX_CSTRING("_") + full_name).__CStr()];
+
       if (registered)
          return registered;
    }
@@ -469,7 +510,7 @@ void *__hxcpp_get_proc_address(String inLib, String full_name,bool inNdllProc)
       }
       #endif
 
-      #if !defined(ANDROID) && !defined(HX_WINRT) && !defined(IPHONE) && !defined(EMSCRIPTEN)
+      #if !defined(ANDROID) && !defined(HX_WINRT) && !defined(IPHONE) && !defined(EMSCRIPTEN) && !defined(STATIC_LINK)
       if (!module)
       {
          String hxcpp = GetEnv("HXCPP");
@@ -537,6 +578,9 @@ void *__hxcpp_get_proc_address(String inLib, String full_name,bool inNdllProc)
 
    FundFunc proc_query = (FundFunc)hxFindSymbol(module,full_name.__CStr());
    if (!proc_query)
+       proc_query = (FundFunc)hxFindSymbol(module, (inLib + HX_CSTRING("_") + full_name).__CStr());
+
+   if (!proc_query && !inQuietFail)
    {
       #ifdef ANDROID
        __android_log_print(ANDROID_LOG_ERROR, "loader", "Could not find primitive %s in %p",
@@ -551,17 +595,14 @@ void *__hxcpp_get_proc_address(String inLib, String full_name,bool inNdllProc)
       return (void *)proc_query;
 
    void *proc = proc_query();
-   if (!proc)
+   if (!proc && !inQuietFail)
    {
-#ifdef ANDROID
-      __android_log_print(ANDROID_LOG_ERROR, "loader", "Could not identify primitive %s in %s\n", full_name.__CStr(),inLib.__CStr());
+      #ifdef ANDROID
+      __android_log_print(ANDROID_LOG_ERROR, "loader", "Could not identify primitive %s in %s",
+        full_name.__CStr(), inLib.__CStr() );
+      #else
       fprintf(stderr,"Could not identify primitive %s in %s\n", full_name.__CStr(),inLib.__CStr());
-#elif defined(ANDROID)
-   __android_log_print(ANDROID_LOG_ERROR, "loader", "Could not identify primitive %s in %s",
-        inPrim.__CStr(), inLib.__CStr() );
-#else
-   fprintf(stderr,"Could not identify primitive %s in %s\n", full_name.__CStr(),inLib.__CStr());
-#endif
+      #endif
    }
 
    return proc;
@@ -585,7 +626,12 @@ Dynamic __loadprim(String inLib, String inPrim,int inArgCount)
    void *proc = __hxcpp_get_proc_address(inLib,full_name,true);
 
    if (proc)
-      return Dynamic( new ExternalPrimitive(proc,inArgCount,inLib+HX_CSTRING("@")+full_name) );
+   {
+      // Split this to avoid a collect after ExternalPrimitive::new, but before its
+      //  inline constructor is run...
+      String primName = inLib+HX_CSTRING("@")+full_name;
+      return Dynamic( new ExternalPrimitive(proc,inArgCount,primName) );
+   }
    return null();
 }
 
@@ -607,7 +653,12 @@ int __hxcpp_register_prim(const char *inName,void *inProc)
 {
    if (sgRegisteredPrims==0)
       sgRegisteredPrims = new RegistrationMap();
-   (*sgRegisteredPrims)[inName] = inProc;
+   void * &proc = (*sgRegisteredPrims)[inName];
+   if (proc)
+   {
+      printf("Warning : duplicate symbol %s\n", inName);
+   }
+   proc = inProc;
    return 0;
 }
 

@@ -1,2 +1,7 @@
-obj/
-bin/
+obj
+bin
+lib
+test/ndlls/cpp
+test/ndlls/cpp64
+hxcpp.n
+.DS_Store

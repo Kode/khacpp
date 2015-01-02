@@ -2,6 +2,7 @@
 
 #include <hx/GC.h>
 #include <hx/Thread.h>
+#include "Hash.h"
 
 int gByteMarkID = 0;
 int gMarkID = 0;
@@ -10,7 +11,6 @@ enum { gFillWithJunk = 0 } ;
 
 #ifdef ANDROID
 #include <android/log.h>
-#include <sys/atomics.h>
 #endif
 
 #ifdef HX_WINDOWS
@@ -29,7 +29,7 @@ enum { gFillWithJunk = 0 } ;
 #endif
 
 static bool sgAllocInit = 0;
-static bool sgInternalEnable = false;
+static bool sgInternalEnable = true;
 static void *sgObject_root = 0;
 int gInAlloc = false;
 
@@ -42,6 +42,8 @@ int gInAlloc = false;
 #else
   enum { MAX_MARK_THREADS = 1 };
 #endif
+
+enum { MARK_BYTE_MASK = 0x7f };
 
 
 enum
@@ -577,7 +579,7 @@ union BlockData
          return allocNone;
       }
       unsigned char time = mRow[0][inOffset+ENDIAN_MARK_ID_BYTE_HEADER];
-      if ( ((time+1) & 0xff) != gByteMarkID )
+      if ( ((time+1) & MARK_BYTE_MASK) != gByteMarkID )
       {
          // Object is either out-of-date, or already marked....
          if (inReport)
@@ -602,8 +604,20 @@ union BlockData
          pos = row[pos+ENDIAN_OBJ_NEXT_BYTE] & IMMIX_ROW_LINK_MASK;
 
       if (pos==sought)
-         return (*(unsigned int *)(mRow[0] + inOffset) & IMMIX_ALLOC_IS_OBJECT) ?
-            allocObject: allocString;
+      {
+         if (*(unsigned int *)(mRow[0] + inOffset) & IMMIX_ALLOC_IS_OBJECT)
+         {
+            // See if object::new has been called, but not constructor yet ...
+            void **vtable = (void **)(mRow[0] + inOffset + sizeof(int));
+            if (vtable[0]==0)
+            {
+               // GCLOG("Partially constructed object.");
+               return allocString;
+            }
+            return allocObject;
+         }
+         return allocString;
+      }
 
       if (inReport)
       {
@@ -682,7 +696,7 @@ union BlockData
 
 #define MARK_ROWS \
    unsigned char &mark = ((unsigned char *)inPtr)[ENDIAN_MARK_ID_BYTE]; \
-   if ( mark==gByteMarkID  ) \
+   if ( mark==gByteMarkID || mark & HX_GC_CONST_ALLOC_MARK_BIT) \
       return; \
    mark = gByteMarkID; \
  \
@@ -709,6 +723,16 @@ union BlockData
 
 namespace hx
 {
+
+void GCCheckPointer(void *inPtr)
+{
+   unsigned char&mark = ((unsigned char *)inPtr)[ENDIAN_MARK_ID_BYTE];
+   if ( !(mark & HX_GC_CONST_ALLOC_MARK_BIT) && mark!=gByteMarkID  )
+   {
+      GCLOG("Old object %s\n", ((hx::Object *)inPtr)->toString().__s );
+      NullReference("Object", false);
+   }
+}
 
 // --- Marking ------------------------------------
 
@@ -1089,10 +1113,13 @@ class WeakRef : public hx::Object
 public:
    WeakRef(Dynamic inRef)
    {
-      sFinalizerLock->Lock();
-      sWeakRefs.push(this);
-      sFinalizerLock->Unlock();
       mRef = inRef;
+      if (mRef.mPtr)
+      {
+         sFinalizerLock->Lock();
+         sWeakRefs.push(this);
+         sFinalizerLock->Unlock();
+      }
    }
 
    // Don't mark our ref !
@@ -1124,6 +1151,9 @@ FILE_SCOPE MakeZombieSet sMakeZombieSet;
 
 typedef hx::QuickVec<hx::Object *> ZombieList;
 FILE_SCOPE ZombieList sZombieList;
+
+typedef hx::QuickVec<hx::HashBase<Dynamic> *> WeakHashList;
+FILE_SCOPE WeakHashList sWeakHashList;
 
 
 InternalFinalizer::InternalFinalizer(hx::Object *inObj)
@@ -1157,6 +1187,7 @@ void FindZombies(MarkContext &inContext)
          sMakeZombieSet.erase(i);
 
          // Mark now to prevent secondary zombies...
+         inContext.init();
          hx::MarkObjectAlloc(obj , &inContext );
          inContext.Process();
       }
@@ -1164,6 +1195,30 @@ void FindZombies(MarkContext &inContext)
       i = next;
    }
 }
+
+bool IsWeakRefValid(hx::Object *inPtr)
+{
+   unsigned char mark = ((unsigned char *)inPtr)[ENDIAN_MARK_ID_BYTE];
+
+    // Special case of member closure - check if the 'this' pointer is still alive
+    bool isCurrent = mark==gByteMarkID;
+    if ( !isCurrent && inPtr->__GetType()==vtFunction)
+    {
+        hx::Object *thiz = (hx::Object *)inPtr->__GetHandle();
+        if (thiz)
+        {
+            mark = ((unsigned char *)thiz)[ENDIAN_MARK_ID_BYTE];
+            if (mark==gByteMarkID)
+            {
+               // The object is still alive, so mark the closure and continue
+               MarkAlloc(inPtr,0);
+               return true;
+            }
+         }
+    }
+    return isCurrent;
+}
+
 
 void RunFinalizers()
 {
@@ -1223,6 +1278,25 @@ void RunFinalizers()
       i = next;
    }
 
+   for(int i=0;i<sWeakHashList.size();    )
+   {
+      HashBase<Dynamic> *ref = sWeakHashList[i];
+      unsigned char mark = ((unsigned char *)ref)[ENDIAN_MARK_ID_BYTE];
+      // Object itself is gone - no need to worrk about that again
+      if ( mark!=gByteMarkID )
+      {
+         sWeakHashList.qerase(i);
+         // no i++ ...
+      }
+      else
+      {
+         ref->updateAfterGc();
+         i++;
+      }
+   }
+
+
+
    for(int i=0;i<sWeakRefs.size();    )
    {
       WeakRef *ref = sWeakRefs[i];
@@ -1268,6 +1342,11 @@ void RunFinalizers()
 // Callback finalizer on non-abstract type;
 void  GCSetFinalizer( hx::Object *obj, hx::finalizer f )
 {
+   if (!obj)
+      throw Dynamic(HX_CSTRING("set_finalizer - invalid null object"));
+   if (((unsigned int *)obj)[-1] & HX_GC_CONST_ALLOC_BIT)
+      throw Dynamic(HX_CSTRING("set_finalizer - invalid const object"));
+
    AutoLock lock(*gSpecialObjectLock);
    if (f==0)
    {
@@ -1281,6 +1360,11 @@ void  GCSetFinalizer( hx::Object *obj, hx::finalizer f )
 
 void GCDoNotKill(hx::Object *inObj)
 {
+   if (!inObj)
+      throw Dynamic(HX_CSTRING("doNotKill - invalid null object"));
+   if (((unsigned int *)inObj)[-1] & HX_GC_CONST_ALLOC_BIT)
+      throw Dynamic(HX_CSTRING("doNotKill - invalid const object"));
+
    AutoLock lock(*gSpecialObjectLock);
    sMakeZombieSet.insert(inObj);
 }
@@ -1294,20 +1378,47 @@ hx::Object *GCGetNextZombie()
    return result;
 }
 
+void RegisterWeakHash(HashBase<Dynamic> *inHash)
+{
+   AutoLock lock(*gSpecialObjectLock);
+   sWeakHashList.push(inHash);
+}
+
+
+
 void InternalEnableGC(bool inEnable)
 {
+   //printf("Enable %d\n", sgInternalEnable);
    sgInternalEnable = inEnable;
 }
 
 
-void *InternalCreateConstBuffer(const void *inData,int inSize)
+void *InternalCreateConstBuffer(const void *inData,int inSize,bool inAddStringHash)
 {
-   int *result = (int *)malloc(inSize + sizeof(int));
+   bool addHash = inAddStringHash && inData && inSize>0;
 
-   *result = 0xffffffff;
-   memcpy(result+1,inData,inSize);
+   int *result = (int *)malloc(inSize + sizeof(int) + (addHash ? sizeof(int):0) );
+   if (addHash)
+   {
+      unsigned int hash = 0;
+      for(int i=0;i<inSize-1;i++)
+         hash = hash*223 + ((unsigned char *)inData)[i];
 
-   return result+1;
+      result[0] = hash;
+      result++;
+      *result++ = HX_GC_CONST_ALLOC_BIT;
+   }
+   else
+   {
+      *result++ = HX_GC_CONST_ALLOC_BIT | HX_GC_NO_STRING_HASH;
+   }
+
+   if (inData)
+      memcpy(result,inData,inSize);
+   else
+      memset(result,0,inSize);
+
+   return result;
 }
 
 
@@ -1435,7 +1546,7 @@ public:
 
       //Should we force a collect ? - the 'large' data are not considered when allocating objects
       // from the blocks, and can 'pile up' between smalll object allocations
-      if (inSize+mLargeAllocated > mLargeAllocForceRefresh)
+      if ((inSize+mLargeAllocated > mLargeAllocForceRefresh) && sgInternalEnable)
       {
          //GCLOG("Large alloc causing collection");
          CollectFromThisThread();
@@ -1449,7 +1560,10 @@ public:
       unsigned int *result = (unsigned int *)malloc(inSize + sizeof(int)*2);
       if (!result)
       {
-         //GCLOG("Large alloc panic!");
+         #ifdef SHOW_MEM_EVENTS
+         GCLOG("Large alloc failed - forcing collect\n");
+         #endif
+
          CollectFromThisThread();
          result = (unsigned int *)malloc(inSize + sizeof(int)*2);
       }
@@ -1487,6 +1601,9 @@ public:
 
       for(int pass= 0 ;pass<2 && result==0;pass++)
       {
+         // Try for recycled first
+         //   pass0 - any lying around before a collect
+         //   pass1 - any lying around after a collect
          if (mNextRecycled < mRecycledBlock.size())
          {
             if (mRecycledBlock[mNextRecycled]->getFreeInARow()>=inRequiredRows)
@@ -1508,13 +1625,16 @@ public:
             if (result)
             {
                result->ClearRecycled();
+               mCurrentRowsInUse += result->GetFreeRows();
+               break;
             }
          }
 
-         if (!result)
-            result = GetEmptyBlock(pass==0);
-         else
-            mCurrentRowsInUse += result->GetFreeRows();
+         // No recycled blocks
+         //   pass0 - Allow a collect if no free block, allocat more if tight
+         //   pass1 - We have already tried the collect, so force allocate
+         //  without sgInternalEnable, force allocation of there are no blocks
+         result = GetEmptyBlock(pass==0 && sgInternalEnable);
       }
 
       if (sMultiThreadMode)
@@ -1556,6 +1676,15 @@ public:
             int result = posix_memalign( (void **)&chunk, IMMIX_BLOCK_SIZE, IMMIX_BLOCK_SIZE );
             if (chunk==0)
             {
+               // We really really have to try collect!
+               if (inTryCollect==false)
+               {
+                  #ifdef SHOW_MEM_EVENTS
+                  GCLOG("Alloc failed - forcing collect\n");
+                  #endif
+                  return GetEmptyBlock(true);
+               }
+
                GCLOG("Error in posix_memalign %d!!!\n", result);
             }
             char *aligned = chunk;
@@ -1572,10 +1701,20 @@ public:
                }
             if (gid<0)
               gid = gAllocGroups.next();
-   
-   			char *chunk = (char *)malloc( 1<<(IMMIX_BLOCK_GROUP_BITS + IMMIX_BLOCK_BITS) );
+
+            char *chunk = (char *)malloc( 1<<(IMMIX_BLOCK_GROUP_BITS + IMMIX_BLOCK_BITS) );
+            // We really really have to try collect!
+            if (chunk==0 && !inTryCollect)
+            {
+               #ifdef SHOW_MEM_EVENTS
+               GCLOG("Alloc failed - forcing collect\n");
+               #endif
+               return GetEmptyBlock(true);
+            }
+
+
             int n = 1<<IMMIX_BLOCK_GROUP_BITS;
-   
+
             char *aligned = (char *)( (((size_t)chunk) + IMMIX_BLOCK_SIZE-1) & IMMIX_BLOCK_BASE_MASK);
             if (aligned!=chunk)
                n--;
@@ -1583,8 +1722,8 @@ public:
             // Only do one group allocation
             want_more = 0;
             #endif
-        
-   
+
+
             for(int i=0;i<n;i++)
             {
                BlockData *block = (BlockData *)(aligned + i*IMMIX_BLOCK_SIZE);
@@ -1632,6 +1771,8 @@ public:
           hx::sObjectIdMap[inTo] = id->second;
           hx::sObjectIdMap.erase(id);
        }
+
+       // Maybe do something faster with weakmaps
    }
 
 
@@ -2005,7 +2146,8 @@ public:
 
    void MarkAll(bool inDoClear)
    {
-      gByteMarkID = (gByteMarkID+1) & 0xff;
+      // Bit 0x80 is reserved for "const allocation"
+      gByteMarkID = (gByteMarkID+1) & MARK_BYTE_MASK;
       gMarkID = gByteMarkID << 24;
       gBlockStack = 0;
 
@@ -2191,6 +2333,8 @@ public:
       int  want_more = delta>0 ? (delta >> IMMIX_LINE_COUNT_BITS ) : 0;
       int  want_less = (delta < -(IMMIX_USEFUL_LINES<<IMMIX_BLOCK_GROUP_BITS)) ?
                             ((-delta) >> IMMIX_LINE_COUNT_BITS ) : 0;
+      if (!sgInternalEnable)
+         want_less = 0;
       if (inForceCompact)
       {
          want_less = mAllBlocks.size();
@@ -2913,7 +3057,6 @@ void SetTopOfStack(int *inTop,bool inForce)
             RegisterCurrentThread(inTop);
          }
       }
-      sgInternalEnable = true;
    }
 
    LocalAllocator *tla = GetLocalAlloc();
@@ -2993,8 +3136,6 @@ void *InternalRealloc(void *inData,int inSize)
    return new_data;
 }
 
-
-
 void RegisterCurrentThread(void *inTopOfStack)
 {
    // Create a local-alloc
@@ -3025,16 +3166,19 @@ void UnregisterCurrentThread()
 namespace hx
 {
 
-void *Object::operator new( size_t inSize, bool inContainer )
+void *Object::operator new( size_t inSize, NewObjectType inType )
 {
    #if defined(HXCPP_DEBUG)
    if (inSize>=IMMIX_LARGE_OBJ_SIZE)
       throw Dynamic(HX_CSTRING("Object size violation"));
    #endif
 
+   if (inType==NewObjConst)
+      return InternalCreateConstBuffer(0,inSize);
+
    LocalAllocator *tla = GetLocalAlloc();
 
-   return tla->Alloc(inSize,inContainer);
+   return tla->Alloc(inSize,inType==NewObjContainer);
 }
 
 }
@@ -3101,6 +3245,11 @@ hx::Object *__hxcpp_get_next_zombie()
    return hx::GCGetNextZombie();
 }
 
+void __hxcpp_set_finalizer(Dynamic inObj, void *inFunc)
+{
+   GCSetFinalizer( inObj.mPtr, (hx::finalizer) inFunc );
+}
+
 extern "C"
 {
 void hxcpp_set_top_of_stack()
@@ -3155,6 +3304,26 @@ hx::Object *__hxcpp_id_obj(int inId)
    return (hx::Object *)(inId);
    #endif
 }
+
+#if defined(HXCPP_GC_MOVING) || defined(HXCPP_FORCE_OBJ_MAP)
+unsigned int __hxcpp_obj_hash(Dynamic inObj)
+{
+   return __hxcpp_obj_id(inObj);
+}
+#else
+unsigned int __hxcpp_obj_hash(Dynamic inObj)
+{
+   if (!inObj.mPtr) return 0;
+   hx::Object *obj = inObj->__GetRealObject();
+   #if defined(HXCPP_M64)
+   size_t h64 = (size_t)obj;
+   return (unsigned int)(h64>>2) ^ (unsigned int)(h64>>32);
+   #else
+   return ((unsigned int)inObj.mPtr) >> 4;
+   #endif
+}
+#endif
+
 
 
 

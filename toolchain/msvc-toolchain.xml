@@ -3,10 +3,7 @@
 
 <!-- WINDOWS TOOLS -------------------------------------->
 
-<set name="HXCPP_WINXP_COMPAT" value="1" unless="HXCPP_NO_WINXP_COMPAT" />
-<unset name="HXCPP_WINXP_COMPAT" if="HXCPP_M64" />
 
-<setup name="msvc" />
 
 <set name="USE_PRECOMPILED_HEADERS" value="msvc" unless="NO_PRECOMPILED_HEADERS" />
 
@@ -131,11 +128,6 @@
   <ext value="${LIBEXT}"/>
   <outflag value="-out:"/>
 </linker>
-
-<section if="static_link" >
-   <set name="MSVC_LIB_VERSION" value="-${MSVC_VER}" if="windows" />
-</section>
-
 
 
 </xml>

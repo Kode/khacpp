@@ -78,7 +78,7 @@ class ProcessManager
          {
             if (path != null && path != "" && !FileSystem.exists(FileSystem.fullPath(path)) && !FileSystem.exists(FileSystem.fullPath(new Path(path).dir)))
             {
-               Log.error ("The specified target path \"" + path + "\" does not exist");
+               Log.error("The specified target path \"" + path + "\" does not exist");
                return 1;
             }
             return _runCommand(path, command, args);
@@ -87,7 +87,8 @@ class ProcessManager
          {
             if (!ignoreErrors)
             {
-               Log.error("", e);
+               var text = formatMessage(command, args);
+               Log.error("error running " + text , e);
                return 1;
             }
             return 0;
@@ -122,7 +123,7 @@ class ProcessManager
          {
             if (!ignoreErrors)
             {
-               Log.error("", e);
+               Log.error("error running " + formatMessage(command,args), e);
             }
             return null;
          }
@@ -196,7 +197,18 @@ class ProcessManager
       var output = "";
       var result = 0;
       
-      var process = new Process(command, args);
+      var process:Process = null;
+      try
+      {
+         process = new Process(command, args);
+      }
+      catch(e:Dynamic)
+      {
+         if (ignoreErrors)
+            return null;
+         Log.error(e+"");
+      }
+
       var buffer = new BytesOutput();
       
       if (waitForOutput)
@@ -234,15 +246,12 @@ class ProcessManager
                }
                else
                {
+                  if (error==null || error=="")
+                     error = "error running " + formatMessage(command, args);
                   Log.error(error);
                }
-               
+
                return null;
-               
-               /*if (error != "")
-               {
-                  Log.error(error);
-               }*/
             }
          //}
       }
@@ -263,10 +272,35 @@ class ProcessManager
       
       command = PathManager.escape(command);
 
-      Log.info("", " - \x1b[1mRunning process:\x1b[0m " + formatMessage(command, args));
-      
+      Log.lock();
+      // Other thread may have already thrown an error
+      if (BuildTool.threadExitCode!=0)
+      {
+         Log.unlock();
+         return BuildTool.threadExitCode;
+      }
+      Log.info("", " - \x1b[1mRunning process :\x1b[0m " + formatMessage(command, args));
+      Log.unlock();
+
       var output = new Array<String>();
-      var process = new Process(command, args);
+      var process:Process = null;
+      try
+      {
+         process = new Process(command, args);
+      }
+      catch(e:Dynamic)
+      {
+         Log.lock();
+         if (BuildTool.threadExitCode == 0)
+         {
+            Log.info('${Log.RED}${Log.BOLD}$e${Log.NORMAL}\n');
+            BuildTool.setThreadError(-1);
+         }
+         Log.unlock();
+         return -1;
+      }
+
+
       var err = process.stderr;
       var out = process.stdout;
       var reader = BuildTool.helperThread.value;

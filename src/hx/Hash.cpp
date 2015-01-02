@@ -1,274 +1,578 @@
 #include <hxcpp.h>
-#include "RedBlack.h"
-#include "FieldMap.h"
-
-#include <hx/CFFI.h>
-#include <map>
+//#include <hx/CFFI.h>
+#include "Hash.h"
 
 
 using namespace hx;
 
-// --- IntHash ------------------------------------------------------------------------------
 
-namespace hx
+// --- IntHash ----------------------------------------------------
+
+
+namespace
 {
-
-// --- FieldObject ------------------------------
-
-FieldMap *FieldMapCreate()
-{
-	return (FieldMap *)(RBTree<String,Dynamic>::Create());
+typedef hx::HashBase<int>                IntHashBase;
+typedef hx::Hash< TIntElement<Dynamic> > IntHashObject;
+typedef hx::Hash< TIntElement<int> >     IntHashInt;
+typedef hx::Hash< TIntElement<Float> >   IntHashFloat;
+typedef hx::Hash< TIntElement<String> >  IntHashString;
 }
 
-bool FieldMapGet(FieldMap *inMap, const String &inName, Dynamic &outValue)
+void __int_hash_set(Dynamic &ioHash,int inKey,const Dynamic &value)
 {
-	Dynamic *value = inMap->Find(inName);
-	if (!value)
-		return false;
-	outValue = *value;
-	return true;
-}
-
-
-bool FieldMapHas(FieldMap *inMap, const String &inName)
-{
-	return inMap->Find(inName);
-}
-
-
-bool FieldMapGet(FieldMap *inMap, int inID, Dynamic &outValue)
-{
-	Dynamic *value = inMap->Find(__hxcpp_field_from_id(inID));
-	if (!value)
-		return false;
-	outValue = *value;
-	return true;
-}
-
-void FieldMapSet(FieldMap *inMap, const String &inName, const Dynamic &inValue)
-{
-	inMap->Insert(inName,inValue);
-}
-
-
-
-void FieldMapAppendFields(FieldMap *inMap,Array<String> &outFields)
-{
-	KeyGetter getter(outFields);
-	inMap->Iterate(getter);
-}
-
-struct Marker
-{
-	Marker(hx::MarkContext *__inCtx) { this->__inCtx = __inCtx;  }
-	hx::MarkContext *__inCtx;
-
-	void VisitNode(void **inPtr)
+   IntHashBase *hash = static_cast<IntHashBase *>(ioHash.GetPtr());
+   if (!hash)
    {
-		hx::MarkAlloc(*inPtr, __inCtx);
-   }
-	void VisitValue(const String &inStr, Dynamic &inDyn)
-	{
-		HX_MARK_STRING(inStr.__s);
-		if (inDyn.mPtr)
+      if (value==null())
       {
-         #ifdef HXCPP_DEBUG
-         hx::MarkSetMember(inStr.__s, __inCtx);
-         #endif
-		   HX_MARK_OBJECT(inDyn.mPtr);
+         hash = new IntHashObject();
       }
-	}
-};
-
-void FieldMapMark(FieldMap *inMap,hx::MarkContext *__inCtx)
-{
-	if (inMap)
-	{
-		hx::MarkAlloc(inMap, __inCtx);
-		Marker m(__inCtx);
-		inMap->Iterate(m);
-	}
-}
-
-#ifdef HXCPP_VISIT_ALLOCS
-
-
-struct Visitor
-{
-	Visitor(hx::VisitContext *__inCtx) { this->__inCtx = __inCtx;  }
-	hx::VisitContext *__inCtx;
-
-	void VisitNode(void **inPtr)
-	{
-		__inCtx->visitAlloc(inPtr);
-	}
-
-	void VisitValue(const String &inStr, Dynamic &inDyn)
-	{
-		HX_VISIT_STRING(inStr.__s);
-		if (inDyn.mPtr)
-		   HX_VISIT_OBJECT(inDyn.mPtr);
-	}
-};
-
-void FieldMapVisit(FieldMap **inMap,hx::VisitContext *__inCtx)
-{
-	if (*inMap)
-	{
-		__inCtx->visitAlloc((void **)inMap);
-		Visitor v(__inCtx);
-		(*inMap)->Iterate(v);
-	}
-}
-#endif
-
-
-
-
-
-class IntHash : public Object
-{
-#ifdef _WIN32
-typedef int IntKey;
-#else
-typedef const int IntKey;
-#endif
-
-typedef std::map<IntKey,Dynamic, std::less<IntKey> > Map;
-
-class hxMap : public Map
-{
-};
-
-private:
-   Map *mMap;
-	hx::InternalFinalizer *mFinalizer;
-
-public:
-   IntHash()
-	{
-		mMap = new hxMap;
-		mFinalizer = new hx::InternalFinalizer(this);
-		mFinalizer->mFinalizer = Destroy;
-	}
-
-   void set(int inKey,const Dynamic &inValue) { (*mMap)[inKey] = inValue; }
-
-   static void Destroy(Object *inObj);
-
-   Dynamic get(int inKey)
-   {
-      Map::iterator i = mMap->find(inKey);
-      if (i==mMap->end()) return null();
-      return i->second;
-   }
-   bool exists(int inKey) { return mMap->find(inKey)!=mMap->end(); }
-   bool remove(int inKey)
-   {
-      Map::iterator i = mMap->find(inKey);
-      if (i==mMap->end()) return false;
-      mMap->erase(i);
-      return true;
-   }
-   Dynamic keys()
-   {
-      Array<Int> result(0,mMap->size());
-      for(Map::iterator i=mMap->begin();i!=mMap->end();++i)
-         result.Add(i->first);
-      return result;
-   }
-   Dynamic values()
-   {
-      Array<Dynamic> result(0,mMap->size());
-      for(Map::iterator i=mMap->begin();i!=mMap->end();++i)
-         result.Add(i->second);
-      return result;
-   }
-   String toString()
-   {
-      String result = HX_CSTRING("{ ");
-      Map::iterator i=mMap->begin();
-      while(i!=mMap->end())
+      else
       {
-         result += String(i->first) + HX_CSTRING(" => ") + i->second;
-         ++i;
-         if (i!=mMap->end())
-            result+= HX_CSTRING(",");
+         ObjectType type = (ObjectType)value->__GetType();
+         if (type==vtBool || type==vtInt)
+            hash = new IntHashInt();
+         else if (type==vtFloat)
+            hash = new IntHashFloat();
+         else if (type==vtString)
+            hash = new IntHashString();
+         else
+            hash = new IntHashObject();
       }
-
-      return result + HX_CSTRING("}");
+      ioHash = hash;
    }
-
-   void __Mark(hx::MarkContext *__inCtx)
+   else if (hash->store!=hashObject)
    {
-		mFinalizer->Mark();
-      for(Map::iterator i=mMap->begin();i!=mMap->end();++i)
+      HashStore want = hashObject;
+      if (value!=null())
       {
-         HX_MARK_OBJECT(i->second.mPtr);
+         ObjectType type = (ObjectType)value->__GetType();
+         if (type==vtBool || type==vtInt)
+         {
+            if (hash->store==hashFloat)
+               want = hashFloat;
+            else if (hash->store==hashInt)
+               want = hashInt;
+         }
+         else if (type==vtFloat)
+         {
+            if (hash->store==hashInt || hash->store==hashFloat) 
+               want =hashFloat;
+         }
+         else if (type==vtString)
+         {
+            if (hash->store==hashString)
+               want = hashString;
+         }
+      }
+      if (hash->store!=want)
+      {
+         hash = hash->convertStore(want);
+         ioHash = hash;
       }
    }
 
-   #ifdef HXCPP_VISIT_ALLOCS
-   void __Visit(hx::VisitContext *__inCtx)
-   {
-      if (mFinalizer)
-         mFinalizer->Visit(__inCtx);
+   hash->set(inKey,value);
+}
 
-      for(Map::iterator i=mMap->begin();i!=mMap->end();++i)
+void __int_hash_set_int(Dynamic &ioHash,int inKey,int inValue)
+{
+   IntHashBase *hash = static_cast<IntHashBase *>(ioHash.GetPtr());
+   if (!hash)
+   {
+      hash = new IntHashInt();
+      ioHash = hash;
+   }
+   else if (hash->store==hashString)
+   {
+      hash = hash->convertStore(hashObject);
+      ioHash = hash;
+   }
+
+   hash->set(inKey,inValue);
+}
+
+
+void __int_hash_set_float(Dynamic &ioHash,int inKey,Float inValue)
+{
+   IntHashBase *hash = static_cast<IntHashBase *>(ioHash.GetPtr());
+   if (!hash)
+   {
+      hash = new IntHashFloat();
+      ioHash = hash;
+   }
+   else if (hash->store==hashString)
+   {
+      hash = hash->convertStore(hashObject);
+      ioHash = hash;
+   }
+   else if (hash->store==hashInt)
+   {
+      hash = hash->convertStore(hashFloat);
+      ioHash = hash;
+   }
+
+   hash->set(inKey,inValue);
+}
+
+
+
+void __int_hash_set_string(Dynamic &ioHash,int inKey, ::String inValue)
+{
+   IntHashBase *hash = static_cast<IntHashBase *>(ioHash.GetPtr());
+   if (!hash)
+   {
+      hash = new IntHashString();
+      ioHash = hash;
+   }
+   else if (hash->store==hashInt || hash->store==hashFloat)
+   {
+      hash = hash->convertStore(hashObject);
+      ioHash = hash;
+   }
+
+   hash->set(inKey,inValue);
+}
+
+Dynamic  __int_hash_get(Dynamic &ioHash,int inKey)
+{
+   IntHashBase *hash = static_cast<IntHashBase *>(ioHash.GetPtr());
+   if (!hash)
+      return null();
+
+   Dynamic result = null();
+   hash->query(inKey,result);
+   return result;
+}
+
+
+bool  __int_hash_exists(Dynamic &ioHash,int inKey)
+{
+   IntHashBase *hash = static_cast<IntHashBase *>(ioHash.GetPtr());
+   if (!hash)
+      return false;
+   return hash->exists(inKey);
+}
+
+bool  __int_hash_remove(Dynamic &ioHash,int inKey)
+{
+   IntHashBase *hash = static_cast<IntHashBase *>(ioHash.GetPtr());
+   if (!hash)
+      return false;
+   return hash->remove(inKey);
+}
+
+Array<Int> __int_hash_keys(Dynamic &ioHash)
+{
+   IntHashBase *hash = static_cast<IntHashBase *>(ioHash.GetPtr());
+   if (!hash)
+      return Array_obj<Int>::__new();
+   return hash->keys();
+}
+
+Dynamic __int_hash_values(Dynamic &ioHash)
+{
+   IntHashBase *hash = static_cast<IntHashBase *>(ioHash.GetPtr());
+   if (!hash)
+      return Array_obj<Dynamic>::__new();
+   return hash->values();
+}
+
+
+String __int_hash_to_string(Dynamic &ioHash)
+{
+   IntHashBase *hash = static_cast<IntHashBase *>(ioHash.GetPtr());
+   if (hash)
+      return hash->toString();
+   return String();
+
+}
+
+
+
+// --- StringHash ----------------------------------------------------
+
+
+namespace
+{
+typedef hx::HashBase<String>                StringHashBase;
+typedef hx::Hash< TStringElement<Dynamic> > StringHashObject;
+typedef hx::Hash< TStringElement<int> >     StringHashInt;
+typedef hx::Hash< TStringElement<Float> >   StringHashFloat;
+typedef hx::Hash< TStringElement<String> >  StringHashString;
+}
+
+
+void __string_hash_set(Dynamic &ioHash,String inKey,const Dynamic &value)
+{
+   StringHashBase *hash = static_cast<StringHashBase *>(ioHash.GetPtr());
+   if (!hash)
+   {
+      if (value==null())
       {
-         HX_VISIT_OBJECT(i->second.mPtr);
+         hash = new StringHashObject();
+      }
+      else
+      {
+         ObjectType type = (ObjectType)value->__GetType();
+         if (type==vtBool || type==vtInt)
+         {
+            hash = new StringHashInt();
+         }
+         else if (type==vtFloat)
+            hash = new StringHashFloat();
+         else if (type==vtString)
+            hash = new StringHashString();
+         else
+            hash = new StringHashObject();
+      }
+      ioHash = hash;
+   }
+   else if (hash->store!=hashObject)
+   {
+      HashStore want = hashObject;
+      if (value!=null())
+      {
+         ObjectType type = (ObjectType)value->__GetType();
+         if (type==vtBool || type==vtInt)
+         {
+            if (hash->store==hashFloat)
+               want = hashFloat;
+            else if (hash->store==hashInt)
+               want = hashInt;
+         }
+         else if (type==vtFloat)
+         {
+            if (hash->store==hashInt || hash->store==hashFloat) 
+               want =hashFloat;
+         }
+         else if (type==vtString)
+         {
+            if (hash->store==hashString)
+               want = hashString;
+         }
+      }
+      if (hash->store!=want)
+      {
+         hash = hash->convertStore(want);
+         ioHash = hash;
       }
    }
-   #endif
 
-
-};
-
-void IntHash::Destroy(Object *inHash)
-{
-	IntHash *hash = dynamic_cast<IntHash *>(inHash);
-	if (hash)
-		delete hash->mMap;
+   hash->set(inKey,value);
 }
 
+void __string_hash_set_int(Dynamic &ioHash,String inKey,int inValue)
+{
+   StringHashBase *hash = static_cast<StringHashBase *>(ioHash.GetPtr());
+   if (!hash)
+   {
+      hash = new StringHashInt();
+      ioHash = hash;
+   }
+   else if (hash->store==hashString)
+   {
+      hash = hash->convertStore(hashObject);
+      ioHash = hash;
+   }
+
+   hash->set(inKey,inValue);
 }
 
 
-Object * __int_hash_create() { return new IntHash; }
-
-void __int_hash_set(Dynamic inHash,int inKey,const Dynamic &value)
+void __string_hash_set_float(Dynamic &ioHash,String inKey,Float inValue)
 {
-   IntHash *h = dynamic_cast<IntHash *>(inHash.GetPtr());
-   h->set(inKey,value);
+   StringHashBase *hash = static_cast<StringHashBase *>(ioHash.GetPtr());
+   if (!hash)
+   {
+      hash = new StringHashFloat();
+      ioHash = hash;
+   }
+   else if (hash->store==hashString)
+   {
+      hash = hash->convertStore(hashObject);
+      ioHash = hash;
+   }
+   else if (hash->store==hashInt)
+   {
+      hash = hash->convertStore(hashFloat);
+      ioHash = hash;
+   }
+
+   hash->set(inKey,inValue);
 }
 
-Dynamic  __int_hash_get(Dynamic inHash,int inKey)
+
+
+void __string_hash_set_string(Dynamic &ioHash,String inKey, ::String inValue)
 {
-   IntHash *h = dynamic_cast<IntHash *>(inHash.GetPtr());
-   return h->get(inKey);
+   StringHashBase *hash = static_cast<StringHashBase *>(ioHash.GetPtr());
+   if (!hash)
+   {
+      hash = new StringHashString();
+      ioHash = hash;
+   }
+   else if (hash->store==hashInt || hash->store==hashFloat)
+   {
+      hash = hash->convertStore(hashObject);
+      ioHash = hash;
+   }
+
+   hash->set(inKey,inValue);
 }
 
-bool  __int_hash_exists(Dynamic inHash,int inKey)
+Dynamic  __string_hash_get(Dynamic &ioHash,String inKey)
 {
-   IntHash *h = dynamic_cast<IntHash *>(inHash.GetPtr());
-   return h->exists(inKey);
+   StringHashBase *hash = static_cast<StringHashBase *>(ioHash.GetPtr());
+   if (!hash)
+      return null();
+
+   Dynamic result = null();
+   hash->query(inKey,result);
+   return result;
 }
 
-bool  __int_hash_remove(Dynamic inHash,int inKey)
+
+bool  __string_hash_exists(Dynamic &ioHash,String inKey)
 {
-   IntHash *h = dynamic_cast<IntHash *>(inHash.GetPtr());
-   return h->remove(inKey);
+   StringHashBase *hash = static_cast<StringHashBase *>(ioHash.GetPtr());
+   if (!hash)
+      return false;
+   return hash->exists(inKey);
 }
 
-Dynamic __int_hash_keys(Dynamic inHash)
+bool  __string_hash_remove(Dynamic &ioHash,String inKey)
 {
-   IntHash *h = dynamic_cast<IntHash *>(inHash.GetPtr());
-   return h->keys();
+   StringHashBase *hash = static_cast<StringHashBase *>(ioHash.GetPtr());
+   if (!hash)
+      return false;
+   return hash->remove(inKey);
 }
 
-Dynamic __int_hash_values(Dynamic inHash)
+Array<String> __string_hash_keys(Dynamic &ioHash)
 {
-   IntHash *h = dynamic_cast<IntHash *>(inHash.GetPtr());
-   return h->values();
+   StringHashBase *hash = static_cast<StringHashBase *>(ioHash.GetPtr());
+   if (!hash)
+      return Array_obj<String>::__new();
+   return hash->keys();
+}
+
+Dynamic __string_hash_values(Dynamic &ioHash)
+{
+   StringHashBase *hash = static_cast<StringHashBase *>(ioHash.GetPtr());
+   if (!hash)
+      return Array_obj<Dynamic>::__new();
+   return hash->values();
+}
+
+String __string_hash_to_string(Dynamic &ioHash)
+{
+   StringHashBase *hash = static_cast<StringHashBase *>(ioHash.GetPtr());
+   if (hash)
+      return hash->toString();
+   return String();
+
+}
+
+
+
+
+
+// --- ObjectHash ----------------------------------------------------
+
+
+namespace
+{
+typedef hx::HashBase<Dynamic>                DynamicHashBase;
+
+typedef hx::Hash< TDynamicElement<Dynamic,false> > DynamicHashObject;
+typedef hx::Hash< TDynamicElement<int,false> >    DynamicHashInt;
+typedef hx::Hash< TDynamicElement<Float,false> >   DynamicHashFloat;
+typedef hx::Hash< TDynamicElement<String,false> >  DynamicHashString;
+
+typedef hx::Hash< TDynamicElement<Dynamic,true> > WeakDynamicHashObject;
+typedef hx::Hash< TDynamicElement<int,true> >    WeakDynamicHashInt;
+typedef hx::Hash< TDynamicElement<Float,true> >   WeakDynamicHashFloat;
+typedef hx::Hash< TDynamicElement<String,true> >  WeakDynamicHashString;
+}
+
+
+void __object_hash_set(Dynamic &ioHash,Dynamic inKey,const Dynamic &value,bool inWeakKeys)
+{
+   DynamicHashBase *hash = static_cast<DynamicHashBase *>(ioHash.GetPtr());
+   if (!hash)
+   {
+      if (value==null())
+      {
+         hash = inWeakKeys ? (DynamicHashBase *)new WeakDynamicHashObject() :
+                             (DynamicHashBase *)new DynamicHashObject();
+      }
+      else
+      {
+         ObjectType type = (ObjectType)value->__GetType();
+         if (type==vtBool || type==vtInt)
+         {
+            hash = inWeakKeys ? (DynamicHashBase *)new WeakDynamicHashInt() :
+                                (DynamicHashBase *)new DynamicHashInt();
+         }
+         else if (type==vtFloat)
+            hash = inWeakKeys ? (DynamicHashBase *)new WeakDynamicHashFloat() :
+                                (DynamicHashBase *)new DynamicHashFloat();
+         else if (type==vtString)
+            hash = inWeakKeys ? (DynamicHashBase *)new WeakDynamicHashString() :
+                                (DynamicHashBase *)new DynamicHashString();
+         else
+            hash = inWeakKeys ? (DynamicHashBase *)new WeakDynamicHashObject() :
+                                (DynamicHashBase *)new DynamicHashObject();
+      }
+      ioHash = hash;
+   }
+   else if (hash->store!=hashObject)
+   {
+      HashStore want = hashObject;
+      if (value!=null())
+      {
+         ObjectType type = (ObjectType)value->__GetType();
+         if (type==vtBool || type==vtInt)
+         {
+            if (hash->store==hashFloat)
+               want = hashFloat;
+            else if (hash->store==hashInt)
+               want = hashInt;
+         }
+         else if (type==vtFloat)
+         {
+            if (hash->store==hashInt || hash->store==hashFloat) 
+               want =hashFloat;
+         }
+         else if (type==vtString)
+         {
+            if (hash->store==hashString)
+               want = hashString;
+         }
+      }
+      if (hash->store!=want)
+      {
+         hash = hash->convertStore(want);
+         ioHash = hash;
+      }
+   }
+
+   hash->set(inKey,value);
+}
+
+void __object_hash_set_int(Dynamic &ioHash,Dynamic inKey,int inValue,bool inWeakKeys)
+{
+   DynamicHashBase *hash = static_cast<DynamicHashBase *>(ioHash.GetPtr());
+   if (!hash)
+   {
+      hash = inWeakKeys ? (DynamicHashBase *)new WeakDynamicHashInt() :
+                          (DynamicHashBase *)new DynamicHashInt();
+      ioHash = hash;
+   }
+   else if (hash->store==hashString)
+   {
+      hash = hash->convertStore(hashObject);
+      ioHash = hash;
+   }
+
+   hash->set(inKey,inValue);
+}
+
+
+void __object_hash_set_float(Dynamic &ioHash,Dynamic inKey,Float inValue,bool inWeakKeys)
+{
+   DynamicHashBase *hash = static_cast<DynamicHashBase *>(ioHash.GetPtr());
+   if (!hash)
+   {
+      hash = inWeakKeys ?  (DynamicHashBase *)new WeakDynamicHashFloat() :
+                           (DynamicHashBase *)new DynamicHashFloat();
+      ioHash = hash;
+   }
+   else if (hash->store==hashString)
+   {
+      hash = hash->convertStore(hashObject);
+      ioHash = hash;
+   }
+   else if (hash->store==hashInt)
+   {
+      hash = hash->convertStore(hashFloat);
+      ioHash = hash;
+   }
+
+   hash->set(inKey,inValue);
+}
+
+
+
+void __object_hash_set_string(Dynamic &ioHash,Dynamic inKey, ::String inValue,bool inWeakKeys)
+{
+   DynamicHashBase *hash = static_cast<DynamicHashBase *>(ioHash.GetPtr());
+   if (!hash)
+   {
+      hash = inWeakKeys ? (DynamicHashBase *)new WeakDynamicHashString() :
+                          (DynamicHashBase *)new DynamicHashString();
+      ioHash = hash;
+   }
+   else if (hash->store==hashInt || hash->store==hashFloat)
+   {
+      hash = hash->convertStore(hashObject);
+      ioHash = hash;
+   }
+
+   hash->set(inKey,inValue);
+}
+
+Dynamic  __object_hash_get(Dynamic &ioHash,Dynamic inKey)
+{
+   DynamicHashBase *hash = static_cast<DynamicHashBase *>(ioHash.GetPtr());
+   if (!hash)
+      return null();
+
+   Dynamic result = null();
+   hash->query(inKey,result);
+   return result;
+}
+
+
+bool  __object_hash_exists(Dynamic &ioHash,Dynamic inKey)
+{
+   DynamicHashBase *hash = static_cast<DynamicHashBase *>(ioHash.GetPtr());
+   if (!hash)
+      return false;
+   return hash->exists(inKey);
+}
+
+bool  __object_hash_remove(Dynamic &ioHash,Dynamic inKey)
+{
+   DynamicHashBase *hash = static_cast<DynamicHashBase *>(ioHash.GetPtr());
+   if (!hash)
+      return false;
+   return hash->remove(inKey);
+}
+
+Array<Dynamic> __object_hash_keys(Dynamic &ioHash)
+{
+   DynamicHashBase *hash = static_cast<DynamicHashBase *>(ioHash.GetPtr());
+   if (!hash)
+      return Array_obj<String>::__new();
+   return hash->keys();
+}
+
+Dynamic __object_hash_values(Dynamic &ioHash)
+{
+   DynamicHashBase *hash = static_cast<DynamicHashBase *>(ioHash.GetPtr());
+   if (!hash)
+      return Array_obj<Dynamic>::__new();
+   return hash->values();
+}
+
+String __object_hash_to_string(Dynamic &ioHash)
+{
+   DynamicHashBase *hash = static_cast<DynamicHashBase *>(ioHash.GetPtr());
+   if (hash)
+      return hash->toString();
+   return String();
+
 }
 
