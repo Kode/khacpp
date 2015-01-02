@@ -139,6 +139,10 @@ int __hxcpp_irand(int inMax)
    return (lo | (mid<<12) | (hi<<24) ) % inMax;
 }
 
+#ifdef SYS_WINDOWS
+#define fileno _fileno
+#endif
+
 void __hxcpp_stdlibs_boot()
 {
    #if defined(HX_WINDOWS) && !defined(HX_WINRT)
