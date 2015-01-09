@@ -26,6 +26,9 @@ extern "C" EXPORT_EXTRA void AppLogInternal(const char* pFunction, int lineNumbe
 #include <unistd.h>
 #endif
 
+#include <Kore/pch.h>
+#include <Kore/Log.h>
+
 #include <string>
 #include <vector>
 #include <map>
@@ -183,18 +186,12 @@ void __trace(Dynamic inObj, Dynamic inData)
       "%s\n", inObj.GetPtr() ? inObj->toString().__s : "null" );
 #else
 #ifdef HX_UTF8_STRINGS
-   #ifdef ANDROID
-   __android_log_print(ANDROID_LOG_INFO, "trace","%s:%d: %s",
-   #elif defined(WEBOS)
-   syslog(LOG_INFO, "%s:%d: %s",
-   #else
-   printf("%s:%d: %s\n",
-   #endif
+   Kore::log(Kore::Info, "%s:%d: %s\n",
                inData==null() ? "?" : inData->__Field( HX_CSTRING("fileName") , true) ->toString().__s,
                inData==null() ? 0 : inData->__Field( HX_CSTRING("lineNumber") , true)->__ToInt(),
                inObj.GetPtr() ? inObj->toString().__s : "null" );
 #else
-   printf( "%S:%d: %S\n",
+   Kore::log(Kore::Info, "%S:%d: %S\n",
                inData->__Field( HX_CSTRING("fileName") , true)->__ToString().__s,
                inData->__Field( HX_CSTRING("lineNumber") , true)->__ToInt(),
                inObj.GetPtr() ? inObj->toString().__s : L"null" );
