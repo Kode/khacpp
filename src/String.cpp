@@ -603,11 +603,29 @@ String String::fromCharCode( int c )
 
    if (!sConstStrings[idx].__s)
    {
-      HX_CHAR buf[2];
-      buf[0] = c;
-      buf[1] = '\0';
-      sConstStrings[idx].__s = (HX_CHAR *)InternalCreateConstBuffer(buf,2,true);
-      sConstStrings[idx].length = 1;
+	   if (c > 0x00BF) {
+		   HX_CHAR buf[3];
+		   buf[0] = 0xc3;
+		   buf[1] = c - 0xc0 + 0x80;
+		   buf[2] = '\0';
+		   sConstStrings[idx].__s = (HX_CHAR *)InternalCreateConstBuffer(buf, 3, true);
+		   sConstStrings[idx].length = 2;
+	  }
+	  else if (c > 0x007F) {
+		   HX_CHAR buf[3];
+		   buf[0] = 0xc2;
+		   buf[1] = c;
+		   buf[2] = '\0';
+		   sConstStrings[idx].__s = (HX_CHAR *)InternalCreateConstBuffer(buf, 3, true);
+		   sConstStrings[idx].length = 2;
+	   }
+	   else {
+		   HX_CHAR buf[2];
+		   buf[0] = c;
+		   buf[1] = '\0';
+		   sConstStrings[idx].__s = (HX_CHAR *)InternalCreateConstBuffer(buf, 2, true);
+		   sConstStrings[idx].length = 1;
+	   }
    }
    return sConstStrings[idx];
 }
