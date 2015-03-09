@@ -159,7 +159,7 @@ static const char *const pstring[] = {
 /*************************************************
 *          Translate error code to string        *
 *************************************************/
-
+#ifndef HAS_REGEX
 PCREPOSIX_EXP_DEFN size_t PCRE_CALL_CONVENTION
 regerror(int errcode, const regex_t *preg, char *errbuf, size_t errbuf_size)
 {
@@ -187,20 +187,20 @@ if (errbuf_size > 0)
 
 return length + addlength;
 }
-
+#endif
 
 
 
 /*************************************************
 *           Free store held by a regex           *
 *************************************************/
-
+#ifndef HAS_REGEX
 PCREPOSIX_EXP_DEFN void PCRE_CALL_CONVENTION
 regfree(regex_t *preg)
 {
 (pcre_free)(preg->re_pcre);
 }
-
+#endif
 
 
 
@@ -217,7 +217,7 @@ Arguments:
 Returns:      0 on success
               various non-zero codes on failure
 */
-
+#ifndef HAS_REGEX
 PCREPOSIX_EXP_DEFN int PCRE_CALL_CONVENTION
 regcomp(regex_t *preg, const char *pattern, int cflags)
 {
@@ -241,7 +241,7 @@ if (preg->re_pcre == NULL) return eint[errorcode];
 preg->re_nsub = pcre_info((const pcre *)preg->re_pcre, NULL, NULL);
 return 0;
 }
-
+#endif
 
 
 
@@ -259,7 +259,7 @@ in a macro that can be changed at configure time.
 If REG_NOSUB was specified at compile time, the PCRE_NO_AUTO_CAPTURE flag will
 be set. When this is the case, the nmatch and pmatch arguments are ignored, and
 the only result is yes/no/error. */
-
+#ifndef HAS_REGEX
 PCREPOSIX_EXP_DEFN int PCRE_CALL_CONVENTION
 regexec(const regex_t *preg, const char *string, size_t nmatch,
   regmatch_t pmatch[], int eflags)
@@ -352,5 +352,5 @@ else
     }
   }
 }
-
+#endif
 /* End of pcreposix.c */
