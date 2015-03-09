@@ -1,6 +1,7 @@
 #include <hxcpp.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string>
 #include <map>
 #include <vector>
