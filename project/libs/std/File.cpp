@@ -365,8 +365,7 @@ static value file_flush( value o ) {
 **/
 static value file_contents( value name ) {
 	using namespace Kore;
-
-	buffer s = NULL;
+	buffer s=0;
 	int len;
 	val_check(name,string);
 	fio f(val_filename(name));

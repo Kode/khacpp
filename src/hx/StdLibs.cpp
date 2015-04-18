@@ -34,6 +34,12 @@ extern "C" EXPORT_EXTRA void AppLogInternal(const char* pFunction, int lineNumbe
 #include <map>
 #include <time.h>
 
+
+#ifdef HX_ANDROID
+#define rand() lrand48()
+#define srand(x) srand48(x)
+#endif
+
 void __hx_stack_set_last_exception();
 
 namespace hx
@@ -181,22 +187,27 @@ void __hxcpp_stdlibs_boot()
 void __trace(Dynamic inObj, Dynamic inData)
 {
 #ifdef TIZEN
-   AppLogInternal(inData==null() ? "?" : inData->__Field( HX_CSTRING("fileName") , true) ->toString().__s,
-      inData==null() ? 0 : inData->__Field( HX_CSTRING("lineNumber") , true)->__ToInt(),
+   AppLogInternal(inData==null() ? "?" : inData->__Field( HX_CSTRING("fileName") , HX_PROP_DYNAMIC) ->toString().__s,
+      inData==null() ? 0 : inData->__Field( HX_CSTRING("lineNumber") , HX_PROP_DYNAMIC)->__ToInt(),
       "%s\n", inObj.GetPtr() ? inObj->toString().__s : "null" );
 #else
 #ifdef HX_UTF8_STRINGS
    Kore::log(Kore::Info, "%s:%d: %s\n",
-               inData==null() ? "?" : inData->__Field( HX_CSTRING("fileName") , true) ->toString().__s,
-               inData==null() ? 0 : inData->__Field( HX_CSTRING("lineNumber") , true)->__ToInt(),
+               inData==null() ? "?" : inData->__Field( HX_CSTRING("fileName") , HX_PROP_DYNAMIC) ->toString().__s,
+               inData==null() ? 0 : inData->__Field( HX_CSTRING("lineNumber") , HX_PROP_DYNAMIC)->__ToInt(),
                inObj.GetPtr() ? inObj->toString().__s : "null" );
 #else
    Kore::log(Kore::Info, "%S:%d: %S\n",
-               inData->__Field( HX_CSTRING("fileName") , true)->__ToString().__s,
-               inData->__Field( HX_CSTRING("lineNumber") , true)->__ToInt(),
+               inData->__Field( HX_CSTRING("fileName") , HX_PROP_DYNAMIC)->__ToString().__s,
+               inData->__Field( HX_CSTRING("lineNumber") , HX_PROP_DYNAMIC)->__ToInt(),
                inObj.GetPtr() ? inObj->toString().__s : L"null" );
 #endif
 #endif
+}
+
+void __hxcpp_exit(int inExitCode)
+{
+   exit(inExitCode);
 }
 
 static double t0 = 0;
@@ -346,7 +357,7 @@ bool __instanceof(const Dynamic &inValue, const Dynamic &inType)
       return true;
    if (inValue==null())
       return false;
-   Class c = inType;
+   hx::Class c = inType;
    if (c==null())
       return false;
    return c->CanCast(inValue.GetPtr());
