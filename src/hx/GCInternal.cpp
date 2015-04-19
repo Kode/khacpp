@@ -2334,7 +2334,7 @@ public:
    int Collect(bool inMajor, bool inForceCompact)
    {
       #ifdef DEBUG
-      sgAllocsSinceLastSpam = 0;
+      //sgAllocsSinceLastSpam = 0;
       #endif
 
       HX_STACK_FRAME("GC", "collect", 0, "GC::collect", __FILE__, __LINE__,0)
