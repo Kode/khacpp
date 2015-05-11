@@ -4,8 +4,8 @@
 #include <time.h>
 
 #ifdef HX_WINRT
-using namespace Windows::Foundation;
-using namespace Windows::System::Threading;
+//using namespace Windows::Foundation;
+//using namespace Windows::System::Threading;
 #endif
 
 DECLARE_TLS_DATA(class hxThreadInfo, tlsCurrentThread);
@@ -267,7 +267,12 @@ THREAD_FUNC_TYPE hxThreadFunc( void *inInfo )
 }
 
 
-
+#ifdef HX_WINRT
+Dynamic __hxcpp_thread_create(Dynamic inStart)
+{
+	return hx::Throw(HX_CSTRING("Threads are not yet supported on WinRT"));
+}
+#else
 Dynamic __hxcpp_thread_create(Dynamic inStart)
 {
     #ifdef EMSCRIPTEN
@@ -325,6 +330,7 @@ Dynamic __hxcpp_thread_create(Dynamic inStart)
     return info;
     #endif
 }
+#endif
 
 static hx::Object *sMainThreadInfo = 0;
 

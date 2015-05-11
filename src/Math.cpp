@@ -141,7 +141,7 @@ void Math_obj::__boot()
 #ifdef HX_WINDOWS
 	t = clock();
    #ifdef HX_WINRT
-	int pid = Windows::Security::Cryptography::CryptographicBuffer::GenerateRandomNumber();
+	int pid = 1; // Windows::Security::Cryptography::CryptographicBuffer::GenerateRandomNumber();
    #else
 	int pid = _getpid();
    #endif
