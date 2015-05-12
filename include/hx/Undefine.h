@@ -3,8 +3,8 @@
 
 
 #if (HXCPP_API_LEVEL < 321)
-//#undef INT_MIN
-//#undef INT_MAX
+#undef INT_MIN
+#undef INT_MAX
 #undef INT8_MIN
 #undef INT8_MAX
 #undef UINT8_MAX
