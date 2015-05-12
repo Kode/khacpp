@@ -43,7 +43,7 @@ class TestWeakHash extends haxe.unit.TestCase
       // There may be one or two values lurking on the stack, which is conservatively marked
       if (oddFound>2)
          trace("Too many odd values retained " + oddFound);
-      assertTrue(valid==expect);
+      assertTrue(valid>=expect && valid<expect+2);
    }
 
    function clearRetained()
@@ -63,7 +63,7 @@ class TestWeakHash extends haxe.unit.TestCase
          cpp.vm.Gc.run(true);
          checkMap(map,0);
       }
-      catch(e:Dynamic)
+      catch(e:String)
       {
          trace(e);
          err = e;
