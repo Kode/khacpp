@@ -2335,7 +2335,7 @@ public:
 
    int Collect(bool inMajor, bool inForceCompact)
    {
-      #ifdef DEBUG
+      #ifdef HXCPP_DEBUG
       sgAllocsSinceLastSpam = 0;
       #endif
 
