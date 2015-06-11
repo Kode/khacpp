@@ -338,10 +338,10 @@ void __hxcpp_register_current_thread()
 	int threadNumber = g_nextThreadNumber++;
 	g_threadInfoMutex.Unlock();
 
-	hxThreadInfo *inInfo = new hxThreadInfo(NULL, threadNumber);
+	hxThreadInfo *inInfo = new hxThreadInfo((void*)NULL, threadNumber);
 
 	hx::GCPrepareMultiThreaded();
-	hx::EnterGCFreeZone();
+	//hx::EnterGCFreeZone();
 
 	hxThreadInfo *info[2];
 	info[0] = (hxThreadInfo *)inInfo;
@@ -358,7 +358,7 @@ void __hxcpp_register_current_thread()
 	__hxcpp_dbg_threadCreatedOrTerminated(info[0]->GetThreadNumber(), true);
 
 	inInfo->mSemaphore->Wait();
-	hx::ExitGCFreeZone();
+	//hx::ExitGCFreeZone();
 	inInfo->CleanSemaphore();
 }
 
