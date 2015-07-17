@@ -17,6 +17,8 @@
 #include <hx/CFFI.h>
 #include <stdio.h>
 #include <string.h>
+#include <hxcpp.h>
+#include <hx/OS.h>
 #ifdef NEKO_WINDOWS
 #	include <windows.h>
 #endif
@@ -375,8 +377,15 @@ static value file_contents( value name ) {
 		FileReader file;
 		if (file.open(fname)) {
 			len = static_cast<int>(file.size());
+			#ifdef SYS_WIIU
+			void* data = file.readAll();
+			Array_obj<unsigned char>* b = new Array_obj<unsigned char>(len, len);
+			memcpy(b->GetBase(), data, len);
+			s = (buffer)b;
+			#else
 			s = alloc_buffer_len(len);
 			file.read(buffer_data(s), static_cast<uint>(len));
+			#endif
 		}
 		else {
 			file_error("file_contents", &f);
