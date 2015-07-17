@@ -1,7 +1,9 @@
 #include <hxcpp.h>
 #include <hxMath.h>
 
-#ifdef HX_WINDOWS
+#ifdef SYS_CONSOLE
+
+#elif defined(HX_WINDOWS)
 #include <windows.h>
 #include <stdio.h>
 #include <io.h>
@@ -213,7 +215,9 @@ void __hxcpp_exit(int inExitCode)
 static double t0 = 0;
 double  __time_stamp()
 {
-#ifdef HX_WINDOWS
+#if defined(SYS_CONSOLE)
+   return 0;
+#elif defined(HX_WINDOWS)
    static __int64 t0=0;
    static double period=0;
    __int64 now;
@@ -300,7 +304,11 @@ Array<String> __get_args()
    #else // linux
 
    char buf[80];
+#ifdef SYS_CONSOLE
+   sprintf(buf, "/proc/%d/cmdline", 0);
+#else
    sprintf(buf, "/proc/%d/cmdline", getpid());
+#endif
    FILE *cmd = fopen(buf,"rb");
    bool real_arg = 0;
    if (cmd)

@@ -2320,7 +2320,9 @@ public:
       sMarkDone[inId] = new MySemaphore();
 
       void *info = (void *)(size_t)inId;
-    #ifdef HX_WINRT
+    #ifdef SYS_CONSOLE
+    
+    #elif defined(HX_WINRT)
       // TODO
     #elif defined(EMSCRIPTEN)
     // Only one thread

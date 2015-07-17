@@ -6,8 +6,9 @@
 #include <cpp/CppInt32__.h>
 #include <map>
 
+#ifdef SYS_CONSOLE
 
-#ifdef _WIN32
+#elif defined(_WIN32)
 
 #include <windows.h>
 #include <time.h>

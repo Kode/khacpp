@@ -142,7 +142,9 @@ public:
         gThreadRefCount += 1;
    
         if (gThreadRefCount == 1) {
-#if defined(HX_WINDOWS)
+#ifdef SYS_CONSOLE
+
+#elif defined(HX_WINDOWS)
 #ifndef HX_WINRT
             _beginthreadex(0, 0, ProfileMainLoop, 0, 0, 0);
 #else
@@ -292,8 +294,10 @@ struct ProfileEntry
     {
         int millis = 1;
 
-        while (gThreadRefCount > 0) { 
-#ifdef HX_WINDOWS
+        while (gThreadRefCount > 0) {
+#ifdef SYS_CONSOLE
+
+#elif defined(HX_WINDOWS)
 #ifndef HX_WINRT
             Sleep(millis);
 #else

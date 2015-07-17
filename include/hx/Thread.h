@@ -1,7 +1,9 @@
 #ifndef HX_THREAD_H
 #define HX_THREAD_H
 
-#ifdef HX_WINRT
+#ifdef SYS_CONSOLE
+
+#elif defined(HX_WINRT)
 
 #include <windows.h>
 #include <process.h>
@@ -104,9 +106,38 @@ inline int HxAtomicDec(volatile int *ioWhere)
 
 #endif
 
+#if defined(SYS_CONSOLE)
 
+struct MyMutex
+{
+   MyMutex() { }
+   ~MyMutex() { }
+   void Lock() { }
+   void Unlock() { }
+   bool TryLock() { return true; }
+   void Clean() { }
+};
 
-#if defined(HX_WINDOWS)
+template<typename DATA>
+struct TLSData
+{
+   TLSData() { }
+   DATA *Get() { return data; }
+   void Set(DATA *inData) { data = inData; }
+   inline DATA *operator=(DATA *inData)
+   {
+      data = inData;
+      return inData;
+   }
+   inline operator DATA *() { return data; }
+
+   DATA* data;
+};
+
+#define THREAD_FUNC_TYPE void *
+#define THREAD_FUNC_RET return 0;
+
+#elif defined(HX_WINDOWS)
 
 
 struct MyMutex
@@ -222,8 +253,24 @@ struct TAutoLock
 
 typedef TAutoLock<MyMutex> AutoLock;
 
+#if defined(SYS_CONSOLE)
 
-#if defined(HX_WINDOWS)
+struct MySemaphore
+{
+   MySemaphore() { }
+   ~MySemaphore() { }
+   void Set() { }
+   void Wait() { }
+    // Returns true on success, false on timeout
+   bool WaitSeconds(double inSeconds)
+   {
+      return true;
+   }
+   void Reset() { }
+   void Clean() { }
+};
+
+#elif defined(HX_WINDOWS)
 
 struct MySemaphore
 {

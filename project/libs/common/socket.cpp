@@ -27,6 +27,8 @@
 #ifdef OS_WINDOWS
 	static int init_done = 0;
 	static WSADATA init_data;
+#elif defined(SYS_CONSOLE)
+
 #else
 #	include <sys/types.h>
 #	include <sys/socket.h>
@@ -49,6 +51,9 @@
 #endif
 
 static SERR block_error() {
+#ifdef SYS_CONSOLE
+	return PS_ERROR;
+#else
 #ifdef OS_WINDOWS
 	int err = WSAGetLastError();
 	if( err == WSAEWOULDBLOCK || err == WSAEALREADY )
@@ -57,6 +62,7 @@ static SERR block_error() {
 #endif
 		return PS_BLOCK;
 	return PS_ERROR;
+#endif
 }
 
 void psock_init() {
@@ -70,7 +76,9 @@ void psock_init() {
 
 PSOCK psock_create() {
    AutoGCBlocking block;
-	PSOCK s = socket(AF_INET,SOCK_STREAM,0);
+#ifdef SYS_CONSOLE
+	return NULL;
+#else	PSOCK s = socket(AF_INET,SOCK_STREAM,0);
 #	if defined(OS_MAC) || defined(OS_BSD)
 	if( s != INVALID_SOCKET )
 		setsockopt(s,SOL_SOCKET,SO_NOSIGPIPE,NULL,0);
@@ -83,14 +91,18 @@ PSOCK psock_create() {
 	}
 #	endif
 	return s;
+#endif
 }
 
 void psock_close( PSOCK s ) {
    AutoGCBlocking block;
-	POSIX_LABEL(close_again);
+#ifdef SYS_CONSOLE
+
+#else	POSIX_LABEL(close_again);
 	if( closesocket(s) ) {
 		HANDLE_EINTR(close_again);
 	}
+#endif
 }
 
 int psock_send( PSOCK s, const char *buf, int size ) {
@@ -99,6 +111,9 @@ int psock_send( PSOCK s, const char *buf, int size ) {
 }
 
 int psock_send_no_gc( PSOCK s, const char *buf, int size ) {
+#ifdef SYS_CONSOLE
+	return 0;
+#else
 	int ret;
 	POSIX_LABEL(send_again);
 	ret = send(s,buf,size,MSG_NOSIGNAL);
@@ -107,6 +122,7 @@ int psock_send_no_gc( PSOCK s, const char *buf, int size ) {
 		return block_error();
 	}
 	return ret;
+#endif
 }
 
 int psock_recv( PSOCK s, char *buf, int size ) {
@@ -115,6 +131,9 @@ int psock_recv( PSOCK s, char *buf, int size ) {
 }
 
 int psock_recv_no_gc( PSOCK s, char *buf, int size ) {
+#ifdef SYS_CONSOLE
+	return 0;
+#else
 	int ret;
 	POSIX_LABEL(recv_again);
 	ret = recv(s,buf,size,MSG_NOSIGNAL);
@@ -123,10 +142,14 @@ int psock_recv_no_gc( PSOCK s, char *buf, int size ) {
 		return block_error();
 	}
 	return ret;
+#endif
 }
 
 PHOST phost_resolve( const char *host ) {
    AutoGCBlocking block;
+#ifdef SYS_CONSOLE
+	return 0;
+#else
 	PHOST ip = inet_addr(host);
 	if( ip == INADDR_NONE ) {
 		struct hostent *h;
@@ -143,10 +166,14 @@ PHOST phost_resolve( const char *host ) {
 		ip = *((unsigned int*)h->h_addr);
 	}
 	return ip;
+#endif
 }
 
 SERR psock_connect( PSOCK s, PHOST host, int port ) {
    AutoGCBlocking block;
+#ifdef SYS_CONSOLE
+	return PS_OK;
+#else
 	struct sockaddr_in addr;
 	memset(&addr,0,sizeof(addr));
 	addr.sin_family = AF_INET;
@@ -155,9 +182,13 @@ SERR psock_connect( PSOCK s, PHOST host, int port ) {
 	if( connect(s,(struct sockaddr*)&addr,sizeof(addr)) != 0 )
 		return block_error();
 	return PS_OK;
+#endif
 }
 
 SERR psock_set_timeout( PSOCK s, double t ) {
+#ifdef SYS_CONSOLE
+	return PS_OK;
+#else
 #ifdef OS_WINDOWS
 	int time = (int)(t * 1000);
 #else
@@ -170,10 +201,14 @@ SERR psock_set_timeout( PSOCK s, double t ) {
 	if( setsockopt(s,SOL_SOCKET,SO_RCVTIMEO,(char*)&time,sizeof(time)) != 0 )
 		return PS_ERROR;
 	return PS_OK;
+#endif
 }
 
 
 SERR psock_set_blocking( PSOCK s, int block ) {
+#ifdef SYS_CONSOLE
+	return PS_OK;
+#else
 #ifdef OS_WINDOWS
 	{
 		unsigned long arg = !block;
@@ -194,16 +229,24 @@ SERR psock_set_blocking( PSOCK s, int block ) {
 	}
 #endif
 	return PS_OK;
+#endif
 }
 
 SERR psock_set_fastsend( PSOCK s, int fast ) {
+#ifdef SYS_CONSOLE
+	return PS_OK;
+#else
 	if( setsockopt(s,IPPROTO_TCP,TCP_NODELAY,(char*)&fast,sizeof(fast)) )
 		return block_error();
 	return PS_OK;
+#endif
 }
 
 void psock_wait( PSOCK s ) {
    AutoGCBlocking block;
+#ifdef SYS_CONSOLE
+
+#else
 #	ifdef OS_WINDOWS
 	fd_set set;
 	FD_ZERO(&set);
@@ -219,6 +262,7 @@ void psock_wait( PSOCK s ) {
 		HANDLE_EINTR(poll_again);
 	}
 #	endif
+#endif
 }
 
 /* ************************************************************************ */

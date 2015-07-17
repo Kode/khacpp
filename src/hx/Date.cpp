@@ -305,7 +305,9 @@ int __hxcpp_get_utc_day(double inSeconds)
  */
 double __hxcpp_date_now()
 {
-   #ifdef HX_WINDOWS
+   #ifdef SYS_CONSOLE
+   return 0;
+   #elif defined(HX_WINDOWS)
    typedef unsigned __int64 uint64_t;
    static const uint64_t EPOCH = ((uint64_t) 116444736000000000ULL);
 
@@ -348,7 +350,9 @@ double __hxcpp_timezone_offset(double inSeconds)
    struct tm localTime;
    __internal_localtime( inSeconds, &localTime);
 
-   #ifdef HX_WINDOWS
+   #ifdef SYS_CONSOLE
+   return 0;
+   #elif defined(HX_WINDOWS)
    struct tm gmTime;
    __internal_gmtime(inSeconds, &gmTime );
 

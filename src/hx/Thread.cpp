@@ -57,7 +57,7 @@ struct Deque : public Array_obj<Dynamic>
    #endif
 
 
-	#ifdef HX_WINDOWS
+	#if defined(HX_WINDOWS) || defined(SYS_CONSOLE)
 	MyMutex     mMutex;
 	void PushBack(Dynamic inValue)
 	{
@@ -266,8 +266,12 @@ THREAD_FUNC_TYPE hxThreadFunc( void *inInfo )
 	THREAD_FUNC_RET
 }
 
-
-#ifdef HX_WINRT
+#ifdef SYS_CONSOLE
+Dynamic __hxcpp_thread_create(Dynamic inStart)
+{
+	return hx::Throw(HX_CSTRING("Threads are not yet supported on consoles"));
+}
+#elif defined(HX_WINRT)
 Dynamic __hxcpp_thread_create(Dynamic inStart)
 {
 	return hx::Throw(HX_CSTRING("Threads are not yet supported on WinRT"));
@@ -514,7 +518,12 @@ public:
 
 	hx::InternalFinalizer *mFinalizer;
 
-	#ifdef HX_WINDOWS
+	#ifdef SYS_CONSOLE
+	double Now()
+	{
+		return 0;
+	}
+	#elif defined(HX_WINDOWS)
 	double Now()
 	{
 		return (double)clock()/CLOCKS_PER_SEC;

@@ -5,11 +5,13 @@
 
 #include <stdlib.h>
 #include <time.h>
+#ifndef SYS_CONSOLE
 #ifndef HX_WINDOWS
 #include <unistd.h>
 #include <sys/time.h>
 #else
 #include <process.h>
+#endif
 #endif
 
 #ifdef HX_ANDROID
@@ -138,7 +140,9 @@ void Math_obj::__boot()
    Static(Math_obj::__mClass) = hx::RegisterClass(HX_CSTRING("Math"),TCanCast<Math_obj>,sMathFields,sNone, &__CreateEmpty,0 , 0 );
 
 	unsigned int t;
-#ifdef HX_WINDOWS
+#ifdef SYS_CONSOLE
+	int pid = 1;
+#elif defined(HX_WINDOWS)
 	t = clock();
    #ifdef HX_WINRT
 	int pid = 1; // Windows::Security::Cryptography::CryptographicBuffer::GenerateRandomNumber();
