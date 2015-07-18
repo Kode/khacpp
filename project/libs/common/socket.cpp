@@ -99,7 +99,8 @@ void psock_close( PSOCK s ) {
    AutoGCBlocking block;
 #ifdef SYS_CONSOLE
 
-#else	POSIX_LABEL(close_again);
+#else
+	POSIX_LABEL(close_again);
 	if( closesocket(s) ) {
 		HANDLE_EINTR(close_again);
 	}
