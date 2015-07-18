@@ -78,7 +78,8 @@ PSOCK psock_create() {
    AutoGCBlocking block;
 #ifdef SYS_CONSOLE
 	return NULL;
-#else	PSOCK s = socket(AF_INET,SOCK_STREAM,0);
+#else
+	PSOCK s = socket(AF_INET,SOCK_STREAM,0);
 #	if defined(OS_MAC) || defined(OS_BSD)
 	if( s != INVALID_SOCKET )
 		setsockopt(s,SOL_SOCKET,SO_NOSIGPIPE,NULL,0);
