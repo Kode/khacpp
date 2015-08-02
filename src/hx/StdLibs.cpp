@@ -194,12 +194,12 @@ void __trace(Dynamic inObj, Dynamic inData)
       "%s\n", inObj.GetPtr() ? inObj->toString().__s : "null" );
 #else
 #ifdef HX_UTF8_STRINGS
-   Kore::log(Kore::Info, "%s:%d: %s\n",
+   Kore::log(Kore::Info, "%s:%d: %s",
                inData==null() ? "?" : inData->__Field( HX_CSTRING("fileName") , HX_PROP_DYNAMIC) ->toString().__s,
                inData==null() ? 0 : inData->__Field( HX_CSTRING("lineNumber") , HX_PROP_DYNAMIC)->__ToInt(),
                inObj.GetPtr() ? inObj->toString().__s : "null" );
 #else
-   Kore::log(Kore::Info, "%S:%d: %S\n",
+   Kore::log(Kore::Info, "%S:%d: %S",
                inData->__Field( HX_CSTRING("fileName") , HX_PROP_DYNAMIC)->__ToString().__s,
                inData->__Field( HX_CSTRING("lineNumber") , HX_PROP_DYNAMIC)->__ToInt(),
                inObj.GetPtr() ? inObj->toString().__s : L"null" );
