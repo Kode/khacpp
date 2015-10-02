@@ -338,7 +338,7 @@ static value sys_exists( value path ) {
 **/
 static value file_exists( value path ) {
 	gc_enter_blocking();
-	bool result =  sys_exists(path);
+	bool result = sys_exists(path) != 0;
 	gc_exit_blocking();
 	return alloc_bool(result);
 }
@@ -381,7 +381,7 @@ static value sys_rename( value path, value newname ) {
 }
 
 #define STATF(f) alloc_field(o,val_id(#f),alloc_int(s.st_##f))
-#define STATF32(f) alloc_field(o,val_id(#f),alloc_int32(s.st_##f))
+#define STATF32(f) alloc_field(o,val_id(#f),alloc_int32((int)s.st_##f))
 
 /**
 	sys_stat : string -> {
@@ -595,7 +595,6 @@ static value sys_read_dir( value p) {
 
 	WIN32_FIND_DATAW d;
 	HANDLE handle;
-	buffer b;
    wchar_t searchPath[ MAX_PATH + 4 ];
    memcpy(searchPath,path, len*sizeof(wchar_t));
 

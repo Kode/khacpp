@@ -648,7 +648,7 @@ String String::fromCharCode( int c )
    {
 	   if (c > 0x00BF) {
 		   HX_CHAR buf[3];
-		   buf[0] = 0xc3;
+		   buf[0] = (HX_CHAR)0xc3;
 		   buf[1] = c - 0xc0 + 0x80;
 		   buf[2] = '\0';
 		   sConstStrings[idx].__s = (HX_CHAR *)InternalCreateConstBuffer(buf, 3, true);
@@ -656,7 +656,7 @@ String String::fromCharCode( int c )
 	  }
 	  else if (c > 0x007F) {
 		   HX_CHAR buf[3];
-		   buf[0] = 0xc2;
+		   buf[0] = (HX_CHAR)0xc2;
 		   buf[1] = c;
 		   buf[2] = '\0';
 		   sConstStrings[idx].__s = (HX_CHAR *)InternalCreateConstBuffer(buf, 3, true);

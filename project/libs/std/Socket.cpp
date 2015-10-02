@@ -519,7 +519,7 @@ static void make_array_result_inplace(value a, fd_set *tmp)
 }
 
 static void init_timeval( double f, struct timeval *t ) {
-	t->tv_usec = (f - (int)f ) * 1000000;
+	t->tv_usec = (long)((f - (int)f ) * 1000000);
 	t->tv_sec = (int)f;
 }
 
@@ -577,7 +577,6 @@ static value socket_fast_select( value rs, value ws, value es, value timeout )
     SOCKET n = 0;
     fd_set rx, wx, ex;
     fd_set *ra, *wa, *ea;
-    value r;
     POSIX_LABEL(select_again);
     ra = make_socket_array(rs,&rx,&n);
     wa = make_socket_array(ws,&wx,&n);

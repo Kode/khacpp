@@ -1,6 +1,8 @@
 #ifndef HXCPP_H
 #define HXCPP_H
 
+#pragma warning( disable : 4018 4244 )
+
 // Standard headers ....
 
 // Windows hack

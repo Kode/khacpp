@@ -144,7 +144,7 @@ String __hxcpp_get_kind(Dynamic inObject)
    return String(it->second.c_str(), it->second.size()).dup();
 }
 
-
+#pragma warning( disable : 4290 )
 #define THROWS throw(Dynamic)
 //#define THROWS
 

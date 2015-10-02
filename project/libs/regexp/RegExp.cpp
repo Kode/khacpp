@@ -244,7 +244,6 @@ static value regexp_matched( value o, value n ) {
 	{
 		int start = d->matchs[m*2];
 		int len = d->matchs[m*2+1] - start;
-		value str;
 		if( start == -1 )
 			return alloc_null();
 		return copy_string( val_string(d->str)+start,len );
