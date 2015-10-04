@@ -2,6 +2,9 @@
 #define HXCPP_H
 
 #pragma warning( disable : 4018 4244 )
+#pragma clang diagnostic ignored "-Wunused-variable"
+#pragma clang diagnostic ignored "-Wunused-value"
+#pragma clang diagnostic ignored "-Wunreachable-code"
 
 // Standard headers ....
 
@@ -52,7 +55,9 @@
 #endif
 
 #if defined(__LP64__) || defined(_LP64)
+#if !defined(HXCPP_M64)
 #define HXCPP_M64
+#endif
 #endif
 
 // Some compilers are over-enthusiastic about what they #define ...
