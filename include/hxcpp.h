@@ -2,9 +2,11 @@
 #define HXCPP_H
 
 #pragma warning( disable : 4018 4244 )
+#if !defined(SYS_WINDOWS) && !defined(SYS_WINDOWSAPP)
 #pragma clang diagnostic ignored "-Wunused-variable"
 #pragma clang diagnostic ignored "-Wunused-value"
 #pragma clang diagnostic ignored "-Wunreachable-code"
+#endif
 
 // Standard headers ....
 
