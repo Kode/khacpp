@@ -180,7 +180,7 @@ void __hxcpp_stdlibs_boot()
       }
    }
    #endif
-   
+
    setbuf(stdin, 0);
    setbuf(stdout, 0);
    setbuf(stderr, 0);
@@ -304,7 +304,7 @@ Array<String> __get_args()
    #else // linux
 
    char buf[80];
-#ifdef SYS_CONSOLE
+#if defined(SYS_CONSOLE) || defined(SYS_PI)
    sprintf(buf, "/proc/%d/cmdline", 0);
 #else
    sprintf(buf, "/proc/%d/cmdline", getpid());
