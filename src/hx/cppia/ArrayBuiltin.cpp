@@ -28,6 +28,7 @@ enum ArrayFunc
    af__get,
    af__set,
    af__crement,
+   af__SetSizeExact,
 };
 
 static int sArgCount[] = 
@@ -54,6 +55,7 @@ static int sArgCount[] =
    1, //af__get,
    2, //af__set,
    1, //af__crement,
+   1, //af__SetSizeExact,
 };
 
 struct ArrayBuiltinBase : public CppiaExpr
@@ -185,6 +187,7 @@ struct ArrayBuiltin : public ArrayBuiltinBase
          case afSort:
          case afInsert:
          case afUnshift:
+         case af__SetSizeExact:
             return etVoid;
 
          case afPush:
@@ -586,8 +589,14 @@ struct ArrayBuiltin : public ArrayBuiltinBase
          BCR_VCHECK;
          thisVal->unshift(elem);
       }
-
-
+      if (FUNC==af__SetSizeExact)
+      {
+         Array_obj<ELEM> *thisVal = (Array_obj<ELEM>*)thisExpr->runObject(ctx);
+         BCR_VCHECK;
+         int size = args[0]->runInt(ctx);
+         BCR_VCHECK;
+         thisVal->__SetSizeExact(size);
+      }
    }
 
    CppiaExpr   *makeSetter(AssignOp op,CppiaExpr *inValue)
@@ -683,6 +692,19 @@ struct ArrayBuiltin : public ArrayBuiltinBase
 template<int FUNC,int OP>
 struct ArrayBuiltinAny : public ArrayBuiltinBase
 {
+
+#if (HXCPP_API_LEVEL>=330)
+  #define BasePtr(x) x
+  typedef cpp::VirtualArray_obj ArrayAnyImpl;
+  #define CALL(x) x
+#else
+  #define BasePtr(x) x.mPtr
+  typedef ArrayBase ArrayAnyImpl;
+  #define CALL(x) __##x
+#endif
+
+
+
    ArrayBuiltinAny(CppiaExpr *inSrc, CppiaExpr *inThisExpr, Expressions &ioExpressions)
       : ArrayBuiltinBase(inSrc,inThisExpr,ioExpressions)
    {
@@ -692,39 +714,39 @@ struct ArrayBuiltinAny : public ArrayBuiltinBase
    {
       if (FUNC==afPush)
       {
-         ArrayBase *thisVal = (ArrayBase *)thisExpr->runObject(ctx);
+         ArrayAnyImpl *thisVal = (ArrayAnyImpl *)thisExpr->runObject(ctx);
          BCR_CHECK;
          hx::Object * val = args[0]->runObject(ctx);
          BCR_CHECK;
-         return thisVal->__push(val);
+         return thisVal->CALL(push)(Dynamic(val));
       }
       if (FUNC==afRemove)
       {
-         ArrayBase *thisVal = (ArrayBase *)thisExpr->runObject(ctx);
+         ArrayAnyImpl *thisVal = (ArrayAnyImpl *)thisExpr->runObject(ctx);
          BCR_CHECK;
          hx::Object * val = args[0]->runObject(ctx);
          BCR_CHECK;
-         return thisVal->__remove(val);
+         return thisVal->CALL(remove)(val);
       }
       if (FUNC==afIndexOf)
       {
-         ArrayBase *thisVal = (ArrayBase *)thisExpr->runObject(ctx);
+         ArrayAnyImpl *thisVal = (ArrayAnyImpl *)thisExpr->runObject(ctx);
          BCR_CHECK;
          Dynamic a0 = args[0]->runObject(ctx);
          BCR_CHECK;
          hx::Object *a1 = args[1]->runObject(ctx);
          BCR_CHECK;
-         return thisVal->__indexOf( a0, a1 );
+         return thisVal->CALL(indexOf)( a0, a1 );
       }
       if (FUNC==afLastIndexOf)
       {
-         ArrayBase *thisVal = (ArrayBase *)thisExpr->runObject(ctx);
+         ArrayAnyImpl *thisVal = (ArrayAnyImpl *)thisExpr->runObject(ctx);
          BCR_CHECK;
          Dynamic a0 = args[0]->runObject(ctx);
          BCR_CHECK;
          hx::Object *a1 = args[1]->runObject(ctx);
          BCR_CHECK;
-         return thisVal->__lastIndexOf( a0, a1 );
+         return thisVal->CALL(lastIndexOf)( a0, a1 );
       }
 
       return Dynamic( runObject(ctx) );
@@ -740,21 +762,22 @@ struct ArrayBuiltinAny : public ArrayBuiltinBase
    {
       if (FUNC==afJoin)
       {
-         ArrayBase *thisVal = (ArrayBase *)thisExpr->runObject(ctx);
+         ArrayAnyImpl *thisVal = (ArrayAnyImpl *)thisExpr->runObject(ctx);
          BCR_CHECK;
          Dynamic a0 = args[0]->runObject(ctx);
          BCR_CHECK;
-         return thisVal->__join( a0 );
+         return thisVal->CALL(join)( a0 );
       }
 
       if (FUNC==afToString)
       {
-         ArrayBase *thisVal = (ArrayBase *)thisExpr->runObject(ctx);
+         ArrayAnyImpl *thisVal = (ArrayAnyImpl *)thisExpr->runObject(ctx);
          BCR_CHECK;
          return thisVal->toString();
       }
 
-      return runObject(ctx)->toString();
+      hx::Object *obj = runObject(ctx);
+      return obj ? obj->toString() : ::String();
    }
 
    hx::Object *runObject(CppiaCtx *ctx)
@@ -768,14 +791,14 @@ struct ArrayBuiltinAny : public ArrayBuiltinBase
       if (FUNC==afJoin || FUNC==afToString)
          return Dynamic(runString(ctx)).mPtr;
 
-      if (FUNC==afSort || FUNC==afInsert || FUNC==afUnshift)
+      if (FUNC==afSort || FUNC==afInsert || FUNC==afUnshift || FUNC==af__SetSizeExact)
       {
          runVoid(ctx);
          return 0;
       }
 
 
-      ArrayBase *thisVal = (ArrayBase *)thisExpr->runObject(ctx);
+      ArrayAnyImpl *thisVal = (ArrayAnyImpl *)thisExpr->runObject(ctx);
       BCR_CHECK;
       CPPIA_CHECK(thisVal);
 
@@ -856,22 +879,22 @@ struct ArrayBuiltinAny : public ArrayBuiltinBase
 
       if (FUNC==afPop)
       {
-         return thisVal->__pop().mPtr;
+         return thisVal->CALL(pop)().mPtr;
       }
       if (FUNC==afShift)
       {
-         return thisVal->__shift().mPtr;
+         return thisVal->CALL(shift)().mPtr;
       }
 
       if (FUNC==afConcat)
       {
          Dynamic val = args[0]->runObject(ctx);
          BCR_CHECK;
-         return thisVal->__concat(val).mPtr;
+         return thisVal->CALL(concat)(val).mPtr;
       }
       if (FUNC==afCopy)
       {
-         return thisVal->__copy().mPtr;
+         return thisVal->CALL(copy)().mPtr;
       }
       if (FUNC==afSplice)
       {
@@ -879,7 +902,7 @@ struct ArrayBuiltinAny : public ArrayBuiltinBase
          BCR_CHECK;
          Dynamic end = args[1]->runObject(ctx);
          BCR_CHECK;
-         return thisVal->__splice(pos,end).mPtr;
+         return thisVal->CALL(splice)(pos,end).mPtr;
       }
       if (FUNC==afSlice)
       {
@@ -887,24 +910,24 @@ struct ArrayBuiltinAny : public ArrayBuiltinBase
          BCR_CHECK;
          Dynamic end = args[1]->runObject(ctx);
          BCR_CHECK;
-         return thisVal->__slice(pos,end).mPtr;
+         return thisVal->CALL(slice)(pos,end).mPtr;
       }
       if (FUNC==afMap)
       {
          Dynamic a0 = args[0]->runObject(ctx);
          BCR_CHECK;
-         return thisVal->__map(a0).mPtr;
+         return thisVal->CALL(map)(a0).mPtr;
       }
       if (FUNC==afFilter)
       {
          Dynamic a0 = args[0]->runObject(ctx);
          BCR_CHECK;
-         return thisVal->__filter(a0).mPtr;
+         return thisVal->CALL(filter)(a0).mPtr;
       }
 
       if (FUNC==afIterator)
       {
-         return thisVal->__iterator().mPtr;
+         return thisVal->CALL(iterator)().mPtr;
       }
 
       return 0;
@@ -913,33 +936,44 @@ struct ArrayBuiltinAny : public ArrayBuiltinBase
    {
       if (FUNC==afSort)
       {
-         ArrayBase *thisVal = (ArrayBase *)thisExpr->runObject(ctx);
+         ArrayAnyImpl *thisVal = (ArrayAnyImpl *)thisExpr->runObject(ctx);
          BCR_VCHECK;
          Dynamic a0 = args[0]->runObject(ctx);
          BCR_VCHECK;
-         thisVal->__sort(a0);
+
+         thisVal->CALL(sort)(a0);
          return;
       }
       if (FUNC==afInsert)
       {
-         ArrayBase *thisVal = (ArrayBase *)thisExpr->runObject(ctx);
+         ArrayAnyImpl *thisVal = (ArrayAnyImpl *)thisExpr->runObject(ctx);
          BCR_VCHECK;
          Dynamic pos = args[0]->runObject(ctx);
          BCR_VCHECK;
          Dynamic val = args[1]->runObject(ctx);
          BCR_VCHECK;
-         thisVal->__insert(pos, val);
+         thisVal->CALL(insert)(pos, val);
          return;
       }
       if (FUNC==afUnshift)
       {
-         ArrayBase *thisVal = (ArrayBase *)thisExpr->runObject(ctx);
+         ArrayAnyImpl *thisVal = (ArrayAnyImpl *)thisExpr->runObject(ctx);
          BCR_VCHECK;
          Dynamic val = args[0]->runObject(ctx);
          BCR_VCHECK;
-         thisVal->__unshift(val);
+         thisVal->CALL(unshift)(val);
          return;
       }
+      if (FUNC==af__SetSizeExact)
+      {
+         ArrayAnyImpl *thisVal = (ArrayAnyImpl *)thisExpr->runObject(ctx);
+         BCR_VCHECK;
+         int size = args[0]->runInt(ctx);
+         BCR_VCHECK;
+         thisVal->__SetSizeExact(size);
+         return;
+      }
+
 
       switch(inlineGetType())
       {
@@ -1051,6 +1085,7 @@ struct ArrayBuiltinAny : public ArrayBuiltinBase
          case afSort:
          case afInsert:
          case afUnshift:
+         case af__SetSizeExact:
             return etVoid;
 
          case afPush:
@@ -1147,10 +1182,12 @@ CppiaExpr *createArrayBuiltin(CppiaExpr *src, ArrayType inType, CppiaExpr *inThi
       return TCreateArrayBuiltin<afIndexOf,NoCrement>(src, inType, inThisExpr, ioExpressions);
    if (field==HX_CSTRING("lastIndexOf"))
       return TCreateArrayBuiltin<afLastIndexOf,NoCrement>(src, inType, inThisExpr, ioExpressions);
-   if (field==HX_CSTRING("__get"))
+   if (field==HX_CSTRING("__get") || field==HX_CSTRING("__unsafe_get"))
       return TCreateArrayBuiltin<af__get,NoCrement>(src, inType, inThisExpr, ioExpressions);
-   if (field==HX_CSTRING("__set"))
+   if (field==HX_CSTRING("__set") || field==HX_CSTRING("__unsafe_set"))
       return TCreateArrayBuiltin<af__set,NoCrement>(src, inType, inThisExpr, ioExpressions);
+   if (field==HX_CSTRING("__SetSizeExact"))
+      return TCreateArrayBuiltin<af__SetSizeExact,NoCrement>(src, inType, inThisExpr, ioExpressions);
 
    return 0;
 }

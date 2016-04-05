@@ -7,10 +7,11 @@
 
 <set name="USE_PRECOMPILED_HEADERS" value="msvc" unless="NO_PRECOMPILED_HEADERS" />
 
+<set name="ABI" value="-MD" if="winrt static_link" unless="ABI"/>
 <set name="ABI" value="-MT" unless="ABI"/>
 <set name="C_ABI" value="${ABI}" />
 
-<set name="ABI" value="-ZW" if="winrt" />
+<set name="ABI" value="-ZW" if="winrt" unless="ABI"/>
 <set name="CPP_ABI" value="${ABI}" />
 
 <set name="XPOBJ" value="xp" if="HXCPP_WINXP_COMPAT" />
@@ -34,6 +35,9 @@
 <set name="MACHINE" value="x86" />
 <set name="MACHINE" value="x64" if="HXCPP_M64" />
 
+<!-- Seem vc does not know how to start its own pdbserver in 64 bit mode -->
+<setup name="pdbserver" if="HXCPP_DEBUG_LINK HXCPP_HACK_PDBSRV HXCPP_FORCE_PDB_SERVER" />
+
 <compiler id="MSVC" exe="cl.exe" if="windows">
   <flag value="-nologo"/>
   <flag value="-Od" if="debug"/>
@@ -46,6 +50,7 @@
   <flag value = "/fp:precise" if="MSVC17+" />
   <flag value = "-DWINAPI_FAMILY=WINAPI_FAMILY_APP" if="winrt" />
   <flag value = "-DHX_WINRT" if="winrt" />
+  <flag value = "-errorReport:prompt" if="winrt" />
 
   <cflag value="${C_ABI}" />
   <cppflag value="${CPP_ABI}" />
@@ -56,12 +61,13 @@
   <section if="HXCPP_DEBUG_LINK">
      <flag value="-Zi" unless="HXCPP_COMPILE_CACHE" />
      <flag value="-Z7" if="HXCPP_COMPILE_CACHE" />
-     <flag value="-FS" if="HXCPP_FORCE_PDB_SERVER" />
      <flag value="-Fd${MSVC_OBJ_DIR}/vc.pdb" unless="HXCPP_COMPILE_CACHE" />
   </section>
+  <flag value="-FS" if="HXCPP_FORCE_PDB_SERVER" />
   <flag value="-Oy-"/>
   <flag value="-c"/>
-  <flag value="-EHs"/>
+  <flag value="-EHs" unless="winrt"/>
+  <flag value="-EHsc" if="winrt"/>
   <flag value="-GS-"/>
   <flag value="-arch:SSE" unless="HXCPP_M64" />
   <flag value="-I${HXCPP}/include"/>
@@ -108,7 +114,7 @@
 <linker id="exe" exe="link.exe" if="winrt">
   <fromfile value="@"/>
   <flag value="-nologo"/>
-  <flag value="-machine:x86"/>
+  <flag value="-machine:${MACHINE}"/>
   <flag value="-debug" if="HXCPP_DEBUG_LINK"/>
   <flag value="-subsystem:windows" />
   <flag value="-MANIFEST:NO" />

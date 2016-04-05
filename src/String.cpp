@@ -1,10 +1,15 @@
 #include <hxcpp.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <set>
 #include <stdlib.h>
 
 using namespace hx;
+
+#if defined(BLACKBERRY)
+using namespace std;
+#endif
 
 // -------- String ----------------------------------------
 
@@ -49,6 +54,7 @@ namespace hx
 #ifdef HX_UTF8_STRINGS
 char HX_DOUBLE_PATTERN[20] = "%.15g";
 #define HX_INT_PATTERN "%d"
+#define HX_UINT_PATTERN "%ud"
 #else
 wchar_t HX_DOUBLE_PATTERN[20] =  L"%.15g";
 #define HX_INT_PATTERN L"%d"
@@ -181,6 +187,24 @@ char *TConvertToUTF8(T *inStr, int *ioLen)
  
 }
 
+
+String::String(const wchar_t *inString)
+{
+   length = 0;
+   if (!inString)
+   {
+      __s = 0;
+   }
+   else
+   {
+      int pos = 0;
+      while(inString[pos])
+         length += UTF8Bytes(inString[pos++]);
+      __s = TConvertToUTF8(inString, &length);
+   }
+}
+
+
 String __hxcpp_char_array_to_utf8_string(Array<int> &inChars,int inFirst, int inLen)
 {
    int len = inChars->length;
@@ -300,11 +324,24 @@ String::String(const Dynamic &inRHS)
    }
 }
 
+void String::fromInt(int inIdx)
+{
+   HX_CHAR buf[100];
+   SPRINTF(buf,100,HX_INT_PATTERN,inIdx);
+   buf[99]='\0';
+   __s = GCStringDup(buf,-1,&length);
+}
 
 String::String(const int &inRHS)
 {
+   fromInt(inRHS);
+}
+
+
+String::String(const unsigned int &inRHS)
+{
    HX_CHAR buf[100];
-   SPRINTF(buf,100,HX_INT_PATTERN,inRHS);
+   SPRINTF(buf,100,HX_UINT_PATTERN,inRHS);
    buf[99]='\0';
    __s = GCStringDup(buf,-1,&length);
 }
@@ -348,7 +385,13 @@ String::String(const char *inPtr,int inLen)
 
 String::String(const HX_CHAR *inStr)
 {
-   __s = GCStringDup(inStr,-1,&length);
+   if (inStr)
+      __s = GCStringDup(inStr,-1,&length);
+   else
+   {
+      __s = 0;
+      length = 0;
+   }
 }
 
 
@@ -365,7 +408,16 @@ String::String(const double &inRHS)
 String::String(const cpp::Int64 &inRHS)
 {
    HX_CHAR buf[100];
-   SPRINTF(buf,100,"%lld",inRHS);
+   SPRINTF(buf,100,"%lld", (long long int)inRHS);
+   buf[99]='\0';
+   __s = GCStringDup(buf,-1,&length);
+}
+
+
+String::String(const cpp::UInt64 &inRHS)
+{
+   HX_CHAR buf[100];
+   SPRINTF(buf,100,"%llu", (unsigned long long int)inRHS);
    buf[99]='\0';
    __s = GCStringDup(buf,-1,&length);
 }
@@ -391,28 +443,8 @@ String::String(const bool &inRHS)
 }
 
 
-unsigned int String::hash() const
+unsigned int String::calcHash() const
 {
-   if (__s==0) return 0;
-   if ( (((unsigned int *)__s)[-1] & HX_GC_NO_HASH_MASK) == HX_GC_CONST_ALLOC_BIT)
-   {
-       #ifdef HXCPP_PARANOID
-         unsigned int result = 0;
-         for(int i=0;i<length;i++)
-            result = result*223 + ((unsigned char *)__s)[i];
-
-         if  ( ((unsigned int *)__s)[-2] != result )
-         {
-             printf("Bad string hash for %s\n", __s );
-             printf(" Is %08x\n", result );
-             printf(" Baked %08x\n",  ((unsigned int *)__s)[-2]  );
-             printf(" Mark %08x\n",    ((unsigned int *)__s)[-1]  );
-             throw Dynamic(HX_CSTRING("Bad Hash!"));
-         }
-      #endif
-      return ((unsigned int *)__s)[-2];
-   }
-
    unsigned int result = 0;
    for(int i=0;i<length;i++)
       result = result*223 + ((unsigned char *)__s)[i];
@@ -421,38 +453,41 @@ unsigned int String::hash() const
 }
 
 
+static unsigned char safeChars[256];
+static bool safeCharsInit = false;
 
 String String::__URLEncode() const
 {
+   if (!safeCharsInit)
+   {
+      safeCharsInit = true;
+      for(int i=0;i<256;i++)
+         safeChars[i] = i>32 && i<127;
+      unsigned char dodgy[] = { 36, 38, 43, 44, 47, 58, 59, 61, 63, 64,
+         34, 60, 62, 35, 37, 123, 125, 124, 92, 94, 126, 91, 93, 96 };
+      for(int i=0;i<sizeof(dodgy);i++)
+         safeChars[ dodgy[i] ] = 0;
+   }
+
    Array<unsigned char> bytes(0,length);
    // utf8-encode
    __hxcpp_bytes_of_string(bytes,*this);
 
    int extra = 0;
-   int spaces = 0;
    int utf8_chars = bytes->__length();
    for(int i=0;i<utf8_chars;i++)
-      if ( !isalnum(bytes[i]) && bytes[i]!=' ' && bytes[i]!='-' && bytes[i]!='_' && bytes[i]!='.')
+      if (!safeChars[bytes[i]])
          extra++;
-      else if (bytes[i]==' ')
-         spaces++;
-   if (extra==0 && spaces==0)
+   if (extra==0)
       return *this;
 
-   int l = utf8_chars + extra*2 + spaces*2 /* *0 */;
+   int l = utf8_chars + extra*2;
    HX_CHAR *result = hx::NewString(l);
    HX_CHAR *ptr = result;
 
    for(int i=0;i<utf8_chars;i++)
    {
-      if ( bytes[i]==' ')
-      {
-         //*ptr++ = '+';
-         *ptr++ = '%';
-         *ptr++ = '2';
-         *ptr++ = '0';
-      }
-      else if ( !isalnum(bytes[i]) && bytes[i]!='-' && bytes[i]!='_' && bytes[i]!='.' )
+      if (!safeChars[bytes[i]])
       {
          static char hex[] = "0123456789ABCDEF";
          unsigned char b = bytes[i];
@@ -554,6 +589,15 @@ String &String::dupConst()
    }
 
    return *this;
+}
+
+::String String::makeConstString(const char *inStr)
+{
+   String unsafe(inStr, strlen(inStr) );
+   ConstStringSet::iterator sit = sConstStringSet.find(unsafe);
+   if (sit!=sConstStringSet.end())
+      return *sit;
+   return unsafe.dupConst();
 }
 
 
@@ -737,6 +781,10 @@ void __hxcpp_string_of_bytes(Array<unsigned char> &inBytes,String &outString,int
    outString = String(result,l);
    #endif
 }
+
+
+
+
 
 const char * String::__CStr() const
 {
@@ -927,6 +975,9 @@ String String::substr(int inFirst, Dynamic inLen) const
    if (len==0)
       return HX_CSTRING("");
 
+   if (len==1)
+      return fromCharCode(__s[inFirst]);
+
    HX_CHAR *ptr = hx::NewString(len);
    memcpy(ptr,__s+inFirst,len*sizeof(HX_CHAR));
    ptr[len] = 0;
@@ -953,14 +1004,19 @@ String String::substring(int startIndex, Dynamic inEndIndex) const
       startIndex = endIndex;
       endIndex = tmp;
    }
-   
+
    return substr( startIndex, endIndex - startIndex );
 }
 
 String String::operator+(String inRHS) const
 {
    if (!__s) return HX_CSTRING("null") + inRHS;
-   if (!length) return inRHS;
+   if (!length)
+   {
+      if (!inRHS.__s)
+         return HX_CSTRING("null");
+      return inRHS;
+   }
    if (!inRHS.__s) return *this + HX_CSTRING("null");
    if (!inRHS.length) return *this;
    int l = length + inRHS.length;
@@ -1039,7 +1095,7 @@ DEFINE_STRING_FUNC0(toLowerCase);
 DEFINE_STRING_FUNC0(toUpperCase);
 DEFINE_STRING_FUNC0(toString);
 
-Dynamic String::__Field(const String &inString, hx::PropertyAccess inCallProp)
+hx::Val String::__Field(const String &inString, hx::PropertyAccess inCallProp)
 {
    if (HX_FIELD_EQ(inString,"length")) return length;
    if (HX_FIELD_EQ(inString,"charAt")) return charAt_dyn();
@@ -1186,7 +1242,7 @@ public:
       return mValue.compare( const_cast<hx::Object*>(inRHS)->toString() );
    }
 
-   Dynamic __Field(const String &inString, hx::PropertyAccess inCallProp)
+   hx::Val __Field(const String &inString, hx::PropertyAccess inCallProp)
    {
       return mValue.__Field(inString, inCallProp);
    }

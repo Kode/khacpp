@@ -32,6 +32,7 @@
 #if (HXCPP_ANDROID_PLATFORM>=21)
 // Nice one, google, no one was using that.
 #define __ATOMIC_INLINE__ static __inline__ __attribute__((always_inline))
+// returns 0=exchange took place, 1=not
 __ATOMIC_INLINE__ int __atomic_cmpxchg(int old, int _new, volatile int *ptr)
    { return __sync_val_compare_and_swap(ptr, old, _new) != old; }
 __ATOMIC_INLINE__ int __atomic_dec(volatile int *ptr) { return __sync_fetch_and_sub (ptr, 1); }
@@ -40,8 +41,9 @@ __ATOMIC_INLINE__ int __atomic_inc(volatile int *ptr) { return __sync_fetch_and_
 #include <sys/atomics.h>
 #endif
 
+// returns 1 if exchange took place
 inline bool HxAtomicExchangeIf(int inTest, int inNewVal,volatile int *ioWhere)
-   { return __atomic_cmpxchg(inTest, inNewVal, ioWhere)==inNewVal; }
+   { return !__atomic_cmpxchg(inTest, inNewVal, ioWhere); }
 // Returns old value naturally
 inline int HxAtomicInc(volatile int *ioWhere)
    { return __atomic_inc(ioWhere); }
@@ -51,7 +53,7 @@ inline int HxAtomicDec(volatile int *ioWhere)
 #elif defined(HX_WINDOWS)
 
 inline bool HxAtomicExchangeIf(int inTest, int inNewVal,volatile int *ioWhere)
-   { return InterlockedCompareExchange((volatile LONG *)ioWhere, inNewVal, inTest)==inNewVal; }
+   { return InterlockedCompareExchange((volatile LONG *)ioWhere, inNewVal, inTest)==inTest; }
 // Make it return old value
 inline int HxAtomicInc(volatile int *ioWhere)
    { return InterlockedIncrement((volatile LONG *)ioWhere)-1; }
@@ -60,7 +62,7 @@ inline int HxAtomicDec(volatile int *ioWhere)
 
 #define HX_HAS_ATOMIC 1
 
-#elif defined(HX_MACOS) || defined(IPHONE)
+#elif defined(HX_MACOS) || defined(IPHONE) || defined(APPLETV)
 #include <libkern/OSAtomic.h>
 
 #define HX_HAS_ATOMIC 1
@@ -168,27 +170,6 @@ struct MyMutex
    CRITICAL_SECTION mCritSec;
 };
 
-#ifndef HX_WINRT
-template<typename DATA>
-struct TLSData
-{
-   TLSData()
-   {
-      mSlot = TlsAlloc();
-      TlsSetValue(mSlot,0);
-   }
-   inline DATA *operator=(DATA *inData)
-   {
-      TlsSetValue(mSlot,inData);
-      return inData;
-   }
-   inline operator DATA *() { return (DATA *)TlsGetValue(mSlot); }
-
-   int mSlot;
-};
-
-#endif
-
 
 #define THREAD_FUNC_TYPE unsigned int WINAPI
 #define THREAD_FUNC_RET return 0;
@@ -224,19 +205,6 @@ struct MyMutex
 
 #endif
 
-
-
-#ifdef HX_WINRT
-
-#define DECLARE_TLS_DATA(TYPE,NAME) \
-   __declspec(thread) TYPE * NAME = nullptr;
-
-#else
-
-#define DECLARE_TLS_DATA(TYPE,NAME) \
-   TLSData<TYPE> NAME;
-
-#endif
 
 
 
@@ -308,34 +276,6 @@ struct MySemaphore
 };
 
 #else
-
-
-template<typename DATA>
-struct TLSData
-{
-   TLSData()
-   {
-      pthread_key_create(&mSlot, 0);
-   }
-   DATA *Get()
-   {
-      return (DATA *)pthread_getspecific(mSlot);
-   }
-   void Set(DATA *inData)
-   {
-      pthread_setspecific(mSlot,inData);
-   }
-   inline DATA *operator=(DATA *inData)
-   {
-      pthread_setspecific(mSlot,inData);
-      return inData;
-   }
-   inline operator DATA *() { return (DATA *)pthread_getspecific(mSlot); }
-
-   pthread_key_t mSlot;
-};
-
-
 
 
 struct MySemaphore

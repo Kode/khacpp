@@ -9,6 +9,17 @@
 
 #include "Cppia.h"
 #include "CppiaStream.h"
+#include <stdlib.h>
+
+
+#ifdef HX_ANDROID
+  #define atof(x) strtod(x,0)
+#endif
+
+// Really microsoft?
+#ifdef interface
+  #undef interface
+#endif
 
 
 namespace hx
@@ -69,6 +80,10 @@ void cppiaClassInit(CppiaClassInfo *inClass, CppiaCtx *ctx, int inPhase);
 
 static int sScriptId = 0;
 
+const char **sgNativeNameSlots = 0;
+int sgNativeNameSlotCount = 0;
+
+
 // --- CppiaModule ----
 
 CppiaModule::CppiaModule()
@@ -79,6 +94,10 @@ CppiaModule::CppiaModule()
    creatingFunction = 0;
    scriptId = ++sScriptId;
    strings = Array_obj<String>::__new(0,0);
+   if (sgNativeNameSlotCount>0)
+      for(int i=2;i<sgNativeNameSlotCount;i++)
+         interfaceSlots[sgNativeNameSlots[i]] = i;
+
 }
 
 void CppiaModule::setDebug(CppiaExpr *outExpr, int inFileId, int inLine)
@@ -97,6 +116,37 @@ void CppiaModule::boot(CppiaCtx *ctx)
    // run __init__
    for(int i=0;i<classes.size();i++)
       cppiaClassInit(classes[i],ctx,1);
+}
+
+int CppiaModule::getInterfaceSlot(const std::string &inName)
+{
+   InterfaceSlots::iterator it = interfaceSlots.find(inName);
+   if (it==interfaceSlots.end())
+   {
+      #if (HXCPP_API_LEVEL >= 330)
+      int result = interfaceSlots.size()+1;
+      #else
+      int result = interfaceSlots.size()+2;
+      #endif
+      interfaceSlots[inName] = result;
+      return result;
+   }
+   return it->second;
+}
+
+
+int CppiaModule::findInterfaceSlot(const std::string &inName)
+{
+   InterfaceSlots::iterator it = interfaceSlots.find(inName);
+   if (it==interfaceSlots.end())
+      return -1;
+   return it->second;
+}
+
+void ScriptableRegisterNameSlots(const char *inNames[], int inLength)
+{
+   sgNativeNameSlots = inNames;
+   sgNativeNameSlotCount = inLength;
 }
 
 // --- StackLayout ---
@@ -177,9 +227,9 @@ struct CppiaDynamicExpr : public CppiaExpr
 
    virtual int         runInt(CppiaCtx *ctx)    {
       hx::Object *obj = runObject(ctx);
-      return obj->__ToInt();
+      return ValToInt(obj);
    }
-   virtual Float       runFloat(CppiaCtx *ctx) { return runObject(ctx)->__ToDouble(); }
+   virtual Float       runFloat(CppiaCtx *ctx) { return ValToFloat(runObject(ctx)); }
    virtual ::String    runString(CppiaCtx *ctx)
    {
       hx::Object *result = runObject(ctx);
@@ -557,7 +607,7 @@ struct ScriptCallable : public CppiaDynamicExpr
 
       if (badCount)
       {
-         printf("Arg count mismatch %d!=%lu ?\n", argCount, inArgs.size());
+         printf("Arg count mismatch %d!=%d ?\n", argCount, (int)inArgs.size());
          printf(" %s at %s:%d %s\n", getName(), filename, line, functionName);
          CPPIA_CHECK(0);
          throw Dynamic(HX_CSTRING("Arg count error"));
@@ -685,7 +735,7 @@ struct ScriptCallable : public CppiaDynamicExpr
 
       if (badCount)
       {
-         printf("Arg count mismatch %d!=%lu ?\n", argCount, inArgs.size());
+         printf("Arg count mismatch %d!=%d ?\n", argCount, (int)inArgs.size());
          printf(" %s at %s:%d %s\n", getName(), filename, line, functionName);
          CPPIA_CHECK(0);
          throw Dynamic(HX_CSTRING("Arg count error"));
@@ -779,6 +829,7 @@ struct ScriptCallable : public CppiaDynamicExpr
       BCR_VCHECK;
 
       int inCount = inArgs==null() ? 0 : inArgs->length;
+      /*
       bool badCount = argCount<inCount;
       for(int i=inCount;i<argCount && !badCount;i++)
          if (!hasDefault[i])
@@ -792,6 +843,7 @@ struct ScriptCallable : public CppiaDynamicExpr
          throw Dynamic(HX_CSTRING("Arg count error"));
          //return;
       }
+      */
 
 
       ctx->push( inThis );
@@ -841,7 +893,7 @@ struct ScriptCallable : public CppiaDynamicExpr
                   }
             }
          }
-         else
+         else if (a<inCount)
          {
             switch(var.expressionType)
             {
@@ -858,6 +910,25 @@ struct ScriptCallable : public CppiaDynamicExpr
                   ctx->pushObject(inArgs[a].mPtr);
             }
             BCR_VCHECK;
+         }
+         else
+         {
+            // Push cpp defaults...
+            switch(var.expressionType)
+            {
+               case etInt:
+                  ctx->pushInt(0);
+                  break;
+               case etFloat:
+                  ctx->pushFloat(0.0);
+                  break;
+               case etString:
+                  ctx->pushString(String());
+                  break;
+               default:
+                  ctx->pushObject(0);
+            }
+ 
          }
       }
    }
@@ -1045,9 +1116,11 @@ void CppiaFunction::compile()
 class CppiaEnumBase : public EnumBase_obj
 {
 public:
+   #if (HXCPP_API_LEVEL<330)
    CppiaClassInfo *classInfo; 
+   #endif
 
-   CppiaEnumBase(CppiaClassInfo *inInfo) : classInfo(inInfo) { }
+   CppiaEnumBase(CppiaClassInfo *inInfo) { classInfo = inInfo; }
 
    ::hx::ObjectPtr<hx::Class_obj > __GetClass() const;
 	::String GetEnumName( ) const;
@@ -1094,8 +1167,15 @@ struct CppiaEnumConstructor
          throw Dynamic(HX_CSTRING("Bad enum arg count"));
       if (args.size()==0)
          return value.mPtr;
+      #if (HXCPP_API_LEVEL >= 330)
+      EnumBase_obj *result = new ((int)args.size()*sizeof(cpp::Variant)) CppiaEnumBase(classInfo);
+      result->setIdentity(name, index, args.size());
+      for(int i=0;i<args.size();i++)
+         result->init( i, inArgs[i] );
+      #else
       EnumBase_obj *result = new CppiaEnumBase(classInfo);
-      result->Set(name, index, inArgs);
+      result->__Set(name, index, inArgs);
+      #endif
       return result;
    }
 };
@@ -1126,9 +1206,14 @@ struct CppiaClassInfo
    int       classSize;
    int       extraData;
    int       dynamicMapOffset;
+   int       interfaceSlotSize;
    void      **vtable;
    std::string name;
+   #if (HXCPP_API_LEVEL>=330)
+   std::map<int, void *> interfaceScriptTables;
+   #else
    std::map<std::string, void **> interfaceVTables;
+   #endif
    std::set<String> nativeProperties;
    hx::Class     mClass;
 
@@ -1162,6 +1247,7 @@ struct CppiaClassInfo
       initFunc = 0;
       enumMeta = 0;
       isInterface = false;
+      interfaceSlotSize = 0;
       superType = 0;
       typeId = 0;
       vtable = 0;
@@ -1478,10 +1564,12 @@ struct CppiaClassInfo
       return 0;
    }
 
+   #if (HXCPP_API_LEVEL < 330)
    void **getInterfaceVTable(const std::string &inName)
    {
       return interfaceVTables[inName];
    }
+   #endif
 
    void mark(hx::MarkContext *__inCtx)
    {
@@ -1546,7 +1634,17 @@ struct CppiaClassInfo
        DBGLOG("Class %s %s\n", name.c_str(), isEnum ? "enum" : isInterface ? "interface" : "class" );
 
        bool isNew = //(resolved == null() || !IsCppiaClass(resolved) ) &&
-                   !HaxeNativeClass::findClass(name);
+                   (!HaxeNativeClass::findClass(name) && !HaxeNativeInterface::findInterface(name) );
+
+       if (isNew && isEnum)
+       {
+          hx::Class cls =  hx::Class_obj::Resolve(String(name.c_str()));
+          if (cls.mPtr && getScriptId(cls)==0)
+          {
+             DBGLOG("Found existing enum %s - ignore\n", name.c_str());
+             isNew = false;
+          }
+       }
 
        if (isNew)
        {
@@ -1623,6 +1721,7 @@ struct CppiaClassInfo
        return isNew;
    }
 
+   #if (HXCPP_API_LEVEL<330)
    void **createInterfaceVTable(int inTypeId)
    {
       std::vector<CppiaExpr *> vtable;
@@ -1633,9 +1732,11 @@ struct CppiaClassInfo
       {
          vtable.push_back( findInterfaceFunction("toString") );
          ScriptNamedFunction *functions = interface->functions;
-         for(ScriptNamedFunction *f = functions; f->name; f++)
-            if (strcmp(f->name,"toString"))
-               vtable.push_back( findInterfaceFunction(f->name) );
+         if (functions != 0) {
+            for(ScriptNamedFunction *f = functions; f->name; f++)
+               if (strcmp(f->name,"toString"))
+                  vtable.push_back( findInterfaceFunction(f->name) );
+         }
             
       }
 
@@ -1661,6 +1762,7 @@ struct CppiaClassInfo
       memcpy(result, &vtable[0], sizeof(void *)*vtable.size());
       return result;
    }
+   #endif
 
    hx::Class *getSuperClass()
    {
@@ -1676,6 +1778,16 @@ struct CppiaClassInfo
       return &superType->haxeClass;
    }
 
+   void addMemberFunction(Functions &ioCombined, CppiaFunction *inNewFunc)
+   {
+      for(int j=0;j<ioCombined.size();j++)
+         if (ioCombined[j]->name==inNewFunc->name)
+         {
+            ioCombined[j] = inNewFunc;
+            return;
+         }
+      ioCombined.push_back(inNewFunc);
+   }
 
    void linkTypes()
    {
@@ -1781,19 +1893,26 @@ struct CppiaClassInfo
 
          // Combine member functions ...
          Functions combinedFunctions(cppiaSuper->memberFunctions );
-         for(int i=0;i<memberFunctions.size();i++)
+         if (isInterface)
          {
-            bool found = false;
-            for(int j=0;j<combinedFunctions.size();j++)
-               if (combinedFunctions[j]->name==memberFunctions[i]->name)
+            // 'implements' interfaces are like extra super-classes for interfaces
+            // For non-interface classes, these function will show up in the members anyhow
+            for(int i=0;i<implements.size();i++)
+            {
+               CppiaClassInfo  *cppiaInterface = cppia.types[implements[i]]->cppiaClass;
+               if (cppiaInterface)
                {
-                  combinedFunctions[j] = memberFunctions[i];
-                  found = true;
-                  break;
+                  Functions &intfFuncs = cppiaInterface->memberFunctions;
+                  for(int j=0;j<intfFuncs.size();j++)
+                     addMemberFunction(combinedFunctions, intfFuncs[j]);
                }
-            if (!found)
-               combinedFunctions.push_back(memberFunctions[i]);
+            }
          }
+
+
+         for(int i=0;i<memberFunctions.size();i++)
+            addMemberFunction(combinedFunctions, memberFunctions[i]);
+
          memberFunctions.swap(combinedFunctions);
       }
 
@@ -1854,12 +1973,13 @@ struct CppiaClassInfo
 
 
       // Combine vtable positions...
-      DBGLOG("  format haxe callable vtable (%lu)....\n", memberFunctions.size());
+      DBGLOG("  format haxe callable vtable (%d)....\n", (int)memberFunctions.size());
       std::vector<std::string> table;
       if (haxeBase)
          haxeBase->addVtableEntries(table);
       for(int i=0;i<table.size();i++)
          DBGLOG("   base table[%d] = %s\n", i, table[i].c_str() );
+
 
       int vtableSlot = table.size();
       for(int i=0;i<memberFunctions.size();i++)
@@ -1873,35 +1993,72 @@ struct CppiaClassInfo
             }
          if (idx<0)
          {
-            idx = vtableSlot++;
-            DBGLOG("   cppia slot [%d] = %s\n", idx, memberFunctions[i]->name.c_str() );
+            if (isInterface)
+            {
+               idx = cppia.getInterfaceSlot(memberFunctions[i]->name);
+               if (idx==-1)
+                  throw "Missing function in interface";
+               if (idx>interfaceSlotSize)
+                  interfaceSlotSize = idx;
+               idx = -idx;
+               DBGLOG("Using interface vtable[%d] = %s\n", idx, memberFunctions[i]->name.c_str() );
+            }
+            else
+            {
+               idx = vtableSlot++;
+               DBGLOG("   cppia slot [%d] = %s\n", idx, memberFunctions[i]->name.c_str() );
+            }
          }
          else
             DBGLOG("   override slot [%d] = %s\n", idx, memberFunctions[i]->name.c_str() );
          memberFunctions[i]->setVTableSlot(idx);
       }
-      vtable = new void*[vtableSlot + 1];
-      memset(vtable, 0, sizeof(void *)*(vtableSlot+1));
-      *vtable++ = this;
-      DBGLOG("  vtable size %d -> %p\n", vtableSlot, vtable);
 
 
       // Create interface vtables...
       for(int i=0;i<implements.size();i++)
       {
          int id = implements[i];
+         #if (HXCPP_API_LEVEL < 330)
          void **vtable = createInterfaceVTable(id);
+         #endif
          while(id > 0)
          {
             TypeData *interface = cppia.types[id];
-            interfaceVTables[ interface->name.__s ] = vtable;
- 
             CppiaClassInfo  *cppiaInterface = interface->cppiaClass;
+            #if (HXCPP_API_LEVEL >= 330)
+            HaxeNativeInterface *native = HaxeNativeInterface::findInterface( interface->name.__s );
+            if (native)
+               interfaceScriptTables[interface->name.hash()] = native->scriptTable;
+            #else
+            interfaceVTables[ interface->name.__s ] = vtable;
+            #endif
             if (!cppiaInterface)
-                break;
+               break;
+
+            Functions &intfFuncs = cppiaInterface->memberFunctions;
+            for(int f=0;f<intfFuncs.size();f++)
+            {
+               int slot = cppia.getInterfaceSlot(intfFuncs[f]->name);
+               if (slot<0)
+                  printf("Interface slot '%s' not found\n",intfFuncs[f]->name.c_str());
+               if (slot>interfaceSlotSize)
+                  interfaceSlotSize = slot;
+            }
             id =  cppiaInterface->superId;
          }
       }
+
+      if (interfaceSlotSize)
+         interfaceSlotSize++;
+
+      vtable = new void*[vtableSlot + 2 + interfaceSlotSize];
+      memset(vtable, 0, sizeof(void *)*(vtableSlot+2+interfaceSlotSize));
+      vtable += interfaceSlotSize;
+      *vtable++ = this;
+
+      DBGLOG("  vtable size %d -> %p\n", vtableSlot, vtable);
+
 
       // Extract special function ...
       for(int i=0;i<staticFunctions.size(); )
@@ -1929,7 +2086,11 @@ struct CppiaClassInfo
          {
             EnumBase base = new CppiaEnumBase(this);
             e.value = base;
-            base->Set( cppia.strings[e.nameId],i,null() );
+            #if (HXCPP_API_LEVEL>=330)
+            base->setIdentity(cppia.strings[e.nameId],i,0);
+            #else
+            base->__Set( cppia.strings[e.nameId],i,null() );
+            #endif
          }
          else
          {
@@ -1998,7 +2159,15 @@ struct CppiaClassInfo
          dynamicFunctions[i]->link(cppia);
 
       for(int i=0;i<memberFunctions.size();i++)
+      {
          vtable[ memberFunctions[i]->vtableSlot ] = memberFunctions[i]->funExpr;
+         if (interfaceSlotSize)
+         {
+            int interfaceSlot = cppia.findInterfaceSlot( memberFunctions[i]->name );
+            if (interfaceSlot>0 && interfaceSlot<interfaceSlotSize)
+               vtable[ -interfaceSlot ] = memberFunctions[i]->funExpr;
+         }
+      }
 
       // Vars ...
       if (!isInterface)
@@ -2461,14 +2630,14 @@ public:
    }
 
 
-   Dynamic __Field(const String &inName,hx::PropertyAccess inCallProp)
+   hx::Val __Field(const String &inName,hx::PropertyAccess inCallProp)
    {
       if (inName==HX_CSTRING("__meta__"))
          return __meta__;
       return info->getStaticValue(inName,inCallProp);
    }
 
-   Dynamic __SetField(const String &inName,const Dynamic &inValue ,hx::PropertyAccess inCallProp)
+   hx::Val __SetField(const String &inName,const hx::Val &inValue ,hx::PropertyAccess inCallProp)
    {
       return info->setStaticValue(inName,inValue,inCallProp);
    }
@@ -2480,6 +2649,15 @@ public:
 
       return info->hasStaticValue(inName);
    }
+
+   #if (HXCPP_API_LEVEL >= 330)
+   void *_hx_getInterface(int inId)
+   {
+      return info->interfaceScriptTables[inId];
+   }
+   #endif
+
+
 };
 
 
@@ -2580,6 +2758,10 @@ public:
 
    void pushArg(CppiaCtx *ctx, int a, Dynamic inValue)
    {
+      // Developer has used dynamic to call a closure with wrong # parameters
+      if (a>=function->args.size())
+         return;
+
       if (!inValue.mPtr && function->pushDefault(ctx,a) )
           return;
 
@@ -2608,7 +2790,7 @@ public:
       AutoStack a(ctx);
       ctx->pointer += sizeof(hx::Object *);
 
-      int haveArgs = inArgs->length;
+      int haveArgs = !inArgs.mPtr ? 0 : inArgs->length;
       if (haveArgs>function->argCount)
          throw sInvalidArgCount;
 
@@ -3224,6 +3406,21 @@ struct CallFunExpr : public CppiaExpr
    {
       compiler.trace("Function called implementation");
 
+      /*
+      CTmp sp = cSp;
+      CTmp frame = cFrame;
+      pushArgs();
+      cFrame = cSp;
+      cTrace("set frame");
+      cCall(callScriptable, ctx, ConstValue(function) );
+      cSp = sp;
+      cFrame = frame;
+      cCheckException(); // if stack.exp (goto handler or return)
+      cConvert(inDest,resultType,function->getType() );
+      */
+
+
+
       AllocTemp pointer(compiler);
       AllocTemp frame(compiler);
 
@@ -3303,6 +3500,7 @@ struct CppiaExprWithValue : public CppiaDynamicExpr
 // ---
 
 
+static int idx = 0;
 
 struct CallDynamicFunction : public CppiaExprWithValue
 {
@@ -3443,12 +3641,14 @@ struct SetExpr : public CppiaExpr
 
 };
 
+#if (HXCPP_API_LEVEL < 330)
 class CppiaInterface : public hx::Interface
 {
    typedef CppiaInterface __ME;
    typedef hx::Interface super;
    HX_DEFINE_SCRIPTABLE_INTERFACE
 };
+#endif
 
 enum CastOp
 {
@@ -3484,6 +3684,13 @@ struct CastExpr : public CppiaDynamicExpr
       Array_obj<T> *alreadyGood = dynamic_cast<Array_obj<T> *>(obj);
       if (alreadyGood)
          return alreadyGood;
+      #if (HXCPP_API_LEVEL>=330)
+      cpp::VirtualArray_obj *varray = dynamic_cast<cpp::VirtualArray_obj *>(obj);
+      if (varray)
+      {
+         return Array<T>( cpp::VirtualArray(varray) ).mPtr;
+      }
+      #endif
       int n = obj->__length();
       Array<T> result = Array_obj<T>::__new(n,n);
       for(int i=0;i<n;i++)
@@ -3516,8 +3723,19 @@ struct CastExpr : public CppiaDynamicExpr
          case arrInt:          return convert<int>(obj);
          case arrFloat:        return convert<Float>(obj);
          case arrString:       return convert<String>(obj);
+         #if (HXCPP_API_LEVEL>=330)
+         case arrAny:
+         {
+            ArrayBase *base = dynamic_cast<ArrayBase *>(obj);
+            if (base)
+               return new cpp::VirtualArray_obj(base);
+            return dynamic_cast<cpp::VirtualArray_obj *>(obj);
+         }
+         case arrObject:       return convert<Dynamic>(obj);
+         #else
          case arrAny:          return convert<Dynamic>(obj);
          case arrObject:       return obj;
+         #endif
          case arrNotArray:     throw "Bad cast";
       }
       return 0;
@@ -3558,26 +3776,6 @@ struct CastExpr : public CppiaDynamicExpr
    }
 };
 
-hx::Object *ObjectToInterface(hx::Object *inObject, TypeData *toType)
-{
-   if (!inObject)
-      return 0;
-
-   inObject = inObject->__GetRealObject();
-
-   void **vtable = inObject->__GetScriptVTable();
-   if (vtable)
-   {
-      CppiaClassInfo *info = (CppiaClassInfo *)vtable[-1];
-      void **interfaceVTable = info->getInterfaceVTable(toType->name.__s);
-      if (!interfaceVTable)
-         return 0;
-      return CppiaInterface::__script_create(interfaceVTable,inObject);
-   }
-
-   return inObject->__ToInterface(*(toType->interfaceBase->mType));
-}
-
 
 struct ToInterface : public CppiaDynamicExpr
 {
@@ -3605,6 +3803,17 @@ struct ToInterface : public CppiaDynamicExpr
 
    const char *getName() { return array ? "ToInterfaceArray" : "ToInterface"; }
 
+   #if (HXCPP_API_LEVEL >= 330)
+   CppiaExpr *link(CppiaModule &inModule)
+   {
+      DBGLOG("Api 330 - no cast required\n");
+      CppiaExpr *linked = value->link(inModule);
+      delete this;
+      return linked;
+   }
+   hx::Object *runObject(CppiaCtx *ctx) { return 0; }
+
+   #else
    CppiaExpr *link(CppiaModule &inModule)
    {
       toType = inModule.types[toTypeId];
@@ -3624,22 +3833,19 @@ struct ToInterface : public CppiaDynamicExpr
          }
          else
          {
-            DBGLOG("cppa class, native interface\n");
+            DBGLOG("cppia class, native interface\n");
             cppiaVTable = fromType->cppiaClass->getInterfaceVTable(toType->interfaceBase->name);
          }
+         value = value->link(inModule);
+         return this;
       }
-      else if (fromType && fromType->cppiaClass)
-      {
-         cppiaVTable = fromType->cppiaClass->getInterfaceVTable(toType->name.__s);
-         if (!cppiaVTable)
-           DBGLOG("Could not find scripting interface implementation %s on %s, use dynamic\n", toType->name.__s, fromType->name.__s);
-      }
-      else
-      {
-         // Use dynamic
-      }
-      value = value->link(inModule);
-      return this;
+
+
+      DBGLOG("cppia class, cppia interface - no cast required\n");
+
+      CppiaExpr *linked = value->link(inModule);
+      delete this;
+      return linked;
    }
 
    hx::Object *runObject(CppiaCtx *ctx)
@@ -3650,73 +3856,23 @@ struct ToInterface : public CppiaDynamicExpr
       if (obj)
          obj = obj->__GetRealObject();
 
-      if (interfaceInfo)
-      {
-         if (cppiaVTable)
-         {
-            if (array)
-            {
-               CPPIA_CHECK(obj);
-               int n = obj->__length();
-               Array<Dynamic> result = Array_obj<Dynamic>::__new(n,n);
-               for(int i=0;i<n;i++)
-                  result[i] = interfaceInfo->factory(cppiaVTable,obj->__GetItem(i)->__GetRealObject());
-               return result.mPtr;
-            }
-            return interfaceInfo->factory(cppiaVTable,obj);
-         }
-         return obj->__ToInterface(*interfaceInfo->mType);
-      }
-
       if (cppiaVTable)
       {
          if (array)
          {
+            CPPIA_CHECK(obj);
             int n = obj->__length();
             Array<Dynamic> result = Array_obj<Dynamic>::__new(n,n);
             for(int i=0;i<n;i++)
-               result[i] = CppiaInterface::__script_create(cppiaVTable,obj->__GetItem(i)->__GetRealObject());
+               result[i] = interfaceInfo->factory(cppiaVTable,obj->__GetItem(i)->__GetRealObject());
             return result.mPtr;
          }
-
-         return CppiaInterface::__script_create(cppiaVTable,obj);
+         return interfaceInfo->factory(cppiaVTable,obj);
       }
-
-      if (array)
-      {
-         CPPIA_CHECK(obj);
-         int n = obj->__length();
-         Array<Dynamic> result = Array_obj<Dynamic>::__new(n,n);
-         for(int i=0;i<n;i++)
-         {
-            Dynamic o = obj->__GetItem(i)->__GetRealObject();
-            if (o.mPtr)
-            {
-               void **vtable = o->__GetScriptVTable();
-               if (vtable)
-               {
-                  CppiaClassInfo *info = (CppiaClassInfo *)vtable[-1];
-                  void **interfaceVTable = info->getInterfaceVTable(toType->name.__s);
-                  if (interfaceVTable)
-                     result[i] =  CppiaInterface::__script_create(interfaceVTable,o.mPtr);
-               }
-            }
-         }
-         return result.mPtr;
-      }
-
-      void **vtable = obj->__GetScriptVTable();
-      if (vtable)
-      {
-         CppiaClassInfo *info = (CppiaClassInfo *)vtable[-1];
-         void **interfaceVTable = info->getInterfaceVTable(toType->name.__s);
-         if (!interfaceVTable)
-            return 0;
-         return CppiaInterface::__script_create(interfaceVTable,obj);
-      }
-
-      return 0;
+      hx::Object *result = obj->__ToInterface(*interfaceInfo->mType);
+      return result;
    }
+   #endif
 };
 
 struct NewExpr : public CppiaDynamicExpr
@@ -3763,8 +3919,13 @@ struct NewExpr : public CppiaDynamicExpr
                return Array_obj<Float>::__new(size,size).mPtr;
             case arrString:
                return Array_obj<String>::__new(size,size).mPtr;
-            case arrObject:
             case arrAny:
+               #if (HXCPP_API_LEVEL>=330)
+               return cpp::VirtualArray_obj::__new(size,size).mPtr;
+               #else
+               // Fallthrough
+               #endif
+            case arrObject:
                return Array_obj<Dynamic>::__new(size,size).mPtr;
             default:
                return 0;
@@ -4011,7 +4172,11 @@ struct CallGetIndex : public CppiaIntExpr
    {
       hx::Object *obj = thisExpr->runObject(ctx);
       CPPIA_CHECK(obj);
+      #if (HXCPP_API_LEVEL>=330)
+      return static_cast<EnumBase_obj *>(obj)->getIndex();
+      #else
       return obj->__Index();
+      #endif
    }
 };
 
@@ -4048,7 +4213,7 @@ struct CallSetField : public CppiaDynamicExpr
       String name = nameExpr->runString(ctx);
       hx::Object *value = valueExpr->runObject(ctx);
       int isProp = isPropExpr->runInt(ctx);
-      return obj->__SetField(name, Dynamic(value), (hx::PropertyAccess)isProp).mPtr;
+      return Dynamic(obj->__SetField(name, Dynamic(value), (hx::PropertyAccess)isProp)).mPtr;
    }
 };
 
@@ -4080,7 +4245,11 @@ struct CallGetField : public CppiaDynamicExpr
       CPPIA_CHECK(obj);
       String name = nameExpr->runString(ctx);
       int isProp = isPropExpr->runInt(ctx);
+      #if (HXCPP_API_LEVEL>=330)
+      return obj->__Field(name,(hx::PropertyAccess)isProp).asObject();
+      #else
       return obj->__Field(name,(hx::PropertyAccess)isProp).mPtr;
+      #endif
    }
 };
 
@@ -4119,7 +4288,6 @@ struct CallMemberVTable : public CppiaExpr
       hx::Object *thisVal = thisExpr ? thisExpr->runObject(ctx) : ctx->getThis(); \
       CPPIA_CHECK(thisVal); \
       ScriptCallable **vtable = (ScriptCallable **)thisVal->__GetScriptVTable(); \
-      if (isInterfaceCall) thisVal = thisVal->__GetRealObject(); \
       unsigned char *pointer = ctx->pointer; \
       vtable[slot]->pushArgs(ctx, thisVal, args); \
       /* TODO */; \
@@ -4300,7 +4468,7 @@ struct FieldByName : public CppiaDynamicExpr
       CPPIA_CHECK(obj);
 
       if (crement==coNone && assign==aoNone)
-         return obj->__Field(name,HX_PROP_DYNAMIC).mPtr;
+         return Dynamic(obj->__Field(name,HX_PROP_DYNAMIC)).mPtr;
 
       if (crement!=coNone)
       {
@@ -4315,7 +4483,7 @@ struct FieldByName : public CppiaDynamicExpr
       {
          hx::Object *val = value->runObject(ctx);
          BCR_CHECK;
-         return obj->__SetField(name,val,HX_PROP_DYNAMIC).mPtr;
+         return Dynamic(obj->__SetField(name,val,HX_PROP_DYNAMIC)).mPtr;
       }
 
       Dynamic val0 = obj->__Field(name,HX_PROP_DYNAMIC);
@@ -4448,7 +4616,7 @@ struct GetFieldByName : public CppiaDynamicExpr
       }
 
       // Use runtime lookup...
-      if (vtableSlot<0 || staticClass.mPtr)
+      if (vtableSlot==-1 || staticClass.mPtr)
       {
          name = inModule.strings[nameId];
          inModule.markable.push_back(this);
@@ -4461,7 +4629,7 @@ struct GetFieldByName : public CppiaDynamicExpr
       hx::Object *instance = object ? object->runObject(ctx) : isStatic ? staticClass.mPtr : ctx->getThis(false);
       BCR_CHECK;
       CPPIA_CHECK(instance);
-      if (vtableSlot>=0)
+      if (vtableSlot!=-1)
       {
          //if (isInterface)
          //   instance = instance->__GetRealObject();
@@ -4475,7 +4643,7 @@ struct GetFieldByName : public CppiaDynamicExpr
          }
          return new (sizeof(hx::Object *)) CppiaClosure(instance, func);
       }
-      return instance->__Field(name,HX_PROP_DYNAMIC).mPtr;
+      return Dynamic(instance->__Field(name,HX_PROP_DYNAMIC)).mPtr;
    }
   
    CppiaExpr   *makeSetter(AssignOp inOp,CppiaExpr *inValue)
@@ -4758,7 +4926,7 @@ struct CallMember : public CppiaExpr
          {
             int vtableSlot = type->cppiaClass->findFunctionSlot(fieldId);
             //printf("   vslot %d\n", vtableSlot);
-            if (vtableSlot>=0)
+            if (vtableSlot!=-1)
             {
                ExprType returnType = type->cppiaClass->findFunctionType(inModule,fieldId);
                replace = new CallMemberVTable( this, thisExpr, vtableSlot, returnType, type->cppiaClass->isInterface, args );
@@ -4909,13 +5077,13 @@ struct MemReference : public CppiaExpr
    hx::Object *runObject(CppiaCtx *ctx)
    {
       CHECKVAL;
-      Dynamic v( MEMGETVAL );
       return Dynamic( MEMGETVAL ).mPtr;
    }
 
    CppiaExpr  *makeSetter(AssignOp op,CppiaExpr *value);
    CppiaExpr  *makeCrement(CrementOp inOp);
 };
+
 
 
 /*
@@ -5146,6 +5314,138 @@ CppiaExpr *MemReference<T,REFMODE>::makeCrement(CrementOp inOp)
    return 0;
 }
 
+
+struct MemStackFloatSetter : public CppiaExpr
+{
+   int offset;
+   CppiaExpr *value;
+   AssignOp op;
+
+   MemStackFloatSetter(const CppiaExpr *inSrc, int inOffset, AssignOp inOp, CppiaExpr *inValue)
+      : CppiaExpr(inSrc), offset(inOffset), op(inOp), value(inValue){ } 
+   ExprType getType() { return etFloat; }
+
+   inline Float doRun(CppiaCtx *ctx)
+   {
+      Float v = value->runFloat(ctx);
+      BCR_CHECK;
+
+      void *ptr = (char*)ctx->frame + offset;
+      switch(op)
+      {
+         case aoAdd: v = GetFloatAligned(ptr) + v; break;
+         case aoMult: v = GetFloatAligned(ptr) * v; break;
+         case aoDiv: v = GetFloatAligned(ptr) / v; break;
+         case aoSub: v = GetFloatAligned(ptr) - v; break;
+         case aoAnd: v = GetFloatAligned(ptr) && v; break;
+         case aoOr: v = GetFloatAligned(ptr) || v; break;
+         case aoMod: v = hx::DoubleMod( GetFloatAligned(ptr),  v); break;
+         default: ;
+      }
+      SetFloatAligned(ptr, v);
+      return v;
+   }
+
+
+   void        runVoid(CppiaCtx *ctx) { doRun(ctx); }
+   int runInt(CppiaCtx *ctx) { return doRun(ctx); }
+   Float       runFloat(CppiaCtx *ctx) { return doRun(ctx); }
+   ::String    runString(CppiaCtx *ctx) { return ValToString(doRun(ctx)); }
+   hx::Object *runObject(CppiaCtx *ctx) { return Dynamic(doRun(ctx)).mPtr; }
+};
+
+
+struct MemStackFloatCrement : public CppiaExpr
+{
+   int offset;
+   CrementOp op;
+
+   MemStackFloatCrement(const CppiaExpr *inSrc, int inOffset, CrementOp inOp)
+      : CppiaExpr(inSrc), offset(inOffset), op(inOp) { } 
+   ExprType getType() { return etFloat; }
+
+   inline Float doRun(CppiaCtx *ctx)
+   {
+      void *ptr = (char*)ctx->frame + offset;
+      Float v = GetFloatAligned(ptr);
+      switch(op)
+      {
+         case coPreInc: SetFloatAligned(ptr,++v); break;
+         case coPostInc: SetFloatAligned(ptr,v+1); break;
+         case coPreDec: SetFloatAligned(ptr,--v); break;
+         case coPostDec: SetFloatAligned(ptr,v-1); break;
+         default: ;
+      }
+      return v;
+   }
+
+   void        runVoid(CppiaCtx *ctx) { doRun(ctx); }
+   int runInt(CppiaCtx *ctx) { return doRun(ctx); }
+   Float       runFloat(CppiaCtx *ctx) { return doRun(ctx); }
+   ::String    runString(CppiaCtx *ctx) { return ValToString(doRun(ctx)); }
+   hx::Object *runObject(CppiaCtx *ctx) { return Dynamic(doRun(ctx)).mPtr; }
+};
+
+
+
+struct MemStackFloatReference : public CppiaExpr
+{
+   int  offset;
+
+   MemStackFloatReference(const CppiaExpr *inSrc, int inOffset)
+      : CppiaExpr(inSrc), offset(inOffset) { }
+
+   ExprType getType() { return etFloat; }
+   const char *getName() { return "MemStackFloatReference"; }
+   CppiaExpr *link(CppiaModule &inModule) { return this; }
+
+   void        runVoid(CppiaCtx *ctx) { }
+   int runInt(CppiaCtx *ctx) { return GetFloatAligned( ((char *)ctx->frame) + offset ); }
+   Float  runFloat(CppiaCtx *ctx) { return GetFloatAligned( ((char *)ctx->frame) + offset ); }
+   ::String    runString(CppiaCtx *ctx) { return ValToString( GetFloatAligned( ((char *)ctx->frame) + offset )); }
+   hx::Object *runObject(CppiaCtx *ctx)
+   {
+      return Dynamic( GetFloatAligned( ((char *)ctx->frame) + offset ) ).mPtr;
+   }
+
+   CppiaExpr  *makeSetter(AssignOp op,CppiaExpr *value)
+   {
+      return new MemStackFloatSetter(this, offset, op, value);
+   }
+   CppiaExpr  *makeCrement(CrementOp inOp)
+   {
+      return new MemStackFloatCrement(this, offset, inOp);
+   }
+};
+
+
+#if (HXCPP_API_LEVEL>=330)
+struct VirtualArrayLength : public CppiaIntExpr
+{
+   CppiaExpr   *thisExpr;
+  
+   VirtualArrayLength(CppiaExpr *inSrc, CppiaExpr *inThis) : CppiaIntExpr(inSrc)
+   {
+      thisExpr = inThis;
+   }
+
+   const char *getName() { return "length"; }
+   CppiaExpr *link(CppiaModule &inModule)
+   {
+      thisExpr = thisExpr->link(inModule);
+      return this;
+   }
+   int runInt(CppiaCtx *ctx)
+   {
+      cpp::VirtualArray_obj *obj = (cpp::VirtualArray_obj *)thisExpr->runObject(ctx);
+      BCR_CHECK;
+      CPPIA_CHECK(obj);
+      return obj->get_length();
+   }
+};
+#endif
+
+
 struct GetFieldByLinkage : public CppiaExpr
 {
    int         fieldId;
@@ -5229,15 +5529,24 @@ struct GetFieldByLinkage : public CppiaExpr
 
       if (!replace && type->arrayType!=arrNotArray && field==HX_CSTRING("length"))
       {
+         #if (HXCPP_API_LEVEL>=330)
+         if (type->arrayType==arrAny)
+         {
+            replace = new VirtualArrayLength(this,object);
+         }
+         else
+         #endif
+         {
          int offset = (int) offsetof( Array_obj<int>, length );
          replace = object ?
              (CppiaExpr*)new MemReference<int,locObj>(this,offset,object):
              (CppiaExpr*)new MemReference<int,locThis>(this,offset);
+         }
       }
 
       if (!replace && type->name==HX_CSTRING("String") && field==HX_CSTRING("length"))
       {
-         int offset = (int) offsetof( Array_obj<int>, length );
+         int offset = (int) offsetof( Array_obj<Int>, length );
          replace = object ?
              (CppiaExpr*)new MemReference<int,locObj>(this,offset,object):
              (CppiaExpr*)new MemReference<int,locThis>(this,offset);
@@ -5501,8 +5810,21 @@ struct ArrayDef : public CppiaDynamicExpr
             }
             return result.mPtr;
             }
-         case arrObject:
          case arrAny:
+            #if (HXCPP_API_LEVEL>=330)
+            {
+            cpp::VirtualArray result = cpp::VirtualArray_obj::__new(n,n);
+            for(int i=0;i<n;i++)
+            {
+               result->init(i,Dynamic(items[i]->runObject(ctx)));
+               BCR_CHECK;
+            }
+            return result.mPtr;
+            }
+            #else
+            // Fallthough...
+            #endif
+         case arrObject:
             { 
             Array<Dynamic> result = Array_obj<Dynamic>::__new(n,n);
             for(int i=0;i<n;i++)
@@ -5921,7 +6243,11 @@ struct EnumIExpr : public CppiaDynamicExpr
    {
       hx::Object *obj = object->runObject(ctx);
       BCR_CHECK;
+      #if (HXCPP_API_LEVEL>=330)
+      return static_cast<EnumBase_obj *>(obj)->getParamI(index).mPtr;
+      #else
       return obj->__EnumParams()[index].mPtr;
+      #endif
    }
 
 };
@@ -5952,7 +6278,7 @@ struct VarDecl : public CppiaVoidExpr
          switch(var.expressionType)
          {
             case etInt: *(int *)(ctx->frame+var.stackPos) = init->runInt(ctx); break;
-            case etFloat: *(Float *)(ctx->frame+var.stackPos) = init->runFloat(ctx); break;
+            case etFloat: SetFloatAligned(ctx->frame+var.stackPos,init->runFloat(ctx)); break;
             case etString: *(String *)(ctx->frame+var.stackPos) = init->runString(ctx); break;
             case etObject: *(hx::Object **)(ctx->frame+var.stackPos) = init->runObject(ctx); break;
             case etVoid:
@@ -6343,7 +6669,11 @@ struct VarRef : public CppiaExpr
                replace = new MemReference<int,locStack>(this,var->stackPos);
             break;
          case fsFloat:
+            #ifdef HXCPP_ALIGN_FLOAT
+            replace = new MemStackFloatReference(this,var->stackPos);
+            #else
             replace = new MemReference<Float,locStack>(this,var->stackPos);
+            #endif
             break;
          case fsString:
             replace = new MemReference<String,locStack>(this,var->stackPos);
@@ -6541,9 +6871,10 @@ struct OpDiv : public BinOp
    ExprType getType() { return etFloat; }
    int runInt(CppiaCtx *ctx)
    {
-      int lval = left->runInt(ctx);
+      // Int division - if you use 'cast' - do as float then cast to int
+      Float lval = left->runFloat(ctx);
       BCR_CHECK;
-      return lval / right->runInt(ctx);
+      return lval / right->runFloat(ctx);
    }
    Float runFloat(CppiaCtx *ctx)
    {
@@ -7077,9 +7408,9 @@ struct OpCompare : public OpCompareBase
       {
          case compFloat:
          {
-            float leftVal = left->runFloat(ctx);
+            Float leftVal = left->runFloat(ctx);
             BCR_CHECK;
-            float rightVal = right->runFloat(ctx);
+            Float rightVal = right->runFloat(ctx);
             return compare.test(leftVal,rightVal);
          }
          case compInt:

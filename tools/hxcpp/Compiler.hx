@@ -14,6 +14,7 @@ class Compiler
    public var mExe:String;
    public var mOutFlag:String;
    public var mObjDir:String;
+   public var mRelObjDir:String;
    public var mExt:String;
 
    public var mPCHExt:String;
@@ -48,6 +49,13 @@ class Compiler
       mPCHUse = "-Yu";
       mPCHFilename = "/Fp";
       mCached = false;
+   }
+
+   public function objToAbsolute()
+   {
+      if (mRelObjDir==null)
+         mRelObjDir = mObjDir;
+      mObjDir = Path.normalize( PathManager.combine( Sys.getCwd(), mRelObjDir ) );
    }
 
    function addIdentity(ext:String,ioArgs:Array<String>)
@@ -89,7 +97,7 @@ class Compiler
          args = args.concat(mOBJCFlags);
       else if (ext=="mm")
          args = args.concat(mMMFlags);
-      else if (ext=="cpp" || ext=="c++")
+      else if (ext=="cpp" || ext=="c++" || ext=="cc")
       {
          allowPch = true;
          args = args.concat(mCPPFlags);
@@ -117,16 +125,16 @@ class Compiler
          {
             var md5 = Md5.encode(contents + args.join(" ") +
                 inFile.mGroup.mDependHash + mCompilerVersion + inFile.mDependHash );
-            cacheName = BuildTool.compileCache + "/" + md5;
+            cacheName = CompileCache.getCacheName(md5);
             if (FileSystem.exists(cacheName))
             {
                sys.io.File.copy(cacheName, obj_name);
-               Log.info("use cache for " + obj_name + "(" + md5 + ")" );
+               Log.info(" use cache for " + obj_name );
                found = true;
             }
             else
             {
-               Log.info("", " not in cache " + cacheName);
+               // Log.info("", " not in cache " + cacheName);
             }
          }
          else
@@ -150,14 +158,14 @@ class Compiler
          {
             if (BuildTool.threadExitCode == 0)
             {
-               var err = ProcessManager.runProcessThreaded(mExe, args, "Compiling " + inFile.mName);
+               var err = ProcessManager.runProcessThreaded(mExe, args, " - \x1b[1mCompiling file:\x1b[0m " + inFile.mName);
                if (err!=0)
                   BuildTool.setThreadError(err);
             }
          }
          else
          {
-            var result = ProcessManager.runProcessThreaded(mExe, args, "Compiling " + inFile.mName);
+            var result = ProcessManager.runProcessThreaded(mExe, args, " - \x1b[1mCompiling file:\x1b[0m " + inFile.mName);
             if (result!=0)
             {
                if (FileSystem.exists(obj_name))
@@ -179,15 +187,26 @@ class Compiler
 
    public function createCompilerVersion(inGroup:FileGroup)
    {
-      if (mGetCompilerVersion!=null && mCompilerVersion==null)
+      if ( mCompilerVersion==null)
       {
-         var exe = mGetCompilerVersion;
-         var args = new Array<String>();
- 
-         var versionString = ProcessManager.readStderr(exe,args).join(" ");
-         Log.info("", "--- Compiler version ---");
-         Log.info("", versionString);
-         Log.info("", "------------------------");
+         var versionString = "";
+         var command = "";
+
+         if (mGetCompilerVersion==null)
+         {
+            command = mExe + " --version";
+            versionString = ProcessManager.readStdout(mExe,["--version"]).join(" ");
+         }
+         else
+         {
+            command = mGetCompilerVersion;
+            versionString = ProcessManager.readStderr(mGetCompilerVersion,[]).join(" ");
+         }
+
+         if (versionString=="" || versionString==null)
+            Log.error("Could not deduce compiler version with " + command);
+
+         Log.info("", "Compiler version: " +  versionString);
 
          mCompilerVersion = Md5.encode(versionString);
          mCached = true;
@@ -199,7 +218,7 @@ class Compiler
    public function getObjName(inFile:File)
    {
       var path = new Path(inFile.mName);
-      var dirId = Md5.encode(BuildTool.targetKey + path.dir).substr(0,8) + "_";
+      var dirId = Md5.encode(BuildTool.targetKey + path.dir + inFile.mGroup.mId).substr(0,8) + "_";
 
       return PathManager.combine(mObjDir, dirId + path.file + mExt);
    }
@@ -255,6 +274,7 @@ class Compiler
          Log.error("Could not create PCH");
          //throw "Error creating pch: " + result + " - build cancelled";
       }
+
    }
 
    public function setPCH(inPCH:String)

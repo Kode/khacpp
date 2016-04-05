@@ -121,9 +121,9 @@ public:
    static hx::Class      & __SGetClass();
 	static void       __boot();
 
-   Dynamic __Field(const String &inString ,hx::PropertyAccess inCallProp);
+   hx::Val __Field(const String &inString ,hx::PropertyAccess inCallProp);
 
-   Dynamic __SetField(const String &inString,const Dynamic &inValue ,hx::PropertyAccess inCallProp);
+   hx::Val __SetField(const String &inString,const hx::Val &inValue ,hx::PropertyAccess inCallProp);
 
    bool __HasField(const String &inString);
 
@@ -214,7 +214,11 @@ void RegisterClass(const String &inClassName, hx::Class inClass);
 template<typename T>
 inline bool TCanCast(hx::Object *inPtr)
 {
-	return inPtr && ( dynamic_cast<T *>(inPtr->__GetRealObject()) || inPtr->__ToInterface(typeid(T)) );
+	return inPtr && ( dynamic_cast<T *>(inPtr->__GetRealObject())
+                  #if (HXCPP_API_LEVEL < 330)
+                  || inPtr->__ToInterface(typeid(T))
+                  #endif
+                  );
 }
 
 }

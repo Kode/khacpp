@@ -41,7 +41,7 @@ class GenMacro
             arr_list.push( "inArgs[" + (arg-1) + "]");
             arg_list.push( "inArg" + (arg-1));
             dynamic_arg_list.push("const Dynamic &inArg" + (arg-1) );
-            dynamic_adds.push( "->Add(inArg" + (arg-1) + ")" );
+            dynamic_adds.push( "->init(" + (arg-1) + ",inArg" + (arg-1) + ")" );
          }
 
          params.push( {
@@ -60,7 +60,7 @@ class GenMacro
       var type_args = new Array<String>();
       var construct_args = new Array<String>();
       var construct_vars = new Array<String>();
-      for(arg in 1...15)
+      for(arg in 1...20)
       {
          var vid = arg-1;
          if (vid>=0)
@@ -72,6 +72,7 @@ class GenMacro
             construct_args.push( "t" + vid +" __" + vid  );
             construct_vars.push( "v" + vid +"(__" + vid + ")"  );
          }
+
          locals.push( {
              ARG : arg,
              MARKS : marks.join(" "),

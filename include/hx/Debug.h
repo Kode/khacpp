@@ -191,7 +191,18 @@ public:
         mGetOrSetFunction = GetOrSetFunction<T>;
         mNext = mHead;
         mHead = this;
-}
+    }
+
+    StackVariable(StackVariable *&inHead, bool inIsArg,
+                  const char *inHaxeName, hx::Object **inCppVar)
+        : mHaxeName(inHaxeName), mIsArg(inIsArg), mHead(inHead),
+          mCppVar((void *) inCppVar)
+    {
+        mGetOrSetFunction = GetOrSetFunctionHxObject;
+        mNext = mHead;
+        mHead = this;
+    }
+
 
     // For StackThis
     template<typename T>
@@ -242,6 +253,18 @@ private:
             return null();
         }
     }
+
+    static Dynamic GetOrSetFunctionHxObject(bool get, void *ptr, Dynamic *dynamic)
+    {
+        if (get) {
+            return * (hx::Object **) ptr;
+        }
+        else {
+            * (hx::Object **)ptr = dynamic->mPtr;
+            return null();
+        }
+    }
+
 
     StackVariable *&mHead;
 
@@ -440,6 +463,10 @@ extern volatile bool gShouldCallHandleBreakpoints;
 #ifndef HX_STACK_DO_THROW
 #define HX_STACK_DO_THROW(e) hx::Throw(e)
 #endif
+
+// For tidier generated code
+#define HXLINE(number) HX_STACK_LINE(number)
+#define HXDLIN(number) HX_STACK_LINE(number)
 
 // To support older versions of the haxe compiler that emit HX_STACK_PUSH
 // instead of HX_STACK_FRAME.  If the old haxe compiler is used with this

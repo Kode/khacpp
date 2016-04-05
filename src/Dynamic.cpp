@@ -18,13 +18,18 @@ extern hx::Class Object__mClass;
 hx::Class __BoolClass;
 hx::Class __IntClass;
 hx::Class __FloatClass;
+hx::Class __Int64Class;
 hx::Class __PointerClass;
 hx::Class __VoidClass;
+#ifdef HXCPP_OBJC
+hx::Class __ObjcClass;
+#endif
 
 
 hx::Class &GetBoolClass() { return __BoolClass; }
 hx::Class &GetIntClass() { return __IntClass; }
 hx::Class &GetFloatClass() { return __FloatClass; }
+hx::Class &GetInt64Class() { return __Int64Class; }
 hx::Class &GetPointerClass() { return __PointerClass; }
 hx::Class &GetVoidClass() { return __VoidClass; }
 
@@ -53,6 +58,7 @@ public:
    String __ToString() const { return String(mValue); }
    double __ToDouble() const { return mValue; }
    int __ToInt() const { return mValue; }
+   cpp::Int64 __ToInt64() const { return mValue; }
 
    int __Compare(const hx::Object *inRHS) const
    {
@@ -109,6 +115,7 @@ public:
    String __ToString() const { return String(mValue); }
    double __ToDouble() const { return mValue; }
    int __ToInt() const { return (int)mValue; }
+   cpp::Int64 __ToInt64() const { return mValue; }
 
    int __Compare(const hx::Object *inRHS) const
    {
@@ -122,6 +129,38 @@ public:
 
    double mValue;
 };
+
+
+class Int64Data : public hx::Object
+{
+public:
+   inline void *operator new( size_t inSize, hx::NewObjectType inAlloc=NewObjAlloc,const char *inName="Int64")
+      { return hx::Object::operator new(inSize,inAlloc,inName); }
+   Int64Data(cpp::Int64 inValue=0) : mValue(inValue) {};
+
+   hx::Class __GetClass() const { return __Int64Class; }
+   bool __Is(hx::Object *inClass) const { return dynamic_cast< DoubleData *>(inClass); }
+
+   virtual int __GetType() const { return vtFloat; }
+   String toString() { return String(mValue); }
+   String __ToString() const { return String(mValue); }
+   double __ToDouble() const { return mValue; }
+   int __ToInt() const { return (int)mValue; }
+   cpp::Int64 __ToInt64() const { return mValue; }
+
+   int __Compare(const hx::Object *inRHS) const
+   {
+      double rval = inRHS->__ToDouble();
+      if (rval==mValue)
+         return 0;
+
+      return mValue < rval ? -1 :  1;
+   }
+
+
+   double mValue;
+};
+
 
 
 class PointerData : public hx::Object
@@ -256,20 +295,50 @@ Dynamic CreateDynamicStruct(const void *inValue, int inSize, DynamicHandlerFunc 
 
 Dynamic sConstDynamicInts[256+1];
 
+static hx::Object *fromInt(int inVal)
+{
+   hx::Object *result = 0;
+   if (inVal>=-1 && inVal<256)
+   {
+      int idx = inVal+1;
+      result = sConstDynamicInts[idx].mPtr;
+      if (!result)
+         result = sConstDynamicInts[idx].mPtr = new (hx::NewObjConst)IntData(inVal);
+   }
+   else
+      result = (hx::Object *)new IntData(inVal);
+   return result;
+}
 
 Dynamic::Dynamic(bool inVal) : super( inVal ? hx::DynTrue.mPtr : hx::DynFalse.mPtr ) { }
 Dynamic::Dynamic(int inVal)
 {
-   if (inVal>=-1 && inVal<256)
-   {
-      int idx = inVal+1;
-      mPtr = sConstDynamicInts[idx].mPtr;
-      if (!mPtr)
-         mPtr = sConstDynamicInts[idx].mPtr = new (hx::NewObjConst)IntData(inVal);
-   }
-   else
-      mPtr = (hx::Object *)new IntData(inVal);
+   mPtr = fromInt(inVal);
 }
+
+Dynamic::Dynamic(short inVal)
+{
+   mPtr = fromInt(inVal);
+}
+
+Dynamic::Dynamic(unsigned int inVal)
+{
+   mPtr = fromInt(inVal);
+}
+Dynamic::Dynamic(unsigned short inVal)
+{
+   mPtr = fromInt(inVal);
+}
+Dynamic::Dynamic(unsigned char inVal)
+{
+   mPtr = fromInt(inVal);
+}
+Dynamic::Dynamic(signed char inVal)
+{
+   mPtr = fromInt(inVal);
+}
+
+
 
 Dynamic::Dynamic(double inVal)
 {
@@ -282,6 +351,36 @@ Dynamic::Dynamic(double inVal)
    }
    mPtr = (hx::Object *)new DoubleData(inVal);
 }
+
+
+Dynamic::Dynamic(cpp::Int64 inVal)
+{
+   if ( (int)inVal==inVal && inVal>=-1 && inVal<256 )
+   {
+      int idx = inVal+1;
+      mPtr = sConstDynamicInts[idx].mPtr;
+      if (!mPtr)
+         mPtr = sConstDynamicInts[idx].mPtr = new (hx::NewObjConst)IntData(inVal);
+   }
+   mPtr = (hx::Object *)new Int64Data(inVal);
+}
+
+
+Dynamic::Dynamic(cpp::UInt64 inVal)
+{
+   if ( (int)inVal==inVal && inVal>=0 && inVal<256 )
+   {
+      int idx = inVal+1;
+      mPtr = sConstDynamicInts[idx].mPtr;
+      if (!mPtr)
+         mPtr = sConstDynamicInts[idx].mPtr = new (hx::NewObjConst)IntData(inVal);
+   }
+   mPtr = (hx::Object *)new Int64Data(inVal);
+}
+
+
+
+
 
 Dynamic::Dynamic(float inVal)
 {
@@ -315,30 +414,34 @@ Dynamic Dynamic::operator+(const Dynamic &inRHS) const
    return const_cast<hx::Object*>(mPtr)->toString() + const_cast<Dynamic&>(inRHS)->toString();
 }
 
-Dynamic Dynamic::operator+(const int &i) const
-{
-   int t = mPtr ? mPtr->__GetType() : vtNull;
-   if (t==vtString)
-      return Cast<String>() + String(i);
-   return Cast<double>() + i;
+#define DYN_OP_ADD(TYPE) \
+Dynamic Dynamic::operator+(const TYPE &i) const \
+{ \
+   int t = mPtr ? mPtr->__GetType() : vtNull; \
+   if (t==vtString) \
+      return Cast<String>() + String(i); \
+   return Cast<double>() + i; \
 }
 
-Dynamic Dynamic::operator+(const double &d) const
+DYN_OP_ADD(double)
+DYN_OP_ADD(float)
+DYN_OP_ADD(int)
+DYN_OP_ADD(unsigned int)
+DYN_OP_ADD(short)
+DYN_OP_ADD(unsigned short)
+DYN_OP_ADD(signed char)
+DYN_OP_ADD(unsigned char)
+DYN_OP_ADD(cpp::Int64)
+DYN_OP_ADD(cpp::UInt64)
+
+Dynamic Dynamic::operator+(const cpp::Variant &v) const
 {
    int t = mPtr ? mPtr->__GetType() : vtNull;
-   if (t==vtString)
-      return Cast<String>() + String(d);
-   return Cast<double>() + d;
+   if (t==vtString || v.type == cpp::Variant::typeString)
+      return Cast<String>() + v.asString();
+   return Cast<double>() + v.asDouble();
 }
 
-
-Dynamic Dynamic::operator+(const float &f) const
-{
-   int t = mPtr ? mPtr->__GetType() : vtNull;
-   if (t==vtString)
-      return Cast<String>() + String(f);
-   return Cast<double>() + f;
-}
 
 
 double Dynamic::operator%(const Dynamic &inRHS) const
@@ -361,7 +464,10 @@ hx::IndexRef Dynamic::operator[](int inIndex)
 
 void Dynamic::ThrowBadFunctionError()
 {
-	hx::Throw( HX_NULL_FUNCTION_POINTER );
+   #ifdef HXCPP_DEBUGGER
+   NullReference("Function", true);
+   #endif
+   hx::Throw( HX_NULL_FUNCTION_POINTER );
 }
 
 #include <hx/DynamicImpl.h>
@@ -383,8 +489,13 @@ null BadCast()
 static bool NoCast(hx::Object *) { return false; }
 static bool IsFloat(hx::Object *inPtr)
 {
-   return inPtr && (TCanCast<IntData>(inPtr) || TCanCast<DoubleData>(inPtr));
+   return inPtr && (TCanCast<IntData>(inPtr) || TCanCast<DoubleData>(inPtr) || TCanCast<Int64Data>(inPtr) );
 }
+static bool IsInt64(hx::Object *inPtr)
+{
+   return inPtr && (TCanCast<Int64Data>(inPtr) || TCanCast<IntData>(inPtr));
+}
+
 static bool IsPointer(hx::Object *inPtr)
 {
    return inPtr && inPtr->__GetType() >= vtAbstractBase;
@@ -398,7 +509,15 @@ static bool IsInt(hx::Object *inPtr)
       return true;
    DoubleData *d = dynamic_cast<DoubleData *>(inPtr);
    if (!d)
+   {
+      Int64Data *i64 = dynamic_cast<Int64Data *>(inPtr);
+      if (i64)
+      {
+         int val = i64->mValue;
+         return val==i64->mValue;
+      }
       return false;
+   }
    double val = d->__ToDouble();
    return ((int)val == val);
 }
@@ -409,6 +528,7 @@ static void sMarkStatics(HX_MARK_PARAMS) {
 	HX_MARK_MEMBER(__BoolClass);
 	HX_MARK_MEMBER(__IntClass);
 	HX_MARK_MEMBER(__FloatClass);
+	HX_MARK_MEMBER(__Int64Class);
 	HX_MARK_MEMBER(__PointerClass);
 	HX_MARK_MEMBER(__StringClass);
 	HX_MARK_MEMBER(Object__mClass);
@@ -417,6 +537,9 @@ static void sMarkStatics(HX_MARK_PARAMS) {
 	HX_MARK_MEMBER(Anon_obj::__mClass);
 	HX_MARK_MEMBER(hx::hxEnumBase_obj__mClass);
 	HX_MARK_MEMBER(hx::DynEmptyString);
+#ifdef HXCPP_OBJC
+	HX_MARK_MEMBER(__ObjcClass);
+#endif
 };
 
 
@@ -427,6 +550,7 @@ static void sVisitStatics(HX_VISIT_PARAMS) {
 	HX_VISIT_MEMBER(__BoolClass);
 	HX_VISIT_MEMBER(__IntClass);
 	HX_VISIT_MEMBER(__FloatClass);
+	HX_VISIT_MEMBER(__Int64Class);
 	HX_VISIT_MEMBER(__PointerClass);
 	HX_VISIT_MEMBER(__StringClass);
 	HX_VISIT_MEMBER(Object__mClass);
@@ -435,6 +559,9 @@ static void sVisitStatics(HX_VISIT_PARAMS) {
 	HX_VISIT_MEMBER(Anon_obj::__mClass);
 	HX_VISIT_MEMBER(hx::hxEnumBase_obj__mClass);
 	HX_VISIT_MEMBER(hx::DynEmptyString);
+#ifdef HXCPP_OBJC
+	HX_VISIT_MEMBER(__ObjcClass);
+#endif
 };
 
 #endif
@@ -450,10 +577,14 @@ void Dynamic::__boot()
    Static(__BoolClass) = hx::RegisterClass(HX_CSTRING("Bool"),TCanCast<BoolData>,sNone,sNone, 0,0, 0);
    Static(__IntClass) = hx::RegisterClass(HX_CSTRING("Int"),IsInt,sNone,sNone,0,0, 0 );
    Static(__FloatClass) = hx::RegisterClass(HX_CSTRING("Float"),IsFloat,sNone,sNone, 0,0,&__IntClass );
+   Static(__Int64Class) = hx::RegisterClass(HX_CSTRING("cpp::Int64"),IsInt64,sNone,sNone, 0,0,&__IntClass );
    Static(__PointerClass) = hx::RegisterClass(HX_CSTRING("cpp::Pointer"),IsPointer,sNone,sNone, 0,0,&__PointerClass );
    DynTrue = Dynamic( new (hx::NewObjConst) hx::BoolData(true) );
    DynFalse = Dynamic( new (hx::NewObjConst) hx::BoolData(false) );
    DynEmptyString = Dynamic(HX_CSTRING("").__ToObject());
+#ifdef HXCPP_OBJC
+   Static(__ObjcClass) = hx::RegisterClass(HX_CSTRING("objc::BoxedType"),IsPointer,sNone,sNone, 0,0,&__ObjcClass );
+#endif
 }
 
 

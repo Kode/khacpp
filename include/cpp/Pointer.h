@@ -81,15 +81,23 @@ public:
    inline Struct( const T &inRHS ) : value(inRHS) {  }
    inline Struct( const null &) { value = T(); }
    inline Struct( const Reference<T> &);
+   inline Struct( const Dynamic &inRHS) { fromDynamic(inRHS.mPtr); }
 
    inline Struct<T,HANDLER> &operator=( const T &inRHS ) { value = inRHS; return *this; }
-   inline Struct<T,HANDLER> &operator=( const null & ) { value = T(); }
+   inline Struct<T,HANDLER> &operator=( const null & ) { value = T(); return *this; }
    inline Struct<T,HANDLER> &operator=( const Dynamic &inRHS ) { return *this = Struct<T,HANDLER>(inRHS); }
 
    operator Dynamic() const { return CreateDynamicStruct(&value,sizeof(T),HANDLER::handler); }
-   operator String() const { return HANDLER::toString(value); }
+   operator String() const { return HANDLER::toString(&value); }
+
+   #if (HXCPP_API_LEVEL >= 330)
+   inline Struct( const hx::Val &inRHS) { fromDynamic(inRHS.asObject()); }
+   operator hx::Val() const { return CreateDynamicStruct(&value,sizeof(T),HANDLER::handler); }
+   #endif
 
    bool operator==(const Struct<T,HANDLER> &inRHS) const { return value==inRHS.value; }
+   bool operator==(const null &inRHS) const { return false; }
+   bool operator!=(const null &inRHS) const { return true; }
 
    // Haxe uses -> notation
    inline T *operator->() { return &value; }
@@ -108,9 +116,8 @@ public:
       return ptr->__CStr() == HANDLER::getName();
    }
 
-   inline Struct( const Dynamic &inRHS)
+   inline void fromDynamic( hx::Object *ptr)
    {
-      hx::Object *ptr = inRHS.mPtr;
       if (!ptr)
       {
          value = T();
@@ -125,6 +132,7 @@ public:
       }
       value = *data;
    }
+
 
 
    inline operator T& () { return value; }
@@ -191,6 +199,7 @@ public:
    inline T &set_ref(const T &inValue) { return *ptr = inValue;  }
 
    operator Dynamic () const { return CreateDynamicPointer((void *)ptr); }
+   //operator hx::Val () const { return CreateDynamicPointer((void *)ptr); }
    operator T * () { return ptr; }
    T * get_raw() { return ptr; }
 
@@ -229,6 +238,13 @@ public:
    //inline Reference( T *inValue ) : Pointer(inValue) { }
    inline Reference( AutoCast inValue ) : Pointer<T>( (T*)inValue.value) { }
 
+   template<typename OTHER>
+   inline Reference( const Reference<OTHER> &inOther )
+   {
+      // Allow reinterpret or not?
+      ptr = (T*)inOther.ptr;
+   }
+
    template<typename H>
    inline Reference( const Struct<T,H> &structVal ) : Pointer<T>( &structVal.value ) { }
 
@@ -236,6 +252,8 @@ public:
 
 
    inline T *operator->() { return ptr; }
+   
+   inline operator T &() { return *ptr; }
 
 };
 
@@ -269,6 +287,7 @@ public:
    inline Dynamic operator=( Dynamic &inValue )
    {
       call = inValue==null() ? 0 : (T*) inValue->__GetHandle();
+      return inValue;
    }
    inline Dynamic operator=( null &inValue ) { call=0; return inValue; }
    inline bool operator==( const null &inValue ) const { return call==0; }
@@ -276,6 +295,7 @@ public:
 
 
    operator Dynamic () const { return CreateDynamicPointer((void *)call); }
+   //operator hx::Val () const { return CreateDynamicPointer((void *)call); }
    operator T * () { return call; }
    operator void * () { return (void *)call; }
 

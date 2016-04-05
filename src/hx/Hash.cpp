@@ -32,7 +32,7 @@ void __int_hash_set(Dynamic &ioHash,int inKey,const Dynamic &value)
       }
       else
       {
-         ObjectType type = (ObjectType)value->__GetType();
+         hxObjectType type = (hxObjectType)value->__GetType();
          if (type==vtInt)
             hash = new IntHashInt();
          else if (type==vtFloat)
@@ -50,7 +50,7 @@ void __int_hash_set(Dynamic &ioHash,int inKey,const Dynamic &value)
       HashStore want = hashObject;
       if (value!=null())
       {
-         ObjectType type = (ObjectType)value->__GetType();
+         hxObjectType type = (hxObjectType)value->__GetType();
          if ( type==vtInt)
          {
             if (hash->store==hashFloat)
@@ -221,7 +221,7 @@ void __string_hash_set(Dynamic &ioHash,String inKey,const Dynamic &value, bool i
       }
       else
       {
-         ObjectType type = (ObjectType)value->__GetType();
+         hxObjectType type = (hxObjectType)value->__GetType();
          if (type==vtInt)
          {
             hash = new StringHashInt();
@@ -241,7 +241,7 @@ void __string_hash_set(Dynamic &ioHash,String inKey,const Dynamic &value, bool i
       HashStore want = hashObject;
       if (value!=null())
       {
-         ObjectType type = (ObjectType)value->__GetType();
+         hxObjectType type = (hxObjectType)value->__GetType();
          if (type==vtInt)
          {
             if (hash->store==hashFloat)
@@ -379,7 +379,14 @@ String __string_hash_to_string(Dynamic &ioHash)
    if (hash)
       return hash->toString();
    return HX_CSTRING("{}");
+}
 
+String __string_hash_to_string_raw(Dynamic &ioHash)
+{
+   StringHashBase *hash = static_cast<StringHashBase *>(ioHash.GetPtr());
+   if (hash)
+      return hash->toStringRaw();
+   return null();
 }
 
 
@@ -429,7 +436,7 @@ void __object_hash_set(Dynamic &ioHash,Dynamic inKey,const Dynamic &value,bool i
       }
       else
       {
-         ObjectType type = (ObjectType)value->__GetType();
+         hxObjectType type = (hxObjectType)value->__GetType();
          if (type==vtInt)
          {
             hash = inWeakKeys ? (DynamicHashBase *)new WeakDynamicHashInt() :
@@ -453,7 +460,7 @@ void __object_hash_set(Dynamic &ioHash,Dynamic inKey,const Dynamic &value,bool i
       HashStore want = hashObject;
       if (value!=null())
       {
-         ObjectType type = (ObjectType)value->__GetType();
+         hxObjectType type = (hxObjectType)value->__GetType();
          if (type==vtInt)
          {
             if (hash->store==hashFloat)

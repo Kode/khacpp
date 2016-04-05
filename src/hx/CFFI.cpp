@@ -1,4 +1,4 @@
-   #include <hxcpp.h>
+#include <hxcpp.h>
 #include <stdio.h>
 // Get headers etc.
 #include <hx/OS.h>
@@ -108,7 +108,8 @@ vkind k_int32 = (vkind)vtAbstractBase;
 vkind k_hash = (vkind)(vtAbstractBase + 1);
 vkind k_cpp_pointer = (vkind)(vtAbstractBase + 2);
 vkind k_cpp_struct = (vkind)(vtAbstractBase + 3);
-static int sgKinds = (int)(vtAbstractBase + 4);
+vkind k_cpp_objc = (vkind)(vtAbstractBase + 4);
+static int sgKinds = (int)(vtAbstractBase + 5);
 
 typedef std::map<std::string,int> KindMap;
 typedef std::map<int,std::string> ReverseKindMap;
@@ -399,8 +400,22 @@ void val_array_set_i(hx::Object * arg1,int arg2,hx::Object *inVal)
 
 void val_array_set_size(hx::Object * arg1,int inLen)
 {
+   #if (HXCPP_API_LEVEL<330)
    if (arg1==0) return;
    arg1->__SetSize(inLen);
+   #else
+   hx::ArrayBase *base = dynamic_cast<hx::ArrayBase *>(arg1);
+   if (base)
+   {
+      base->__SetSize(inLen);
+   }
+   else
+   {
+      cpp::VirtualArray_obj *va = dynamic_cast<cpp::VirtualArray_obj *>(arg1);
+      if (va)
+         va->__SetSize(inLen);
+   }
+   #endif
 }
 
 void val_array_push(hx::Object * arg1,hx::Object *inValue)
@@ -716,7 +731,7 @@ void val_iter_field_vals(hx::Object *inObj, __hx_field_iter inFunc ,void *inCook
 
       for(int i=0;i<fields->length;i++)
       {
-         inFunc((value)inObj->__Field(fields[i], HX_PROP_NEVER ).mPtr, __hxcpp_field_to_id(fields[i].__CStr()), inCookie);
+         inFunc((value)Dynamic(inObj->__Field(fields[i], HX_PROP_NEVER )).mPtr, __hxcpp_field_to_id(fields[i].__CStr()), inCookie);
       }
    }
 }
@@ -811,57 +826,17 @@ void gc_change_managed_memory(int inDelta, const char *inWhy)
 }
 
 
-
-class Root *sgRootHead = 0;
-
-class Root
-{
-public:
-   Root()
-   {
-      mNext = 0;
-      mPrev = 0;
-      mValue = 0;
-      hx::GCAddRoot(&mValue);
-   }
-   ~Root()
-   {
-      hx::GCRemoveRoot(&mValue);
-   }
-
-   Root *mNext;
-   Root *mPrev;
-   hx::Object *mValue;
-};
-
-
-
 value *alloc_root()
 {
-   if (!sgRootHead)
-      sgRootHead = new Root;
-
-   Root *root = new Root;
-   root->mNext = sgRootHead->mNext;
-   if (root->mNext)
-      root->mNext->mPrev = root;
-
-   sgRootHead->mNext = root;
-   root->mPrev = sgRootHead;
-
-   return (value *)&root->mValue;
+   hx::Object ** result = new hx::Object *();
+   hx::GCAddRoot(result);
+   return (value *)result;
 }
 
 void free_root(value *inValue)
 {
-   int diff =(char *)(&sgRootHead->mValue) - (char *)sgRootHead;
-   Root *root = (Root *)( (char *)inValue - diff );
-
-   if (root->mPrev)
-      root->mPrev->mNext = root->mNext;
-   if (root->mNext)
-      root->mNext->mPrev = root->mPrev;
-
+   hx::Object **root = (hx::Object **) inValue;
+   hx::GCRemoveRoot(root);
    delete root;
 }
 
@@ -885,7 +860,8 @@ void gc_exit_blocking()
 
 void gc_safe_point()
 {
-   __SAFE_POINT;
+   if (hx::gPauseForCollect)
+      hx::PauseForCollect();
 }
 
 gcroot create_root(value) { return 0; }

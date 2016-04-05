@@ -1,7 +1,5 @@
 version: "{build}"
 
-os: unstable #http://help.appveyor.com/discussions/suggestions/427-pre-install-cygwin
-
 clone_folder: C:\projects\hxcpp
 
 environment:
@@ -15,6 +13,7 @@ environment:
         ADD_REVISION: 1
         OCAMLOPT: ocamlopt.opt
         MINGW_ARCH: i686
+        HAXEPATH: "%APPVEYOR_BUILD_FOLDER%"
     matrix:
         - HXCPP_ARCH: "32"
         - HXCPP_ARCH: "64"
@@ -50,11 +49,9 @@ build_script:
     - haxe compile.hxml
     - cd %APPVEYOR_BUILD_FOLDER%\tools\hxcpp
     - haxe compile.hxml
-    - cd %APPVEYOR_BUILD_FOLDER%\project
-    - neko build.n windows-m%HXCPP_ARCH% -verbose
 
 test_script:
-    - cd %APPVEYOR_BUILD_FOLDER%\test\ndlls
+    - cd %APPVEYOR_BUILD_FOLDER%\test\std
     - haxe compile%HXCPP_ARCH%.hxml && .\cpp%HXCPP_ARCH%\Test
     - cd %APPVEYOR_BUILD_FOLDER%\test\haxe
     - haxe compile.hxml -debug -D HXCPP_M%HXCPP_ARCH% && .\bin\TestMain-debug

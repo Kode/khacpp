@@ -34,9 +34,15 @@
    #endif
 #endif
 
-#if defined(EMSCRIPTEN) || defined(IPHONE)
+#if defined(EMSCRIPTEN) || defined(IPHONE) || defined(APPLETV)
   #include <unistd.h>
   #include <cstdlib>
+#endif
+
+#ifdef __OBJC__
+#ifdef HXCPP_OBJC
+  #import <Foundation/Foundation.h>
+#endif
 #endif
 
 
@@ -76,8 +82,10 @@
 #ifdef _MSC_VER
   #if defined(HXCPP_DLL_IMPORT)
      #define HXCPP_EXTERN_CLASS_ATTRIBUTES __declspec(dllimport)
-  #else
+  #elif defined (HXCPP_DLL_EXPORT)
      #define HXCPP_EXTERN_CLASS_ATTRIBUTES __declspec(dllexport)
+  #else
+     #define HXCPP_EXTERN_CLASS_ATTRIBUTES
   #endif
 #else
   #if defined(HXCPP_DLL_EXPORT)
@@ -90,21 +98,17 @@
 typedef char HX_CHAR;
 
 
-#define HX_STRINGI(s,len) ::String( (const HX_CHAR *)(("\xff\xff\xff\xff" s)) + 4 ,len)
-
-#define HX_STRI(s) HX_STRINGI(s,sizeof(s)/sizeof(HX_CHAR)-1)
-
-#define HX_CSTRING(x) HX_STRI(x)
-
-#define HX_CSTRING2(wide,len,utf8) HX_STRI(utf8)
-
-#define HX_FIELD_EQ(name,field) !::memcmp(name.__s, field, sizeof(field)/sizeof(char))
-
 
 #if (defined(HXCPP_DEBUG) || defined(HXCPP_DEBUGGER)) && !defined HXCPP_CHECK_POINTER
 #define HXCPP_CHECK_POINTER
 #endif
 
+#ifdef HX_WINRT
+
+#define WINRT_LOG(fmt, ...) {char buf[1024];sprintf(buf,"****LOG: %s(%d): %s \n    [" fmt "]\n",__FILE__,__LINE__,__FUNCTION__, __VA_ARGS__);OutputDebugString(buf);}
+#define WINRT_PRINTF(fmt, ...) {char buf[2048];sprintf(buf,"fmt", __VA_ARGS__);OutputDebugString(buf);}
+
+#endif
 
 
 #ifdef BIG_ENDIAN
@@ -135,12 +139,48 @@ typedef char HX_CHAR;
   #endif
 #endif
 
+// HX_HCSTRING is for constant strings with built-in hashes
+//     HX_GC_CONST_ALLOC_BIT
+// HX_CSTRING is for constant strings without built-in hashes
+//     HX_GC_CONST_ALLOC_BIT | HX_GC_NO_STRING_HASH
+
+
+// For making generated code easier to read
+#define HX_HASH_JOIN(A, B) A ## B
+#define HX_JOIN_PARTS(A, B) HX_HASH_JOIN(A, B)
+#define HX_HASH_OF(A) #A
+#define HX_STR_QUOTE(A) HX_HASH_OF(A)
+#define HX_HEX_QUOTE(hex) HX_STR_QUOTE(HX_JOIN_PARTS(\x,hex))
+
+
+
 
 #ifdef HXCPP_BIG_ENDIAN
 #define HX_HCSTRING(s,h0,h1,h2,h3) ::String( (const HX_CHAR *)((h3 h2 h1 h0 "\x80\x00\x00\x00" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
+#define HX_(s,h0,h1,h2,h3) ::String( (const HX_CHAR *)((HX_HEX_QUOTE(h3) HX_HEX_QUOTE(h2) HX_HEX_QUOTE(h1) HX_HEX_QUOTE(h0) "\x80\x00\x00\x00" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
+#define HX_STRINGI(s,len) ::String( (const HX_CHAR *)(("\xc0\x00\x00\x00" s)) + 4 ,len)
+#else
+
+#ifdef HX_WINRT
+#define HX_HCSTRING(s,h0,h1,h2,h3) ::String( const_cast<char *>((h0 h1 h2 h3 "\x00\x00\x00\x80" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
+#define HX_(s,h0,h1,h2,h3) ::String( const_cast<char *>((HX_HEX_QUOTE(h0) HX_HEX_QUOTE(h1) HX_HEX_QUOTE(h2) HX_HEX_QUOTE(h3) "\x00\x00\x00\x80" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
+#define HX_STRINGI(s,len) ::String( const_cast<char *>(("\x00\x00\x0\xc0" s)) + 4 ,len)
 #else
 #define HX_HCSTRING(s,h0,h1,h2,h3) ::String( (const HX_CHAR *)((h0 h1 h2 h3 "\x00\x00\x00\x80" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
+#define HX_(s,h0,h1,h2,h3) ::String( (const HX_CHAR *)((HX_HEX_QUOTE(h0) HX_HEX_QUOTE(h1) HX_HEX_QUOTE(h2) HX_HEX_QUOTE(h3) "\x00\x00\x00\x80" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
+
+#define HX_STRINGI(s,len) ::String( (const HX_CHAR *)(("\x00\x00\x0\xc0" s)) + 4 ,len)
 #endif
+#endif
+
+
+#define HX_STRI(s) HX_STRINGI(s,sizeof(s)/sizeof(HX_CHAR)-1)
+#define HX_CSTRING(x) HX_STRI(x)
+#define HX_CSTRING2(wide,len,utf8) HX_STRI(utf8)
+#define HX_FIELD_EQ(name,field) !::memcmp(name.__s, field, sizeof(field)/sizeof(char))
+// No null check is performed....
+#define HX_QSTR_EQ(name,field) (name.length==field.length && !::memcmp(name.__s, field.__s, field.length))
+
 
 
 #pragma warning(disable:4251)
@@ -191,18 +231,28 @@ namespace haxe { namespace io { typedef unsigned char Unsigned_char__; } }
 
 // --- Forward decalarations --------------------------------------------
 
-namespace cpp { class CppInt32__; }
+class null;
 namespace hx { class Object; }
 namespace hx { class FieldRef; }
 namespace hx { class IndexRef; }
+namespace hx { class NativeInterface; }
+namespace hx { template<typename T> class Native; }
 namespace hx { template<typename O> class ObjectPtr; }
 namespace cpp { template<typename S,typename H> class Struct; }
+namespace cpp { template<typename T> class Pointer; }
 template<typename ELEM_> class Array_obj;
 template<typename ELEM_> class Array;
 namespace hx {
    class Class_obj;
    typedef hx::ObjectPtr<hx::Class_obj> Class;
 }
+namespace cpp {
+     struct Variant;
+     class VirtualArray_obj;
+     class VirtualArray;
+     class CppInt32__;
+}
+
 
 #if (HXCPP_API_LEVEL < 320) && !defined(__OBJC__)
 typedef hx::Class Class;
@@ -230,6 +280,11 @@ public:
    virtual void visitAlloc(void **ioPtr)=0;
 };
 
+#if (HXCPP_API_LEVEL >= 330)
+typedef ::cpp::Variant Val;
+#else
+typedef ::Dynamic Val;
+#endif
 
 
 #if (HXCPP_API_LEVEL >= 313)
@@ -257,7 +312,10 @@ typedef bool PropertyAccess;
 
 // The order of these includes has been chosen to minimize forward declarations.
 // You should not include the individual files, just this one.
+
+// First time ...
 #include <hx/Macros.h>
+#include <cpp/Variant.h>
 #include <hx/ErrorCodes.h>
 #include <hx/GC.h>
 #include "null.h"
@@ -266,17 +324,21 @@ typedef bool PropertyAccess;
 #include "Dynamic.h"
 #include <cpp/CppInt32__.h>
 // This needs to "see" other declarations ...
-#include <hx/GCTemplates.h>
+#include <hx/GcTypeInference.h>
 #include <hx/FieldRef.h>
-#include <hx/Anon.h>
 #include "Array.h"
+#include <hx/Anon.h>
 #include <hx/Class.h>
 #include "Enum.h"
 #include <hx/Interface.h>
+#include <hx/Telemetry.h>
 #include <hx/StdLibs.h>
 #include <cpp/Pointer.h>
+#include <hx/Native.h>
 #include <hx/Operators.h>
 #include <hx/Functions.h>
+// second time ...
+#include <cpp/Variant.h>
 #include <hx/Debug.h>
 #include <hx/Boot.h>
 #include <hx/Undefine.h>

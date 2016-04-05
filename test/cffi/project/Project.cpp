@@ -6,8 +6,10 @@
 // Include neko glue....
 #define NEKO_COMPATIBLE
 #endif
+
 #include <hx/CFFIPrime.h>
 #include <math.h>
+#include <vector>
 
 
 int addInts(int a, int b)
@@ -21,6 +23,39 @@ void printString(const char *inMessage)
    printf("Message : %s.\n", inMessage);
 }
 DEFINE_PRIME1v(printString);
+
+std::vector<AutoGCRoot *> roots;
+
+void setRoot(int inRoot, value inValue)
+{
+   if (roots.size()<=inRoot)
+      roots.resize(inRoot+1);
+   if (roots[inRoot]==0)
+      roots[inRoot] = new AutoGCRoot(inValue);
+   else
+      roots[inRoot]->set(inValue);
+}
+DEFINE_PRIME2v(setRoot);
+
+
+value getRoot(int inRoot)
+{
+   if (inRoot>=roots.size() || !roots[inRoot])
+      return alloc_null();
+   return roots[inRoot]->get();
+}
+DEFINE_PRIME1(getRoot);
+
+
+void clearRoots()
+{
+   for(int i=0;i<roots.size();i++)
+   {
+      delete roots[i];
+      roots[i] = 0;
+   }
+}
+DEFINE_PRIME0v(clearRoots);
 
 
 double distance3D(int x, int y, int z)
@@ -38,11 +73,10 @@ DEFINE_PRIME1v(fields);
 
 HxString stringVal(HxString inString)
 {
-   printf("String : %s (%d)\n", inString.__s, inString.length);
+   printf("String : %s (%d)\n", inString.c_str(), inString.size());
    return HxString("Ok");
 }
 DEFINE_PRIME1(stringVal);
-
 
 // Conflict with name - use anon-namespace
 namespace {

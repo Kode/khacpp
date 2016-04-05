@@ -27,26 +27,46 @@ public:
    inline String() : length(0), __s(0) { }
    explicit String(const HX_CHAR *inPtr);
    inline String(const HX_CHAR *inPtr,int inLen) : __s(inPtr), length(inLen) { }
+
    #ifdef HX_UTF8_STRINGS
    String(const wchar_t *inPtr,int inLen);
    #else
    String(const char *inPtr,int inLen);
    #endif
+
+   explicit String(const wchar_t *inPtr);
    #ifdef __OBJC__
    inline String(NSString *inString)
    {
       *this = String([inString UTF8String]);
    }
    #endif
+   #if defined(HX_WINRT) && defined(__cplusplus_winrt)
+   inline String(Platform::String^ inString)
+   {
+      *this = String(inString->Data());
+   }
+   inline String(Platform::StringReference inString)
+   {
+      *this = String(inString.Data());
+   }
+   #endif
    inline String(const ::String &inRHS) : __s(inRHS.__s), length(inRHS.length) { }
    String(const int &inRHS);
+   String(const unsigned int &inRHS);
+   String(const short &inRHS) { fromInt(inRHS); }
+   String(const unsigned short &inRHS) { fromInt(inRHS); }
+   String(const signed char &inRHS) { fromInt(inRHS); }
+   String(const unsigned char &inRHS) { fromInt(inRHS); }
    String(const cpp::CppInt32__ &inRHS);
    String(const double &inRHS);
    String(const float &inRHS);
    String(const cpp::Int64 &inRHS);
+   String(const cpp::UInt64 &inRHS);
    explicit String(const bool &inRHS);
    inline String(const null &inRHS) : __s(0), length(0) { }
    String(hx::Null< ::String > inRHS) : __s(inRHS.value.__s), length(inRHS.value.length) { }
+   inline String(const ::cpp::Variant &inRHS) { *this = inRHS.asString(); }
 
    static void __boot();
 
@@ -54,6 +74,9 @@ public:
 
    template<typename T,typename S>
    explicit inline String(const cpp::Struct<T,S> &inRHS);
+   template<typename OBJ>
+   explicit inline String(const hx::ObjectPtr<OBJ> &inRHS);
+   void fromInt(int inI);
 
 
 
@@ -89,6 +112,7 @@ public:
 
     ::String &dup();
     ::String &dupConst();
+    static ::String makeConstString(const char *);
 
     ::String toUpperCase() const;
     ::String toLowerCase() const;
@@ -111,8 +135,32 @@ public:
    inline bool operator!=(const null &inRHS) const { return __s!=0; }
 
    inline int getChar( int index ) { return __s[index]; }
-   unsigned int hash( ) const;
+   inline unsigned int hash( ) const
+   {
+      if (!__s) return 0;
+      if ( (((unsigned int *)__s)[-1] & HX_GC_NO_HASH_MASK) == HX_GC_CONST_ALLOC_BIT)
+      {
+         #ifdef HXCPP_PARANOID
+         unsigned int result = 0;
+         for(int i=0;i<length;i++)
+            result = result*223 + ((unsigned char *)__s)[i];
 
+         if  ( ((unsigned int *)__s)[-2] != result )
+         {
+             printf("Bad string hash for %s\n", __s );
+             printf(" Is %08x\n", result );
+             printf(" Baked %08x\n",  ((unsigned int *)__s)[-2]  );
+             printf(" Mark %08x\n",    ((unsigned int *)__s)[-1]  );
+             throw Dynamic(HX_CSTRING("Bad Hash!"));
+         }
+         #endif
+         return ((unsigned int *)__s)[-2];
+      }
+      // Slow path..
+      return calcHash();
+   }
+
+   unsigned int calcHash() const;
 
    inline int compare(const ::String &inRHS) const
    {
@@ -146,15 +194,42 @@ public:
    template<typename T>
    inline ::String operator+(const hx::ObjectPtr<T> &inRHS) const
       { return *this + (inRHS.mPtr ? const_cast<hx::ObjectPtr<T>&>(inRHS)->toString() : HX_CSTRING("null") ); }
+   ::String operator+(const cpp::Variant &inRHS) const{ return *this + inRHS.asString(); } 
+
+   // Strings are known not to be null...
+   inline bool eq(const ::String &inRHS) const
+   {
+      return length==inRHS.length && !memcmp(__s,inRHS.__s,length);
+   }
+
+
 
    inline bool operator==(const ::String &inRHS) const
-                     { return length==inRHS.length && compare(inRHS)==0; }
+   {
+      if (__s==inRHS.__s) return true;
+      if (!__s || !inRHS.__s) return false;
+      if (length!=inRHS.length) return false;
+      if (length==0) return true;
+      return memcmp(__s,inRHS.__s,length)==0;
+   }
    inline bool operator!=(const ::String &inRHS) const
-                     { return length != inRHS.length || compare(inRHS)!=0; }
+   {
+      if (__s==inRHS.__s) return false;
+      if (!__s || !inRHS.__s) return true;
+      if (length!=inRHS.length) return true;
+      if (length==0) return false;
+      return memcmp(__s,inRHS.__s,length);
+   }
+
    inline bool operator<(const ::String &inRHS) const { return compare(inRHS)<0; }
    inline bool operator<=(const ::String &inRHS) const { return compare(inRHS)<=0; }
    inline bool operator>(const ::String &inRHS) const { return compare(inRHS)>0; }
    inline bool operator>=(const ::String &inRHS) const { return compare(inRHS)>=0; }
+
+   inline bool operator<(const Dynamic &inRHS) const { return compare(inRHS)<0; }
+   inline bool operator<=(const Dynamic &inRHS) const { return compare(inRHS)<=0; }
+   inline bool operator>(const Dynamic &inRHS) const { return compare(inRHS)>0; }
+   inline bool operator>=(const Dynamic &inRHS) const { return compare(inRHS)>=0; }
 
    inline int cca(int inPos) const
 	{
@@ -177,7 +252,7 @@ public:
    Dynamic toUpperCase_dyn();
 
 	// This is used by the string-wrapped-as-dynamic class
-   Dynamic __Field(const ::String &inString, hx::PropertyAccess inCallProp);
+   hx::Val __Field(const ::String &inString, hx::PropertyAccess inCallProp);
 
 	// The actual implementation.
 	// Note that "__s" is const - if you want to change it, you should create a new string.
@@ -185,6 +260,12 @@ public:
    int length;
    const HX_CHAR *__s;
 };
+
+
+inline HXCPP_EXTERN_CLASS_ATTRIBUTES String _hx_string_create(const char *str, int len)
+{
+   return String(str,len).dup();
+}
 
 
 

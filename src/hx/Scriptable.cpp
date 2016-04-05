@@ -10,6 +10,11 @@
 #define DBGLOG printf
 
 
+#ifdef HX_ANDROID
+  #define atof(x) strtod(x,0)
+#endif
+
+
 namespace hx
 {
 #if 0
@@ -1142,7 +1147,7 @@ public:
    ABCGlobalObject(ABC *inAbc) : abc(inAbc)
    {
    }
-   Dynamic __Field(const String &inName, hx::PropertyAccess inCallProp)
+   hx::Val __Field(const String &inName, hx::PropertyAccess inCallProp)
    {
       return hx::Class_obj::Resolve(RemapFlash(inName));
    }
@@ -1227,7 +1232,7 @@ public:
       {
          if (scope[s]->__HasField(name))
          {
-            stack->push(scope[s]->__Field(name,HX_PROP_DYNAMIC));
+            stack->push(Dynamic(scope[s]->__Field(name,HX_PROP_DYNAMIC)));
             return;
          }
       }

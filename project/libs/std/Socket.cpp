@@ -1,20 +1,3 @@
-/* ************************************************************************ */
-/*																			*/
-/*  Neko Standard Library													*/
-/*  Copyright (c)2005 Motion-Twin											*/
-/*																			*/
-/* This library is free software; you can redistribute it and/or			*/
-/* modify it under the terms of the GNU Lesser General Public				*/
-/* License as published by the Free Software Foundation; either				*/
-/* version 2.1 of the License, or (at your option) any later version.		*/
-/*																			*/
-/* This library is distributed in the hope that it will be useful,			*/
-/* but WITHOUT ANY WARRANTY; without even the implied warranty of			*/
-/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU		*/
-/* Lesser General Public License or the LICENSE file for more details.		*/
-/*																			*/
-/* ************************************************************************ */
-
 #if !defined(HX_WINRT) && !defined(EPPC)
 
 #include <string.h>
@@ -27,6 +10,7 @@
 #	define SHUT_RDWR	SD_BOTH
 	static bool init_done = false;
 	static WSADATA init_data;
+typedef int SocketLen;
 #else
 #	include <sys/types.h>
 #	include <sys/socket.h>
@@ -44,6 +28,7 @@
 #	define closesocket close
 #	define SOCKET_ERROR (-1)
 #	define INVALID_SOCKET (-1)
+typedef socklen_t SocketLen;
 #endif
 
 #if defined(NEKO_WINDOWS) || defined(NEKO_MAC)
@@ -75,6 +60,8 @@ typedef size_t socket_int;
 #define val_poll(o)		((polldata*)val_data(o))
 
 extern field id___s;
+static field f_host;
+static field f_port;
 
 
 SOCKET val_sock(value inValue)
@@ -130,6 +117,8 @@ static value socket_init() {
 		init_done = true;
 	}
 #endif
+   f_host = val_id("host");
+	f_port = val_id("port");
 	return alloc_bool(true);
 }
 
@@ -148,7 +137,8 @@ static value socket_new( value udp ) {
 	if( s == INVALID_SOCKET )
 		return alloc_null();
 #	ifdef NEKO_MAC
-	setsockopt(s,SOL_SOCKET,SO_NOSIGPIPE,NULL,0);
+	int set = 1;
+	setsockopt(s,SOL_SOCKET,SO_NOSIGPIPE,(void *)&set, sizeof(int));
 #	endif
 #	ifdef NEKO_POSIX
 	// we don't want sockets to be inherited in case of exec
@@ -342,7 +332,7 @@ static value host_resolve( value host ) {
 	ip = inet_addr(hostName);
 	if( ip == INADDR_NONE ) {
 		struct hostent *h;
-#	if defined(NEKO_WINDOWS) || defined(NEKO_MAC) || defined(BLACKBERRY)
+#	if defined(NEKO_WINDOWS) || defined(NEKO_MAC) || defined(BLACKBERRY) || defined(EMSCRIPTEN)
 		h = gethostbyname(hostName);
 #	else
 		struct hostent hbase;
@@ -381,7 +371,7 @@ static value host_reverse( value host ) {
 	val_check(host,int);
 	ip = val_int(host);
    gc_enter_blocking();
-#	if defined(NEKO_WINDOWS) || defined(NEKO_MAC) || defined(ANDROID) || defined(BLACKBERRY)
+#	if defined(NEKO_WINDOWS) || defined(NEKO_MAC) || defined(ANDROID) || defined(BLACKBERRY) || defined(EMSCRIPTEN)
 	h = gethostbyaddr((char *)&ip,4,AF_INET);
 #	else
 	struct hostent htmp;
@@ -1015,6 +1005,96 @@ static value socket_poll( value socks, value pdata, value timeout ) {
 	return a;
 }
 
+
+
+/**
+	socket_send_to : 'socket -> buf:string -> pos:int -> length:int -> addr:{host:'int32,port:int} -> int
+	<doc>
+	Send data from an unconnected UDP socket to the given address.
+	</doc>
+**/
+static value socket_send_to( value o, value dataBuf, value pos, value len, value vaddr ) {
+	int p,l;
+	value host, port;
+	struct sockaddr_in addr;
+	val_check_kind(o,k_socket);
+   buffer buf = val_to_buffer(dataBuf);
+	const char *cdata = buffer_data(buf);
+	int dlen = buffer_size(buf);
+	val_check(pos,int);
+	val_check(len,int);
+	val_check(vaddr,object);
+	host = val_field(vaddr, f_host);
+	port = val_field(vaddr, f_port);
+	val_check(host,int);
+	val_check(port,int);
+	p = val_int(pos);
+	l = val_int(len);
+	memset(&addr,0,sizeof(addr));
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(val_int(port));
+	*(int*)&addr.sin_addr.s_addr = val_int(host);
+	if( p < 0 || l < 0 || p > dlen || p + l > dlen )
+		neko_error();
+
+   SOCKET sock = val_sock(o);
+	gc_enter_blocking();
+	POSIX_LABEL(send_again);
+	dlen = sendto(sock, cdata + p , l, MSG_NOSIGNAL, (struct sockaddr*)&addr, sizeof(addr));
+	if( dlen == SOCKET_ERROR ) {
+		HANDLE_EINTR(send_again);
+		return block_error();
+	}
+	gc_exit_blocking();
+	return alloc_int(dlen);
+}
+
+/**
+	socket_recv_from : 'socket -> buf:string -> pos:int -> length:int -> addr:{host:'int32,port:int} -> int
+	<doc>
+	Read data from an unconnected UDP socket, store the address from which we received data in addr.
+	</doc>
+**/
+#define NRETRYS	20
+static value socket_recv_from( value o, value dataBuf, value pos, value len, value addr ) {
+	int p,l,ret;
+	int retry = 0;
+	struct sockaddr_in saddr;
+	SockLen slen = sizeof(saddr);
+	val_check_kind(o,k_socket);
+	val_check(dataBuf,buffer);
+	buffer buf = val_to_buffer(dataBuf);
+   char *data = buffer_data(buf);
+   int dlen = buffer_size(buf);
+	val_check(pos,int);
+	val_check(len,int);
+	val_check(addr,object);
+	p = val_int(pos);
+	l = val_int(len);
+
+	if( p < 0 || l < 0 || p > dlen || p + l > dlen )
+		neko_error();
+   SOCKET sock = val_sock(o);
+   gc_enter_blocking();
+	POSIX_LABEL(recv_from_again);
+	if( retry++ > NRETRYS ) {
+      ret = recv(sock,data+p,l,MSG_NOSIGNAL);
+	} else
+		ret = recvfrom(sock, data + p , l, MSG_NOSIGNAL, (struct sockaddr*)&saddr, &slen);
+	if( ret == SOCKET_ERROR ) {
+		HANDLE_EINTR(recv_from_again);
+		return block_error();
+	}
+   gc_exit_blocking();
+	alloc_field(addr,f_host,alloc_int32(*(int*)&saddr.sin_addr));
+	alloc_field(addr,f_port,alloc_int(ntohs(saddr.sin_port)));
+	return alloc_int(ret);
+}
+
+
+
+
+
 DEFINE_PRIM(socket_init,0);
 DEFINE_PRIM(socket_new,1);
 DEFINE_PRIM(socket_send,4);
@@ -1037,10 +1117,14 @@ DEFINE_PRIM(socket_shutdown,3);
 DEFINE_PRIM(socket_set_blocking,2);
 DEFINE_PRIM(socket_set_fast_send,2);
 
+DEFINE_PRIM(socket_send_to,5);
+DEFINE_PRIM(socket_recv_from,5);
+
 DEFINE_PRIM(socket_poll_alloc,1);
 DEFINE_PRIM(socket_poll,3);
 DEFINE_PRIM(socket_poll_prepare,3);
 DEFINE_PRIM(socket_poll_events,2);
+
 
 DEFINE_PRIM(host_local,0);
 DEFINE_PRIM(host_resolve,1);

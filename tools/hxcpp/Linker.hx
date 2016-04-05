@@ -1,6 +1,8 @@
 import haxe.io.Path;
 import sys.FileSystem;
 
+using StringTools;
+
 class Linker
 {
    public var mExe:String;
@@ -14,6 +16,7 @@ class Linker
    public var mLibs:Array<String>;
    public var mExpandArchives:Bool;
    public var mRecreate:Bool;
+   public var mLastOutName:String;
 
    public function new(inExe:String)
    {
@@ -64,9 +67,24 @@ class Linker
          //throw "Unable to create output directory " + inTarget.mOutputDir; 
       }
       
-      var out_name = inTarget.mOutputDir + file_name;
+      var out_name = Path.normalize(PathManager.combine( inTarget.mBuildDir, inTarget.mOutputDir + file_name));
+      mLastOutName = out_name;
 
-      var libs = inTarget.mLibs.concat(mLibs);
+      var lastLib = "";
+      var libs = new Array<String>();
+      for(l in inTarget.mLibs)
+         if (l!=lastLib)
+         {
+            libs.push(l);
+            lastLib = l;
+         }
+      for(l in mLibs)
+         if (l!=lastLib)
+         {
+            libs.push(l);
+            lastLib = l;
+         }
+
       var v18Added = false;
       var isOutOfDateLibs = false;
 
@@ -164,7 +182,7 @@ class Linker
                {
                   var libName = Path.withoutDirectory(lib);
                   var libObjs = ProcessManager.readStdout(mExe, ["t", lib ]);
-                  var objDir = inCompiler.mObjDir + "/" + libName;
+                  var objDir = inCompiler.mObjDir + "/" + libName + ".unpack";
                   PathManager.mkdir(objDir);
                   ProcessManager.runCommand (objDir, mExe, ["x", lib]);
                   for(obj in libObjs)
@@ -176,6 +194,15 @@ class Linker
             libs = libArgs;
          }
 
+         var here = Path.normalize(Sys.getCwd()) + "/";
+         var hereLen = here.length;
+         for(oid in 0...objs.length)
+         {
+            var obj = Path.normalize( objs[oid] );
+            if (obj.startsWith(here))
+               objs[oid] = obj.substr(hereLen);
+         }
+
          // Place list of obj files in a file called "all_objs"
          if (mFromFile=="@")
          {
@@ -183,7 +210,7 @@ class Linker
             var fname = inCompiler.mObjDir + "/all_objs";
             var fout = sys.io.File.write(fname,false);
             for(obj in objs)
-               fout.writeString(obj + "\n");
+               fout.writeString('"' + obj + '"\n');
             fout.close();
             args.push("@" + fname );
          }

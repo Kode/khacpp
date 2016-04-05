@@ -3,11 +3,6 @@
 #include <hx/Thread.h>
 #include <time.h>
 
-#ifdef HX_WINRT
-//using namespace Windows::Foundation;
-//using namespace Windows::System::Threading;
-#endif
-
 DECLARE_TLS_DATA(class hxThreadInfo, tlsCurrentThread);
 
 // g_threadInfoMutex allows atomic access to g_nextThreadNumber
@@ -25,8 +20,7 @@ struct Deque : public Array_obj<Dynamic>
 	static Deque *Create()
 	{
 		Deque *result = new Deque();
-		result->mFinalizer = new hx::InternalFinalizer(result);
-		result->mFinalizer->mFinalizer = clean;
+		result->mFinalizer = new hx::InternalFinalizer(result,clean);
 		return result;
 	}
 	static void clean(hx::Object *inObj)
@@ -240,7 +234,7 @@ THREAD_FUNC_TYPE hxThreadFunc( void *inInfo )
    info[0] = (hxThreadInfo *)inInfo;
    info[1] = 0;
 
-	hx::RegisterCurrentThread((int *)&info[1]);
+	hx::SetTopOfStack((int *)&info[1], true);
 
 	tlsCurrentThread = info[0];
 
@@ -291,25 +285,7 @@ Dynamic __hxcpp_thread_create(Dynamic inStart)
 	hx::GCPrepareMultiThreaded();
 	hx::EnterGCFreeZone();
 
-   #if defined(HX_WINRT)
-
-   bool ok = true;
-   try
-   {
-     auto workItemHandler = ref new WorkItemHandler([=](IAsyncAction^)
-        {
-            // Run the user callback.
-            hxThreadFunc(info);
-        }, Platform::CallbackContext::Any);
-
-      ThreadPool::RunAsync(workItemHandler, WorkItemPriority::Normal, WorkItemOptions::None);
-   }
-   catch (...)
-   {
-      ok = false;
-   }
-
-   #elif defined(HX_WINDOWS)
+   #ifdef HX_WINDOWS
       bool ok = _beginthreadex(0,0,hxThreadFunc,info,0,0) != 0;
    #else
       pthread_t result = 0;
@@ -518,7 +494,7 @@ public:
 
 	hx::InternalFinalizer *mFinalizer;
 
-	#ifdef SYS_CONSOLE
+	#if defined(HX_WINDOWS) || defined(__SNC__) || defined(SYS_CONSOLE)
 	double Now()
 	{
 		return 0;
@@ -528,7 +504,7 @@ public:
 	{
 		return (double)clock()/CLOCKS_PER_SEC;
 	}
-	#else
+	#elif defined(__unix__) || defined(__APPLE__)
 	double Now()
 	{
 		struct timeval tv;

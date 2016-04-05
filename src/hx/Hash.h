@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef HXCPP_TELEMETRY
+extern void __hxt_new_hash(void* obj, int size);
+#endif
+
 namespace hx
 {
 
@@ -170,6 +174,7 @@ struct HashBase : public Object
    virtual Dynamic values() = 0;
 
    virtual void updateAfterGc() = 0;
+   virtual ::String toStringRaw() { return toString(); }
 };
 
 extern void RegisterWeakHash(HashBase<Dynamic> *);
@@ -234,11 +239,19 @@ struct Hash : public HashBase< typename ELEMENT::Key >
 
    void rebucket(int inNewCount)
    {
+#ifdef HXCPP_TELEMETRY
+      bool is_new = bucket==0;
+#endif
       mask = inNewCount-1;
       //printf("expand %d -> %d\n",bucketCount, inNewCount);
       bucket = (Element **)InternalRealloc(bucket,inNewCount*sizeof(ELEMENT *));
       //for(int b=bucketCount;b<inNewCount;b++)
       //   bucket[b] = 0;
+
+#ifdef HXCPP_TELEMETRY
+      if (is_new) __hxt_new_hash(bucket, inNewCount*sizeof(ELEMENT *));
+#endif
+
 
       for(int b=0;b<bucketCount;b++)
       {
@@ -426,21 +439,6 @@ struct Hash : public HashBase< typename ELEMENT::Key >
 
 
    template<typename F>
-   void iterateAddr(F &inFunc)
-   {
-      for(int b=0;b<bucketCount;b++)
-      {
-         Element **el = &bucket[b];
-         while(*el)
-         {
-            inFunc(el);
-            el = &(*el)->next;
-         }
-      }
-   }
-
-
-   template<typename F>
    void iterate(F &inFunc)
    {
       for(int b=0;b<bucketCount;b++)
@@ -448,7 +446,7 @@ struct Hash : public HashBase< typename ELEMENT::Key >
          Element *el = bucket[b];
          while(el)
          {
-            inFunc(*el);
+            inFunc(el);
             el = el->next;
          }
       }
@@ -462,9 +460,9 @@ struct Hash : public HashBase< typename ELEMENT::Key >
 
       Converter(NEW *inResult) : result(inResult) { }
 
-      void operator()(typename Hash::Element &elem)
+      void operator()(typename Hash::Element *elem)
       {
-         result->set(elem.key,elem.value);
+         result->set(elem->key,elem->value);
       }
    };
 
@@ -494,9 +492,9 @@ struct Hash : public HashBase< typename ELEMENT::Key >
       {
          array = Array<Key>(0,inReserve);
       }
-      void operator()(typename Hash::Element &elem)
+      void operator()(typename Hash::Element *elem)
       {
-         array->push(elem.key);
+         array->push(elem->key);
       }
    };
    Array<Key> keys()
@@ -516,9 +514,9 @@ struct Hash : public HashBase< typename ELEMENT::Key >
          array = Array<Value>(0,inReserve);
       }
 
-      void operator()(typename Hash::Element &elem)
+      void operator()(typename Hash::Element *elem)
       {
-         array->push(elem.value);
+         array->push(elem->value);
       }
    };
    Dynamic values()
@@ -533,24 +531,28 @@ struct Hash : public HashBase< typename ELEMENT::Key >
    struct StringBuilder
    {
       Array<String> array;
+      bool raw;
 
-      StringBuilder(int inReserve = 0)
+      StringBuilder(int inReserve = 0,bool inRaw=false)
       {
+         raw = inRaw;
          array = Array<String>(0,inReserve*4+1);
-         array->push(HX_CSTRING("{ "));
+         if (!raw)
+            array->push(HX_CSTRING("{ "));
       }
-      void operator()(typename Hash::Element &elem)
+      void operator()(typename Hash::Element *elem)
       {
          if (array->length>1)
             array->push(HX_CSTRING(", "));
-         array->push(String(elem.key));
+         array->push(String(elem->key));
          array->push(HX_CSTRING(" => "));
-         array->push(String(elem.value));
+         array->push(String(elem->value));
       }
       ::String toString()
       {
-         array->push(HX_CSTRING("}"));
-         return array->join(HX_CSTRING(""));
+         if (!raw)
+            array->push(HX_CSTRING(" }"));
+         return array->length==0 ? String() : array->join(HX_CSTRING(""));
       }
    };
 
@@ -562,19 +564,27 @@ struct Hash : public HashBase< typename ELEMENT::Key >
    }
 
 
+   String toStringRaw()
+   {
+      StringBuilder builder(getSize(),true);
+      iterate(builder);
+      return builder.toString();
+   }
+
+
    // Mark ...
    struct HashMarker
    {
       hx::MarkContext *__inCtx;
       HashMarker(hx::MarkContext *ctx) : __inCtx(ctx) { }
-      void operator()(typename Hash::Element &inElem)
+      void operator()(typename Hash::Element *inElem)
       {
-         HX_MARK_ARRAY(&inElem);
+         HX_MARK_ARRAY(inElem);
          if (!Hash::Element::WeakKeys)
          {
-            HX_MARK_MEMBER(inElem.key);
+            HX_MARK_MEMBER(inElem->key);
          }
-         HX_MARK_MEMBER(inElem.value);
+         HX_MARK_MEMBER(inElem->value);
       }
    };
 
@@ -587,33 +597,28 @@ struct Hash : public HashBase< typename ELEMENT::Key >
    }
 
 #ifdef HXCPP_VISIT_ALLOCS
-   // Vist ...
-   struct HashVisitor
-   {
-      hx::VisitContext *__inCtx;
-      HashVisitor(hx::VisitContext *ctx) : __inCtx(ctx) { }
-      void operator()(typename Hash::Element **inElem)
-      {
-         if ( (NeedsMarking<Key>::Yes && !ELEMENT::WeakKeys) || NeedsMarking<Value>::Yes)
-         {
-             typename Hash::Element &el = **inElem;
-             HX_VISIT_MEMBER(el.key);
-             HX_VISIT_MEMBER(el.value);
-         }
-         HX_VISIT_ARRAY(*inElem);
-      }
-   };
 
    void __Visit(hx::VisitContext *__inCtx)
    {
+      //printf(" visit hash %p\n", this);
       HX_VISIT_ARRAY(bucket);
-      HashVisitor vistor(__inCtx);
-      iterateAddr(vistor);
+      for(int b=0;b<bucketCount;b++)
+      {
+         HX_VISIT_ARRAY(bucket[b]);
+         Element *el = bucket[b];
+         while(el)
+         {
+            HX_VISIT_MEMBER(el->key);
+            HX_VISIT_MEMBER(el->value);
+            HX_VISIT_ARRAY(el->next);
+            el = el->next;
+         }
+      }
    }
 #endif
 };
 
-
+#if 0
 template<typename ELEMENT>
 struct TinyHash : public HashBase< typename ELEMENT::Key >
 {
@@ -840,6 +845,7 @@ struct TinyHash : public HashBase< typename ELEMENT::Key >
    }
 #endif
 };
+#endif
 
 } // end namespace hx
 

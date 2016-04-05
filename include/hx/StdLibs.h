@@ -49,6 +49,8 @@ HXCPP_EXTERN_CLASS_ATTRIBUTES void __trace(Dynamic inPtr, Dynamic inData);
 HXCPP_EXTERN_CLASS_ATTRIBUTES void __hxcpp_exit(int inExitCode);
 void           __hxcpp_stdlibs_boot();
 
+HXCPP_EXTERN_CLASS_ATTRIBUTES int hxcpp_alloc_kind();
+
 // --- Maths ---------------------------------------------------------
 double __hxcpp_drand();
 HXCPP_EXTERN_CLASS_ATTRIBUTES int __hxcpp_irand(int inMax);
@@ -138,6 +140,7 @@ HXCPP_EXTERN_CLASS_ATTRIBUTES int           __string_hash_get_int(Dynamic &ioHas
 HXCPP_EXTERN_CLASS_ATTRIBUTES ::String      __string_hash_get_string(Dynamic &ioHash,String inKey);
 HXCPP_EXTERN_CLASS_ATTRIBUTES Float         __string_hash_get_float(Dynamic &ioHash,String inKey);
 HXCPP_EXTERN_CLASS_ATTRIBUTES ::String      __string_hash_to_string(Dynamic &ioHash);
+HXCPP_EXTERN_CLASS_ATTRIBUTES ::String      __string_hash_to_string_raw(Dynamic &ioHash);
 
 
 // --- ObjectHash ----------------------------------------------------------------------
@@ -229,7 +232,6 @@ Array<String> __hxcpp_get_class_list();
 
 void __hxcpp_start_profiler(::String inDumpFile);
 void __hxcpp_stop_profiler();
-
 
 
 // --- Memory --------------------------------------------------------------------------
@@ -435,5 +437,192 @@ inline int __hxcpp_reinterpret_float64_as_le_int32_high(double inValue)
    #endif
    return asInts[1];
 }
+
+// EReg.hx -> src/hx/libs/regexp/RegExp.cpp
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_regexp_new_options(String s, String options);
+HXCPP_EXTERN_CLASS_ATTRIBUTES bool    _hx_regexp_match(Dynamic handle, String string, int pos, int len);
+HXCPP_EXTERN_CLASS_ATTRIBUTES String  _hx_regexp_matched(Dynamic handle, int pos);
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_regexp_matched_pos(Dynamic handle, Int match);
+
+
+// haxe.zip.(Un)Compress.hx -> src/hx/libs/zlib/ZLib.cpp
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_deflate_init(int level);
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_deflate_bound(Dynamic handle,int length);
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_deflate_buffer(Dynamic handle, Array<unsigned char> src, int srcPos, Array<unsigned char> dest, int destPos);
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_deflate_end(Dynamic handle);
+
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_inflate_init(Dynamic windowBits);
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_inflate_buffer(Dynamic handle, Array<unsigned char> src, int srcPos, Array<unsigned char> dest, int destPos);
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_inflate_end(Dynamic handle);
+
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_zip_set_flush_mode(Dynamic handle, String flushMode);
+
+// sys.db.Mysql.hx -> src/hx/libs/regexp/RegExp.cpp
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_mysql_connect(Dynamic params);
+HXCPP_EXTERN_CLASS_ATTRIBUTES void    _hx_mysql_select_db(Dynamic handle,String db);
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_mysql_request(Dynamic handle,String req);
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_mysql_close(Dynamic handle);
+HXCPP_EXTERN_CLASS_ATTRIBUTES String  _hx_mysql_escape(Dynamic handle,String str);
+HXCPP_EXTERN_CLASS_ATTRIBUTES int     _hx_mysql_result_get_length(Dynamic handle);
+HXCPP_EXTERN_CLASS_ATTRIBUTES int     _hx_mysql_result_get_nfields(Dynamic handle);
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_mysql_result_next(Dynamic handle);
+HXCPP_EXTERN_CLASS_ATTRIBUTES String  _hx_mysql_result_get(Dynamic handle,int i);
+HXCPP_EXTERN_CLASS_ATTRIBUTES int     _hx_mysql_result_get_int(Dynamic handle,int i);
+HXCPP_EXTERN_CLASS_ATTRIBUTES Float   _hx_mysql_result_get_float(Dynamic handle,int i);
+HXCPP_EXTERN_CLASS_ATTRIBUTES Array<String> _hx_mysql_result_get_fields_names(Dynamic handle);
+
+namespace cpp { template<typename T> class Function; }
+
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_mysql_set_conversion(
+      cpp::Function< Dynamic(Dynamic) > inCharsToBytes,
+      cpp::Function< Dynamic(Float) > inTimeToDate );
+
+// sys.db.Sqlite.hx -> src/hx/libs/sqlite/RegExp.cpp
+
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_sqlite_connect(String filename);
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_sqlite_request(Dynamic handle,String req);
+HXCPP_EXTERN_CLASS_ATTRIBUTES void    _hx_sqlite_close(Dynamic handle);
+HXCPP_EXTERN_CLASS_ATTRIBUTES int     _hx_sqlite_last_insert_id(Dynamic handle);
+
+HXCPP_EXTERN_CLASS_ATTRIBUTES int     _hx_sqlite_result_get_length(Dynamic handle);
+HXCPP_EXTERN_CLASS_ATTRIBUTES int     _hx_sqlite_result_get_nfields(Dynamic handle);
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_sqlite_result_next(Dynamic handle);
+HXCPP_EXTERN_CLASS_ATTRIBUTES String  _hx_sqlite_result_get(Dynamic handle,int i);
+HXCPP_EXTERN_CLASS_ATTRIBUTES int     _hx_sqlite_result_get_int(Dynamic handle,int i);
+HXCPP_EXTERN_CLASS_ATTRIBUTES Float   _hx_sqlite_result_get_float(Dynamic handle,int i);
+
+// src/hx/libs/std ..
+// File
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_std_file_open( String fname, String r );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_file_close( Dynamic handle );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_file_write( Dynamic handle, Array<unsigned char> s, int p, int n );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_file_write_char( Dynamic handle, int c );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_file_read( Dynamic handle, Array<unsigned char> buf, int p, int n );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_file_read_char( Dynamic handle );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_file_seek( Dynamic handle, int pos, int kind );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_file_tell( Dynamic handle );
+HXCPP_EXTERN_CLASS_ATTRIBUTES bool _hx_std_file_eof( Dynamic handle );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_file_flush( Dynamic handle );
+HXCPP_EXTERN_CLASS_ATTRIBUTES String _hx_std_file_contents_string( String name );
+HXCPP_EXTERN_CLASS_ATTRIBUTES Array<unsigned char> _hx_std_file_contents_bytes( String name );
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_std_file_stdin();
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_std_file_stdout();
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_std_file_stderr();
+
+// Process
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_std_process_run( String cmd, Array<String> vargs );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_process_stdout_read( Dynamic handle, Array<unsigned char> buf, int pos, int len );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_process_stderr_read( Dynamic handle, Array<unsigned char> buf, int pos, int len );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_process_stdin_write( Dynamic handle, Array<unsigned char> buf, int pos, int len );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_process_stdin_close( Dynamic handle );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_process_exit( Dynamic handle );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_process_pid( Dynamic handle );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_process_close( Dynamic handle );
+
+// Random
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_std_random_new();
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_random_set_seed( Dynamic handle, int v );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_random_int( Dynamic handle, int max );
+HXCPP_EXTERN_CLASS_ATTRIBUTES double _hx_std_random_float( Dynamic handle );
+
+// Socket
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_init();
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_std_socket_new( bool udp );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_bind( Dynamic o, int host, int port );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_close( Dynamic handle );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_send_char( Dynamic o, int c );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_socket_send( Dynamic o, Array<unsigned char> buf, int p, int l );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_socket_recv( Dynamic o, Array<unsigned char> buf, int p, int l );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_socket_recv_char( Dynamic o );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_write( Dynamic o, Array<unsigned char> buf );
+HXCPP_EXTERN_CLASS_ATTRIBUTES Array<unsigned char> _hx_std_socket_read( Dynamic o );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_host_resolve( String host );
+HXCPP_EXTERN_CLASS_ATTRIBUTES String _hx_std_host_to_string( int ip );
+HXCPP_EXTERN_CLASS_ATTRIBUTES String _hx_std_host_reverse( int host );
+HXCPP_EXTERN_CLASS_ATTRIBUTES String _hx_std_host_local();
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_connect( Dynamic o, int host, int port );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_listen( Dynamic o, int n );
+HXCPP_EXTERN_CLASS_ATTRIBUTES Array<Dynamic> _hx_std_socket_select( Array<Dynamic> rs, Array<Dynamic> ws, Array<Dynamic> es, Dynamic timeout );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_fast_select( Array<Dynamic> rs, Array<Dynamic> ws, Array<Dynamic> es, Dynamic timeout );
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_std_socket_accept( Dynamic o );
+HXCPP_EXTERN_CLASS_ATTRIBUTES Array<Int> _hx_std_socket_peer( Dynamic o );
+HXCPP_EXTERN_CLASS_ATTRIBUTES Array<Int> _hx_std_socket_host( Dynamic o );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_set_timeout( Dynamic o, Dynamic t );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_shutdown( Dynamic o, bool r, bool w );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_set_blocking( Dynamic o, bool b );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_set_fast_send( Dynamic o, bool b );
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_std_socket_poll_alloc( int nsocks );
+HXCPP_EXTERN_CLASS_ATTRIBUTES Array<Dynamic> _hx_std_socket_poll_prepare( Dynamic pdata, Array<Dynamic> rsocks, Array<Dynamic> wsocks );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_poll_events( Dynamic pdata, double timeout );
+HXCPP_EXTERN_CLASS_ATTRIBUTES Array<Dynamic> _hx_std_socket_poll( Array<Dynamic> socks, Dynamic pdata, double timeout );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_socket_send_to( Dynamic o, Array<unsigned char> buf, int p, int l, Dynamic inAddr );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_socket_recv_from( Dynamic o, Array<unsigned char> buf, int p, int l, Dynamic outAddr);
+
+// Sys
+HXCPP_EXTERN_CLASS_ATTRIBUTES String _hx_std_get_env( String v );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_put_env( String e, String v );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_sys_sleep( double f );
+HXCPP_EXTERN_CLASS_ATTRIBUTES bool _hx_std_set_time_locale( String l );
+HXCPP_EXTERN_CLASS_ATTRIBUTES String _hx_std_get_cwd();
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_set_cwd( String d );
+HXCPP_EXTERN_CLASS_ATTRIBUTES String _hx_std_sys_string();
+HXCPP_EXTERN_CLASS_ATTRIBUTES bool _hx_std_sys_is64();
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_sys_command( String cmd );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_sys_exit( int code );
+HXCPP_EXTERN_CLASS_ATTRIBUTES bool _hx_std_sys_exists( String path );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_file_delete( String path );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_sys_rename( String path, String newname );
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_std_sys_stat( String path );
+HXCPP_EXTERN_CLASS_ATTRIBUTES String _hx_std_sys_file_type( String path );
+HXCPP_EXTERN_CLASS_ATTRIBUTES bool _hx_std_sys_create_dir( String path, int mode );
+HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_sys_remove_dir( String path );
+HXCPP_EXTERN_CLASS_ATTRIBUTES double _hx_std_sys_time();
+HXCPP_EXTERN_CLASS_ATTRIBUTES double _hx_std_sys_cpu_time();
+HXCPP_EXTERN_CLASS_ATTRIBUTES Array<String> _hx_std_sys_read_dir( String p);
+HXCPP_EXTERN_CLASS_ATTRIBUTES String _hx_std_file_full_path( String path );
+HXCPP_EXTERN_CLASS_ATTRIBUTES String _hx_std_sys_exe_path();
+HXCPP_EXTERN_CLASS_ATTRIBUTES Array<String> _hx_std_sys_env();
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_sys_getch( bool b );
+HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_sys_get_pid();
+
+
+// SSL
+void _hx_ssl_init();
+Dynamic _hx_ssl_new( Dynamic hconf );
+void _hx_ssl_close( Dynamic hssl );
+void _hx_ssl_handshake( Dynamic handle );
+void _hx_ssl_set_socket( Dynamic hssl, Dynamic hsocket );
+void _hx_ssl_set_hostname( Dynamic hssl, String hostname );
+Dynamic _hx_ssl_get_peer_certificate( Dynamic hssl );
+bool _hx_ssl_get_verify_result( Dynamic hssl );
+void _hx_ssl_send_char( Dynamic hssl, int v );
+int _hx_ssl_send( Dynamic hssl, Array<unsigned char> buf, int p, int l );
+void _hx_ssl_write( Dynamic hssl, Array<unsigned char> buf );
+int _hx_ssl_recv_char( Dynamic hssl );
+int _hx_ssl_recv( Dynamic hssl, Array<unsigned char> buf, int p, int l );
+Array<unsigned char> _hx_ssl_read( Dynamic hssl );
+Dynamic _hx_ssl_conf_new( bool server );
+void _hx_ssl_conf_close( Dynamic hconf );
+void _hx_ssl_conf_set_ca( Dynamic hconf, Dynamic hcert );
+void _hx_ssl_conf_set_verify( Dynamic hconf, int mode );
+void _hx_ssl_conf_set_cert( Dynamic hconf, Dynamic hcert, Dynamic hpkey );
+void _hx_ssl_conf_set_servername_callback( Dynamic hconf, Dynamic obj );
+Dynamic _hx_ssl_cert_load_defaults();
+Dynamic _hx_ssl_cert_load_file( String file );
+Dynamic _hx_ssl_cert_load_path( String path );
+String _hx_ssl_cert_get_subject( Dynamic hcert, String objname );
+String _hx_ssl_cert_get_issuer( Dynamic hcert, String objname );
+Array<String> _hx_ssl_cert_get_altnames( Dynamic hcert );
+Array<Int> _hx_ssl_cert_get_notbefore( Dynamic hcert );
+Array<Int> _hx_ssl_cert_get_notafter( Dynamic hcert );
+Dynamic _hx_ssl_cert_get_next( Dynamic hcert );
+Dynamic _hx_ssl_cert_add_pem( Dynamic hcert, String data );
+Dynamic _hx_ssl_cert_add_der( Dynamic hcert, Array<unsigned char> buf );
+Dynamic _hx_ssl_key_from_der( Array<unsigned char> buf, bool pub );
+Dynamic _hx_ssl_key_from_pem( String data, bool pub, String pass );
+Array<unsigned char> _hx_ssl_dgst_make( Array<unsigned char> buf, String alg );
+Array<unsigned char> _hx_ssl_dgst_sign( Array<unsigned char> buf, Dynamic hpkey, String alg );
+bool _hx_ssl_dgst_verify( Array<unsigned char> buf, Array<unsigned char> sign, Dynamic hpkey, String alg );
+
 
 #endif

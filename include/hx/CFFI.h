@@ -1,12 +1,24 @@
 #ifndef HX_CFFI_H
 #define HX_CFFI_H
 
+
+#ifdef HXCPP_JS_PRIME
+#include <emscripten/bind.h>
+using namespace emscripten;
+
+typedef struct emscripten::val value;
+typedef struct _vkind  *vkind;
+typedef struct _buffer  *buffer;
+#define HAVE_NEKO_TYPES 1
+#endif
+
 #include "OS.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-
+#if defined(BLACKBERRY)
+using namespace std;
+#endif
 // --- Register functions (primitives) ----
 
 #ifdef STATIC_LINK
@@ -113,7 +125,7 @@ typedef int field;
 #endif
 
 
-#ifndef HAVE_NEKO_TYPES
+#if !defined(HAVE_NEKO_TYPES)
 typedef struct _value *value;
 typedef struct _vkind  *vkind;
 typedef struct _buffer  *buffer;
@@ -135,7 +147,7 @@ typedef void (__hx_field_iter)(value v,field f,void *);
 
 #ifndef IMPLEMENT_API
  
-#ifdef STATIC_LINK
+#if defined(STATIC_LINK) || defined(HXCPP_JS_PRIME)
 
 #define DEFFUNC(name,ret,def_args,call_args) \
 extern "C" ret name def_args;

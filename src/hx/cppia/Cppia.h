@@ -97,8 +97,6 @@ enum VarLocation
 };
 
 
-
-
 struct CppiaExpr
 {
    int line;
@@ -196,6 +194,8 @@ public:
    std::vector< TypeData * >       types;
    std::vector< CppiaClassInfo * > classes;
    std::vector< CppiaExpr * >      markable;
+   typedef std::map< std::string, int > InterfaceSlots;
+   InterfaceSlots                  interfaceSlots;
 
    StackLayout                     *layout;
    CppiaClassInfo                  *linkingClass;
@@ -215,6 +215,8 @@ public:
    void where(CppiaExpr *e);
    void mark(hx::MarkContext *ctx);
    void visit(hx::VisitContext *ctx);
+   int  getInterfaceSlot(const std::string &inName);
+   int  findInterfaceSlot(const std::string &inName);
 
    inline const char *identStr(int inId) { return strings[inId].__s; }
    inline const char *typeStr(int inId) { return types[inId]->name.c_str(); }
@@ -392,11 +394,21 @@ class HaxeNativeInterface
 {
 public:
    std::string  name;
-   const hx::type_info *mType;
-   ScriptableInterfaceFactory factory;
    ScriptNamedFunction *functions;
 
+   #if (HXCPP_API_LEVEL >= 330)
+   void *scriptTable;
+
+   HaxeNativeInterface(const std::string &inName, ScriptNamedFunction *inFunctions,void *inScriptTable);
+
+   #else
+   const hx::type_info *mType;
+   ScriptableInterfaceFactory factory;
+
    HaxeNativeInterface(const std::string &inName, ScriptNamedFunction *inFunctions,hx::ScriptableInterfaceFactory inFactory,const hx::type_info *inType);
+   #endif
+
+
    ScriptFunction findFunction(const std::string &inName);
 
    static HaxeNativeInterface *findInterface(const std::string &inName);
