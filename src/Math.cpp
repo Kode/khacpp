@@ -12,7 +12,6 @@
 #elif defined(HX_WINDOWS)
 #include <process.h>
 #endif
-#endif
 
 #ifdef HX_ANDROID
 #define rand() lrand48()

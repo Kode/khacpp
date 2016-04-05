@@ -3161,7 +3161,7 @@ public:
       }
 
       StopThreadJobs(true);
-      #ifdef DEBUG
+      #ifdef HXCPP_DEBUG
       sgAllocsSinceLastSpam = 0;
       #endif
 
