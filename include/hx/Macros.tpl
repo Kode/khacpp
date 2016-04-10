@@ -84,7 +84,7 @@
 }; \
  ::NS::Dynamic class::func##_dyn() \
 {\
-   return hx::NS::CreateMemberFunction0(this,__##class##func); \
+   return hx::NS::CreateMemberFunction0(#func,this,__##class##func); \
 }
 
 
@@ -95,7 +95,7 @@
 }; \
  ::NS::Dynamic class::func##_dyn() \
 {\
-   return hx::NS::CreateMemberFunction##N(this,__##class##func); \
+   return hx::NS::CreateMemberFunction##N(#func,this,__##class##func); \
 }
 
 
@@ -106,7 +106,7 @@
 }; \
  ::NS::Dynamic class::func##_dyn() \
 {\
-   return hx::NS::CreateMemberFunctionVar(this,__##class##func,N); \
+   return hx::NS::CreateMemberFunctionVar(#func,this,__##class##func,N); \
 }
 
 
@@ -145,7 +145,7 @@
 }; \
  ::NS::Dynamic class::func##_dyn() \
 {\
-   return hx::NS::CreateStaticFunction0(__##class##func); \
+   return hx::NS::CreateStaticFunction0(#func,__##class##func); \
 }
 
 
@@ -156,7 +156,7 @@
 }; \
  ::NS::Dynamic class::func##_dyn() \
 {\
-   return hx::NS::CreateStaticFunction##N(__##class##func); \
+   return hx::NS::CreateStaticFunction##N(#func,__##class##func); \
 }
 
 
@@ -167,7 +167,7 @@
 }; \
  ::NS::Dynamic class::func##_dyn() \
 {\
-   return hx::NS::CreateStaticFunctionVar(__##class##func,N); \
+   return hx::NS::CreateStaticFunctionVar(#func,__##class##func,N); \
 }
 
 
@@ -266,10 +266,15 @@ static  ::NS::Dynamic Create##enum_obj(::String inName,hx::DynamicArray inArgs) 
    void __Visit(hx::VisitContext *__inCtx) { DoVisitThis(__inCtx); ::VISITS:: } \
    name(::CONSTRUCT_ARGS::) : ::CONSTRUCT_VARS:: {}::end::
 
+#if (HXCPP_API_LEVEL>=330)
+  #define HX_LOCAL_RUN _hx_run
+#else
+  #define HX_LOCAL_RUN run
+#endif
 
-#define HX_END_LOCAL_FUNC0(ret) HX_DYNAMIC_CALL0(ret,run) };
+#define HX_END_LOCAL_FUNC0(ret) HX_DYNAMIC_CALL0(ret, HX_LOCAL_RUN ) };
 ::foreach LOCALS::
-#define HX_END_LOCAL_FUNC::ARG::(ret) HX_DYNAMIC_CALL::ARG::(ret,run) };::end::
+#define HX_END_LOCAL_FUNC::ARG::(ret) HX_DYNAMIC_CALL::ARG::(ret, HX_LOCAL_RUN ) };::end::
 
 // For compatibility until next version of haxe is released
 #define HX_BEGIN_LOCAL_FUNC0(name) \

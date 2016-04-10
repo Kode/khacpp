@@ -51,7 +51,7 @@ struct sslctx : public hx::Object
 	{
 		s = (mbedtls_ssl_context *)malloc(sizeof(mbedtls_ssl_context));
 		mbedtls_ssl_init(s);
-		__hxcpp_set_finalizer(this, (void *)finalize);
+		_hx_set_finalizer(this, finalize);
 	}
 
 	void destroy()
@@ -64,9 +64,9 @@ struct sslctx : public hx::Object
 		}
 	}
 
-	static void finalize(void *inPtr)
+	static void finalize(Dynamic obj)
 	{
-		((sslctx *)inPtr)->destroy();
+		((sslctx *)(obj.mPtr))->destroy();
 	}
 
 	String toString() { return HX_CSTRING("sslctx"); }
@@ -80,7 +80,7 @@ struct sslconf : public hx::Object
 	{
 		c = (mbedtls_ssl_config *)malloc(sizeof(mbedtls_ssl_config));
 		mbedtls_ssl_config_init(c);
-		__hxcpp_set_finalizer(this, (void *)finalize);
+		_hx_set_finalizer(this, finalize);
 	}
 
 	void destroy()
@@ -93,9 +93,9 @@ struct sslconf : public hx::Object
 		}
 	}
 
-	static void finalize(void *inPtr)
+	static void finalize(Dynamic obj)
 	{
-		((sslconf *)inPtr)->destroy();
+		((sslconf *)(obj.mPtr))->destroy();
 	}
 
 	String toString() { return HX_CSTRING("sslconfig"); }
@@ -117,7 +117,7 @@ struct sslcert : public hx::Object
 			mbedtls_x509_crt_init(c);
 			head = true;
 		}
-		__hxcpp_set_finalizer(this, (void *)finalize);
+		_hx_set_finalizer(this, finalize);
 	}
 
 	void destroy()
@@ -131,9 +131,9 @@ struct sslcert : public hx::Object
 		c = 0;
 	}
 
-	static void finalize(void *inPtr)
+	static void finalize(Dynamic obj)
 	{
-		((sslcert *)inPtr)->destroy();
+		((sslcert *)(obj.mPtr))->destroy();
 	}
 
 	String toString() { return HX_CSTRING("sslcert"); }
@@ -147,7 +147,7 @@ struct sslpkey : public hx::Object
 	{
 		k = (mbedtls_pk_context *)malloc(sizeof(mbedtls_pk_context));
 		mbedtls_pk_init(k);
-		__hxcpp_set_finalizer(this, (void *)finalize);
+		_hx_set_finalizer(this, finalize);
 	}
 
 	void destroy()
@@ -160,9 +160,9 @@ struct sslpkey : public hx::Object
 		}
 	}
 
-	static void finalize(void *inPtr)
+	static void finalize(Dynamic obj)
 	{
-		((sslpkey *)inPtr)->destroy();
+		((sslpkey *)(obj.mPtr))->destroy();
 	}
 
 	String toString() { return HX_CSTRING("sslpkey"); }
@@ -219,11 +219,17 @@ void _hx_ssl_handshake( Dynamic hssl ) {
 }
 
 int net_read( void *fd, unsigned char *buf, size_t len ){
-	return recv((SOCKET)(socket_int)fd, (char *)buf, len, 0);
+	hx::EnterGCFreeZone();
+	int r = recv((SOCKET)(socket_int)fd, (char *)buf, len, 0);
+	hx::ExitGCFreeZone();
+	return r;
 }
 
 int net_write( void *fd, const unsigned char *buf, size_t len ){
-	return send((SOCKET)(socket_int)fd, (char *)buf, len, 0);
+	hx::EnterGCFreeZone();
+	int r = send((SOCKET)(socket_int)fd, (char *)buf, len, 0);
+	hx::ExitGCFreeZone();
+	return r;
 }
 
 void _hx_ssl_set_socket( Dynamic hssl, Dynamic hsocket ) {
@@ -442,12 +448,11 @@ Dynamic _hx_ssl_cert_load_defaults(){
 	SecKeychainRef keychain;
 	SecCertificateRef item;
 	CFDataRef dat;
-	value v;
 	sslcert *chain = NULL;
 
 	// Load keychain
 	if( SecKeychainOpen("/System/Library/Keychains/SystemRootCertificates.keychain",&keychain) != errSecSuccess )
-		return val_null;
+		return null();
 
 	// Search for certificates
 	search = CFDictionaryCreateMutable( NULL, 0, NULL, NULL );
@@ -610,9 +615,11 @@ Dynamic _hx_ssl_cert_add_pem( Dynamic hcert, String data ){
 		cert->create( NULL );
 		isnew = 1;
 	}
-	unsigned char *b = (unsigned char *)data.__s;
-	b[data.length] = 0;
-	r = mbedtls_x509_crt_parse( cert->c, (const unsigned char *)data.__s, data.length+1 );
+	unsigned char *b = (unsigned char *)malloc((data.length+1) * sizeof(unsigned char));
+	memcpy(b,data.__s,data.length);
+	b[data.length] = '\0';
+	r = mbedtls_x509_crt_parse( cert->c, b, data.length+1 );
+	free(b);
 	if( r < 0 ){
 		if( isnew )
 			cert->destroy();
@@ -657,15 +664,17 @@ Dynamic _hx_ssl_key_from_pem( String data, bool pub, String pass ){
 	sslpkey *pk = new sslpkey();
 	pk->create();
 	int r;
-	unsigned char *b = (unsigned char *)data.__s;
-	b[data.length] = 0;
+	unsigned char *b = (unsigned char *)malloc((data.length+1) * sizeof(unsigned char));
+	memcpy(b,data.__s,data.length);
+	b[data.length] = '\0';
 	if( pub ){
-		r = mbedtls_pk_parse_public_key( pk->k, (const unsigned char *)data.__s, data.length+1 );
+		r = mbedtls_pk_parse_public_key( pk->k, b, data.length+1 );
 	}else if( pass == null() ){
-		r = mbedtls_pk_parse_key( pk->k, (const unsigned char *)data.__s, data.length+1, NULL, 0 );
+		r = mbedtls_pk_parse_key( pk->k, b, data.length+1, NULL, 0 );
 	}else{
-		r = mbedtls_pk_parse_key( pk->k, (const unsigned char *)data.__s, data.length+1, (const unsigned char *)pass.__s, pass.length );
+		r = mbedtls_pk_parse_key( pk->k, b, data.length+1, (const unsigned char *)pass.__s, pass.length );
 	}
+	free(b);
 	if( r != 0 ){
 		pk->destroy();
 		ssl_error(r);

@@ -230,9 +230,12 @@ void ArrayBase::Splice(ArrayBase *outResult,int inPos,int inLen)
    if (inPos+inLen>length)
       inLen = length - inPos;
 
-   outResult->__SetSize(inLen);
    int s = GetElementSize();
-   memcpy(outResult->mBase, mBase+inPos*s, s*inLen);
+   if (outResult)
+   {
+      outResult->__SetSize(inLen);
+      memcpy(outResult->mBase, mBase+inPos*s, s*inLen);
+   }
    memmove(mBase+inPos*s, mBase + (inPos+inLen)*s, (length-(inPos+inLen))*s);
    __SetSize(length-inLen);
 }
@@ -579,7 +582,7 @@ HX_DEFINE_DYNAMIC_FUNC0(IteratorBase,_dynamicNext,return)
 
 Dynamic IteratorBase::next_dyn()
 {
-   return hx::CreateMemberFunction0(this,__IteratorBase_dynamicNext);
+   return hx::CreateMemberFunction0("next",this,__IteratorBase_dynamicNext);
 }
 
 hx::Val IteratorBase::__Field(const String &inString, hx::PropertyAccess inCallProp)
@@ -724,8 +727,41 @@ String VirtualArray_obj::toString()
 
 }
 
-void VirtualArray_obj::EnsureArrayStorage(Dynamic inValue)
+void VirtualArray_obj::EnsureArrayStorage(ArrayStore inStore)
 {
+   switch(inStore)
+   {
+      case arrayFixed:
+      case arrayNull:
+         // These should not happen
+         break;
+
+      case arrayEmpty:
+         EnsureBase();
+         break;
+
+      case arrayBool:  EnsureBoolStorage(); break;
+      case arrayInt:  EnsureIntStorage(); break;
+      case arrayFloat:  EnsureFloatStorage(); break;
+      case arrayString:  EnsureStringStorage(); break;
+      case arrayObject:  EnsureObjectStorage(); break;
+   }
+}
+
+void VirtualArray_obj::EnsureArrayStorage(VirtualArray inValue)
+{
+   if (store!=arrayFixed)
+   {
+      if (inValue->store==arrayFixed)
+      {
+         EnsureArrayStorage(inValue->base->getStoreType());
+         store = arrayFixed;
+      }
+      else
+      {
+         EnsureArrayStorage(inValue->store);
+      }
+   }
 }
 
 void VirtualArray_obj::MakeIntArray()
