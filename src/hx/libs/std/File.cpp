@@ -321,7 +321,8 @@ String _hx_std_file_contents_string( String name )
    return String(&buffer[0], buffer.size()).dup();
 }
 
-
+#include <Kore/pch.h>
+#include <Kore/IO/FileReader.h>
 
 /**
    file_contents : f:string -> string
@@ -331,41 +332,26 @@ Array<unsigned char> _hx_std_file_contents_bytes( String name )
 {
 
    hx::EnterGCFreeZone();
-   FILE *file = fopen(name.__s, "rb");
-   if(!file)
+   Kore::FileReader file;
+   if(!file.open(name.__s))
       file_error("file_contents",name);
-
-   fseek(file,0,SEEK_END);
-   int len = ftell(file);
-   if (len<0)
-      file_error("file_ftell",name);
-
-   fseek(file,0,SEEK_SET);
    hx::ExitGCFreeZone();
 
-   Array<unsigned char> buffer = Array_obj<unsigned char>::__new(len,len);
+   Array<unsigned char> buffer = Array_obj<unsigned char>::__new(file.size(),file.size());
    hx::EnterGCFreeZone();
-   if (len)
+   if (file.size())
    {
       char *dest = (char *)&buffer[0];
 
       hx::EnterGCFreeZone();
-      int p = 0;
-      while( len > 0 )
-      {
-         POSIX_LABEL(file_contents1);
-         int d = (int)fread(dest + p,1,len,file);
-         if( d <= 0 )
-         {
-            HANDLE_FINTR(file,file_contents1);
-            fclose(file);
-            file_error("file_contents",name);
-         }
-         p += d;
-         len -= d;
-      }
+      #ifdef SYS_WIIU
+      void* data = file.readAll();
+      memcpy(dest, data, file.size());
+      #else
+      file.read(dest, file.size());
+      #endif
    }
-   fclose(file);
+   file.close();
    hx::ExitGCFreeZone();
    return buffer;
 }
