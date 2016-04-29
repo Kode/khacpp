@@ -148,15 +148,8 @@ public:
         gThreadRefCount += 1;
    
         if (gThreadRefCount == 1) {
-#ifdef SYS_CONSOLE
-
-#elif defined(HX_WINDOWS)
-            _beginthreadex(0, 0, ProfileMainLoop, 0, 0, 0);
-#else
-            pthread_t result;
-            pthread_create(&result, 0, ProfileMainLoop, 0);
-#endif
-}
+            HxCreateDetachedThread(ProfileMainLoop, 0);
+        }
 
         gThreadMutex.Unlock();
     }
@@ -299,18 +292,8 @@ struct ProfileEntry
     {
         int millis = 1;
 
-        while (gThreadRefCount > 0) {
-#ifdef SYS_CONSOLE
-
-#elif defined(HX_WINDOWS)
-            Sleep(millis);
-#else
-            struct timespec t;
-            struct timespec tmp;
-            t.tv_sec = 0;
-            t.tv_nsec = millis * 1000000;
-            nanosleep(&t, &tmp);
-#endif
+        while (gThreadRefCount > 0) { 
+            HxSleep(millis);
 
             int count = gProfileClock + 1;
             gProfileClock = (count < 0) ? 0 : count;
@@ -323,11 +306,11 @@ struct ProfileEntry
     int mT0;
     std::map<const char *, ProfileEntry> mProfileStats;
 
-    static MyMutex gThreadMutex;
+    static HxMutex gThreadMutex;
     static int gThreadRefCount;
     static int gProfileClock;
 };
-/* static */ MyMutex Profiler::gThreadMutex;
+/* static */ HxMutex Profiler::gThreadMutex;
 /* static */ int Profiler::gThreadRefCount;
 /* static */ int Profiler::gProfileClock;
 
@@ -649,19 +632,19 @@ private:
 
     std::vector<int> *allocation_data;
 
-    static  MyMutex gStashMutex;
-    static MyMutex gThreadMutex;
+    static  HxMutex gStashMutex;
+    static HxMutex gThreadMutex;
     static int gThreadRefCount;
     static int gProfileClock;
 
-    static MyMutex alloc_mutex;
+    static HxMutex alloc_mutex;
     static std::map<void*, Telemetry*> alloc_map;
 };
-/* static */ MyMutex Telemetry::gStashMutex;
-/* static */ MyMutex Telemetry::gThreadMutex;
+/* static */ HxMutex Telemetry::gStashMutex;
+/* static */ HxMutex Telemetry::gThreadMutex;
 /* static */ int Telemetry::gThreadRefCount;
 /* static */ int Telemetry::gProfileClock;
-/* static */ MyMutex Telemetry::alloc_mutex;
+/* static */ HxMutex Telemetry::alloc_mutex;
 /* static */ std::map<void*, Telemetry*> Telemetry::alloc_map;
 
 #endif // HXCPP_TELEMETRY
@@ -1092,7 +1075,7 @@ public:
         // waiting.  If there were good portable time APIs easily available
         // within hxcpp I'd use them ...
         int timeSlicesLeft = 20;
-        MySemaphore timeoutSem;
+        HxSemaphore timeoutSem;
         int i = 0;
         while (i < size) {
             gMutex.Lock();
@@ -1461,9 +1444,9 @@ private:
     hx::QuickVec<StackFrame> mExceptionStack;
 
     int mStepLevel;
-    MyMutex mWaitMutex;
+    HxMutex mWaitMutex;
     bool mWaiting;
-    MySemaphore mWaitSemaphore;
+    HxSemaphore mWaitSemaphore;
     int mContinueCount;
 
     // Profiling support
@@ -1475,11 +1458,11 @@ private:
 #endif
 
     // gMutex protects gMap and gList
-    static MyMutex gMutex;
+    static HxMutex gMutex;
     static std::map<int, CallStack *> gMap;
     static std::list<CallStack *> gList;
 };
-/* static */ MyMutex CallStack::gMutex;
+/* static */ HxMutex CallStack::gMutex;
 /* static */ std::map<int, CallStack *> CallStack::gMap;
 /* static */ std::list<CallStack *> CallStack::gList;
 
@@ -2003,7 +1986,7 @@ private:
 #endif
     Breakpoint *mBreakpoints;
 
-    static MyMutex gMutex;
+    static HxMutex gMutex;
     static int gNextBreakpointNumber;
     static Breakpoints * volatile gBreakpoints;
     static StepType gStepType;
@@ -2014,7 +1997,7 @@ private:
 
 
 
-/* static */ MyMutex Breakpoints::gMutex;
+/* static */ HxMutex Breakpoints::gMutex;
 /* static */ int Breakpoints::gNextBreakpointNumber;
 /* static */ Breakpoints * volatile Breakpoints::gBreakpoints = 
     new Breakpoints();

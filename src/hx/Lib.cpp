@@ -12,8 +12,15 @@
 #include <unistd.h>
 #endif
 
+#if (defined (IPHONE) || defined(EMSCRIPTEN) || defined(STATIC_LINK) || defined(APPLETV) ) && \
+	!defined(HXCPP_DLL_IMPORT) && (!defined(HXCPP_DLL_EXPORT) || defined(HXCPP_SCRIPTABLE) )
+#define HXCPP_NO_DYNAMIC_LOADING
+#elif !defined(ANDROID) && !defined(HX_WINRT) && !defined(IPHONE) && !defined(EMSCRIPTEN) && \
+	!defined(STATIC_LINK) && !defined(APPLETV)
+#define HXCPP_TRY_HAXELIB
+#endif
 
-#if !defined(HX_WINRT) && !defined(EPPC)
+#ifdef HXCPP_TRY_HAXELIB
 #include <sys/types.h>
 #include <sys/stat.h>
 #endif
@@ -26,8 +33,7 @@ bool gLoadDebug = true;
 bool gLoadDebug = false;
 #endif
 
-#if (defined (IPHONE) || defined(EMSCRIPTEN) || defined(STATIC_LINK) || defined(APPLETV) ) && \
-	!defined(HXCPP_DLL_IMPORT) && (!defined(HXCPP_DLL_EXPORT) || defined(HXCPP_SCRIPTABLE) )
+#ifdef HXCPP_NO_DYNAMIC_LOADING
 
 typedef void *Module;
 Module hxLoadLibrary(const String &) { return 0; }
@@ -207,7 +213,10 @@ typedef void (*SetLoaderProcFunc)(void *(*)(const char *));
 typedef void *(*GetNekoEntryFunc)();
 typedef void (*NekoEntryFunc)();
 
-String GetFileContents(String inFile)
+
+#ifdef HXCPP_TRY_HAXELIB
+
+static String GetFileContents(String inFile)
 {
 #ifndef _WIN32
    FILE *file = fopen(inFile.__CStr(),"rb");
@@ -229,15 +238,14 @@ String GetFileContents(String inFile)
    return String(buf,strlen(buf)).dup();
 }
 
-#ifndef HX_WINRT
-String GetEnv(const char *inPath)
+static String GetEnv(const char *inPath)
 {
    const char *env  = getenv(inPath);
    String result(env,env?strlen(env):0);
    return result;
 }
 
-String FindHaxelib(String inLib)
+static String FindHaxelib(String inLib)
 {
    bool loadDebug = getenv("HXCPP_LOAD_DEBUG");
 
@@ -245,13 +253,11 @@ String FindHaxelib(String inLib)
 
    String haxepath;
 
-   #if !defined(HX_WINRT) && !defined(EPPC)
-      struct stat s;
-      if ( (stat(".haxelib",&s)==0 && (s.st_mode & S_IFDIR) ) )
-         haxepath = HX_CSTRING(".haxelib");
-      if (loadDebug)
-          printf( haxepath.length ? "Found local .haxelib\n" : "No local .haxelib\n");
-   #endif
+   struct stat s;
+   if ( (stat(".haxelib",&s)==0 && (s.st_mode & S_IFDIR) ) )
+      haxepath = HX_CSTRING(".haxelib");
+   if (loadDebug)
+      printf( haxepath.length ? "Found local .haxelib\n" : "No local .haxelib\n");
 
    if (haxepath.length==0)
    {
@@ -327,7 +333,8 @@ String FindHaxelib(String inLib)
    return path;
 }
 
-#endif
+#endif // HXCPP_TRY_HAXELIB
+
 
 typedef std::map<std::string,void *> RegistrationMap;
 RegistrationMap *sgRegisteredPrims=0;
@@ -426,7 +433,7 @@ void __hxcpp_push_dll_path(String inPath)
 
 
 
-#if (defined(IPHONE) || defined(EMSCRIPTEN) || defined(STATIC_LINK) || defined(APPLETV) ) && !defined(HXCPP_DLL_IMPORT) && (!defined(HXCPP_DLL_EXPORT) || defined(HXCPP_SCRIPTABLE) )
+#ifdef HXCPP_NO_DYNAMIC_LOADING
 
 Dynamic __loadprim(String inLib, String inPrim,int inArgCount)
 {
@@ -481,12 +488,6 @@ int __hxcpp_unload_all_libraries() { return 0; }
 
 
 extern "C" void *hx_cffi(const char *inName);
-
-
-#if !defined(ANDROID) && !defined(HX_WINRT) && !defined(IPHONE) && !defined(EMSCRIPTEN) && !defined(STATIC_LINK) && !defined(APPLETV)
-    #define HXCPP_TRY_HAXELIB
-#endif
-
 
 
 void *__hxcpp_get_proc_address(String inLib, String full_name,bool inNdllProc,bool inQuietFail)
@@ -727,8 +728,7 @@ Dynamic __loadprim(String inLib, String inPrim,int inArgCount)
    return null();
 }
 
-
-#endif // not IPHONE
+#endif // not HXCPP_NO_DYNAMIC_LOADING
 
 void __hxcpp_run_dll(String inLib, String inFunc)
 {

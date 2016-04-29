@@ -1,5 +1,6 @@
 #include <hxcpp.h>
 #include <hxMath.h>
+#include <hx/Memory.h>
 
 #ifdef SYS_CONSOLE
 
@@ -515,28 +516,28 @@ Array<String> __get_args()
 }
 
 
-void __hxcpp_print(Dynamic &inV)
+void __hxcpp_print_string(const String &inV)
 {
    #ifdef HX_WINRT
-   WINRT_PRINTF("%s",inV->toString().__s);
+   WINRT_PRINTF("%s",inV.__s);
    #else
    #ifdef HX_UTF8_STRINGS
-   printf("%s",inV->toString().__s);
+   printf("%s",inV.__s);
    #else
-   printf("%S",inV->toString().__s);
+   printf("%S",inV.__s);
    #endif
    #endif
 }
 
-void __hxcpp_println(Dynamic &inV)
+void __hxcpp_println_string(const String &inV)
 {
    #ifdef HX_WINRT
-   WINRT_PRINTF("%s\n",inV->toString().__s);
+   WINRT_PRINTF("%s\n",inV.__s);
    #else
    #ifdef HX_UTF8_STRINGS
-   printf("%s\n",inV->toString().__s);
+   printf("%s\n",inV.__s);
    #else
-   printf("%S\n",inV->toString().__s);
+   printf("%S\n",inV.__s);
    #endif
    #endif
 }
@@ -690,7 +691,7 @@ int  __hxcpp_field_to_id( const char *inFieldName )
    if (!sgFieldToStringAlloc)
    {
       sgFieldToStringAlloc = 100;
-      sgFieldToString = (String *)malloc(sgFieldToStringAlloc * sizeof(String));
+      sgFieldToString = (String *)HxAlloc(sgFieldToStringAlloc * sizeof(String));
 
       sgStringToField = new StringToField;
    }

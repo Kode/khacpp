@@ -105,8 +105,8 @@ typedef char HX_CHAR;
 
 #ifdef HX_WINRT
 
-#define WINRT_LOG(fmt, ...) {char buf[1024];snprintf(buf,1024,"****LOG: %s(%d): %s \n    [" fmt "]\n",__FILE__,__LINE__,__FUNCTION__, __VA_ARGS__);OutputDebugString(buf);}
-#define WINRT_PRINTF(fmt, ...) {char buf[2048];snprintf(buf,2048,fmt,__VA_ARGS__);OutputDebugString(buf);}
+#define WINRT_LOG(fmt, ...) {char buf[1024];sprintf_s(buf,1024,"****LOG: %s(%d): %s \n    [" fmt "]\n",__FILE__,__LINE__,__FUNCTION__, __VA_ARGS__);OutputDebugString(buf);}
+#define WINRT_PRINTF(fmt, ...) {char buf[2048];sprintf_s(buf,2048,fmt,__VA_ARGS__);OutputDebugString(buf);}
 
 #endif
 
@@ -342,8 +342,10 @@ typedef bool PropertyAccess;
 #include <hx/Debug.h>
 #include <hx/Boot.h>
 #include <hx/Undefine.h>
-#if (HXCPP_API_LEVEL>=300)
+#if (HXCPP_API_LEVEL>=330)
 #include <hx/LessThanEq.h>
+#else
+#include <cpp/Int64.h>
 #endif
 
 #endif

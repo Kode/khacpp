@@ -347,7 +347,7 @@ String _hx_utf8_sub(String inString, int inStart, int inLen)
       src += sLen[*src];
 
       if (src==end)
-         return String();
+         return HX_CSTRING("");
       if (src>end)
          hx::Throw(HX_CSTRING("Invalid UTF8"));
    }
@@ -647,10 +647,17 @@ String String::__URLDecode() const
 
 String &String::dup()
 {
-   // Take copy incase GCStringDup generates GC event
-   const HX_CHAR *oldString = __s;
-   __s = 0;
-   __s = GCStringDup(oldString,length,&length);
+   if (length==0)
+   {
+      *this = HX_CSTRING("");
+   }
+   else
+   {
+      // Take copy incase GCStringDup generates GC event
+      const HX_CHAR *oldString = __s;
+      __s = 0;
+      __s = GCStringDup(oldString,length,&length);
+   }
    return *this;
 }
 
@@ -843,7 +850,7 @@ void __hxcpp_string_of_bytes(Array<unsigned char> &inBytes,String &outString,int
 {
    #ifdef HX_UTF8_STRINGS
    if (inCopyPointer)
-      outString = String( (const HX_CHAR *)inBytes->GetBase(), inBytes->length);
+      outString = String( (const HX_CHAR *)inBytes->GetBase(), len);
    else
       outString = String( GCStringDup(inBytes->GetBase()+pos, len, 0), len);
    #else
@@ -1360,7 +1367,7 @@ hx::Object *String::__ToObject() const
 
 void String::__boot()
 {
-   Static(__StringClass) = hx::RegisterClass(HX_CSTRING("String"),TCanCast<StringData>,sStringStatics, sStringFields,
+   Static(__StringClass) = hx::_hx_RegisterClass(HX_CSTRING("String"),TCanCast<StringData>,sStringStatics, sStringFields,
            &CreateEmptyString, &CreateString, 0, 0, 0
     );
 }
