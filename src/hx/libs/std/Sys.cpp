@@ -559,7 +559,7 @@ Array<String> _hx_std_sys_read_dir( String p)
 
    hx::EnterGCFreeZone();
   #if defined(HX_WINRT) && !defined(_XBOX_ONE)
-   handle = FindFirstFileEx(searchPath.c_str(), FindExInfoStandard, &d, FindExSearchNameMatch, NULL, 0);
+   handle = FindFirstFileExA(searchPath.c_str(), FindExInfoStandard, &d, FindExSearchNameMatch, NULL, 0);
   #else
    handle = FindFirstFileW(searchPath,&d);
   #endif
