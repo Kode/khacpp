@@ -17,6 +17,7 @@ int __sys_prims() { return 0; }
 #	include <conio.h>
 #	include <locale.h>
 #	include "Shlwapi.h"
+#pragma comment(lib, "Shlwapi.lib")
 #else
 #	include <errno.h>
 #ifndef EPPC

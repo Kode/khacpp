@@ -362,8 +362,7 @@ static value file_contents( value name ) {
 	int len;
 	val_check(name,string);
 	fio f(val_filename(name));
-	#ifdef NEKO_WINDOWS
-	const wchar_t *fname = val_wstring(name);
+	const char *fname = val_string(name);
 	gc_enter_blocking();
 	{
 		FileReader file;
