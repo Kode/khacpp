@@ -32,6 +32,7 @@ int __sys_prims() { return 0; }
 #   define _chdir chdir
 #   define _unlink unlink
 #   define _rmdir rmdir
+#   define _mkdir mkdir
 #ifndef ANDROID
 #	include <locale.h>
 #if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0)
