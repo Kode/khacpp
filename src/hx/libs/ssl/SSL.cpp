@@ -3,6 +3,7 @@
 #ifdef _MSC_VER
 #   include <winsock2.h>
 #   include <wincrypt.h>
+#   pragma comment(lib, "Crypt32.lib")
 #else
 #   include <sys/socket.h>
 #   include <strings.h>
@@ -429,7 +430,7 @@ Dynamic _hx_ssl_cert_load_defaults(){
 	HCERTSTORE store;
 	PCCERT_CONTEXT cert;
 	sslcert *chain = NULL;
-	if( store = CertOpenSystemStore(0, (LPCSTR)"Root") ){
+	if( store = CertOpenSystemStoreA(0, (LPCSTR)"Root") ){
 		cert = NULL;
 		while( cert = CertEnumCertificatesInStore(store, cert) ){
 			if( chain == NULL ){
