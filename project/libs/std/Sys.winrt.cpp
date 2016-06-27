@@ -16,6 +16,7 @@ int __sys_prims() { return 0; }
 #	include <direct.h>
 #	include <conio.h>
 #	include <locale.h>
+#	include "Shlwapi.h"
 #else
 #	include <errno.h>
 #ifndef EPPC
@@ -42,7 +43,7 @@ int __sys_prims() { return 0; }
 #include <sys/wait.h>
 #endif
 
-#ifndef IPHONE
+#if !defined(IPHONE) && !defined(APPLETV)
 #ifdef NEKO_MAC
 #	include <sys/syslimits.h>
 #	include <limits.h>
@@ -179,6 +180,18 @@ static value get_cwd() {
    #elif defined(EPPC)
    return alloc_null();
    #else
+	#ifdef NEKO_WINDOWS
+	wchar_t buf[256];
+	int l;
+	if( GetCurrentDirectoryW(256,buf) == NULL )
+		return alloc_null();
+	l = (int)wcslen(buf);
+	if( buf[l-1] != '/' && buf[l-1] != '\\' ) {
+		buf[l] = '/';
+		buf[l+1] = 0;
+	}
+	return alloc_wstring(buf);
+	#else
 	char buf[256];
 	int l;
 	if( _getcwd(buf,256) == NULL )
@@ -189,6 +202,7 @@ static value get_cwd() {
 		buf[l+1] = 0;
 	}
 	return alloc_string(buf);
+	#endif
    #endif
 }
 
@@ -199,8 +213,13 @@ static value get_cwd() {
 static value set_cwd( value d ) {
    #if !defined(HX_WINRT) && !defined(EPPC)
 	val_check(d,string);
+	#ifdef NEKO_WINDOWS
+	if( SetCurrentDirectoryW(val_wstring(d)) )
+		return alloc_null();
+	#else
 	if( _chdir(val_string(d)) )
 		return alloc_null();
+	#endif
    #endif
 	return alloc_bool(true);
 }
@@ -269,8 +288,14 @@ static value sys_command( value cmd ) {
 	val_check(cmd,string);
 	if( val_strlen(cmd) == 0 )
 		return alloc_int(-1);
+	#ifdef NEKO_WINDOWS
+	const wchar_t* _cmd = val_wstring(cmd);
+	gc_enter_blocking();
+	int result =  _wsystem(_cmd);
+	#else
 	gc_enter_blocking();
 	int result =  system(val_string(cmd));
+	#endif
 	gc_exit_blocking();
    #if !defined(NEKO_WINDOWS) && !defined(ANDROID)
    result = WEXITSTATUS(result) | (WTERMSIG(result) << 8);
@@ -298,10 +323,16 @@ static value sys_exists( value path ) {
 	#ifdef EPPC
 	return alloc_bool(true);
 	#else
-	struct stat st;
 	val_check(path,string);
+	#ifdef NEKO_WINDOWS
+	const wchar_t* _path = val_wstring(path);
+	gc_enter_blocking();
+	bool result =  GetFileAttributesW(_path) != INVALID_FILE_ATTRIBUTES;
+	#else
+	struct stat st;
 	gc_enter_blocking();
 	bool result =  stat(val_string(path),&st) == 0;
+	#endif
 	gc_exit_blocking();
 	return alloc_bool(result);
 	#endif
@@ -327,8 +358,14 @@ static value file_delete( value path ) {
 	return alloc_bool(true);
 	#else
 	val_check(path,string);
+	#ifdef NEKO_WINDOWS
+	const wchar_t* _path = val_wstring(path);
 	gc_enter_blocking();
-	if( _unlink(val_string(path)) != 0 )
+	if( DeleteFileW(_path) != 0 )
+	#else
+	gc_enter_blocking();
+	if( unlink(val_string(path)) != 0 )
+	#endif
 	{
 		gc_exit_blocking();
 		return alloc_null();
@@ -345,12 +382,24 @@ static value file_delete( value path ) {
 static value sys_rename( value path, value newname ) {
 	val_check(path,string);
 	val_check(newname,string);
+	
+	#ifdef NEKO_WINDOWS
+	const wchar_t* _path = val_wstring(path);
+	const wchar_t* _newname = val_wstring(newname);
+	gc_enter_blocking();
+	if( MoveFileExW(_path,_newname,MOVEFILE_COPY_ALLOWED|MOVEFILE_WRITE_THROUGH) != 0 )
+	{
+		gc_exit_blocking();
+		return alloc_null();
+	}
+	#else
 	gc_enter_blocking();
 	if( rename(val_string(path),val_string(newname)) != 0 )
 	{
 		gc_exit_blocking();
 		return alloc_null();
 	}
+	#endif
 	gc_exit_blocking();
 	return alloc_bool(true);
 }
@@ -378,10 +427,51 @@ static value sys_stat( value path ) {
 	#ifdef EPPC
 	return alloc_null();
 	#else
-	struct stat s;
 	value o;
 	val_check(path,string);
+	
+	#ifdef NEKO_WINDOWS
+	const wchar_t* _path = val_wstring(path);
 	gc_enter_blocking();
+	WIN32_FILE_ATTRIBUTE_DATA data;
+	if( !GetFileAttributesExW(_path,GetFileExInfoStandard,&data) )
+	{
+		gc_exit_blocking();
+		return alloc_null();
+	}
+	gc_exit_blocking();
+	wchar_t fullPath[MAX_PATH+1];
+	GetFullPathNameW(_path,MAX_PATH+1,fullPath,NULL);
+	int dev = PathGetDriveNumberW(fullPath);
+	#define EPOCH_DIFF	(134774*24*60*60.0)
+	ULARGE_INTEGER ui;
+	o = alloc_empty_object( );
+	alloc_field(o,val_id("gid"),alloc_int(0));
+	alloc_field(o,val_id("uid"),alloc_int(0));
+	ui.LowPart = data.ftLastAccessTime.dwLowDateTime;
+	ui.HighPart = data.ftLastAccessTime.dwHighDateTime;
+	alloc_field(o,val_id("atime"),alloc_int32(((double)ui.QuadPart) / 10000000.0 - EPOCH_DIFF));
+	ui.LowPart = data.ftLastWriteTime.dwLowDateTime;
+	ui.HighPart = data.ftLastWriteTime.dwHighDateTime;
+	alloc_field(o,val_id("mtime"),alloc_int32(((double)ui.QuadPart) / 10000000.0 - EPOCH_DIFF));
+	ui.LowPart = data.ftCreationTime.dwLowDateTime;
+	ui.HighPart = data.ftCreationTime.dwHighDateTime;
+	alloc_field(o,val_id("ctime"),alloc_int32(((double)ui.QuadPart) / 10000000.0 - EPOCH_DIFF));
+	alloc_field(o,val_id("dev"),alloc_int(dev));
+	alloc_field(o,val_id("ino"),alloc_int(0));
+	int mode = 0;
+	if ((data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) mode |= _S_IFDIR;
+	if ((data.dwFileAttributes & FILE_ATTRIBUTE_OFFLINE) == 0) mode |= _S_IFREG;
+	mode |= _S_IREAD;
+	if ((data.dwFileAttributes & FILE_ATTRIBUTE_READONLY) == 0) mode |= _S_IWRITE;
+	if ((data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) mode |= _S_IEXEC;
+	alloc_field(o,val_id("mode"),alloc_int(mode));
+	alloc_field(o,val_id("nlink"),alloc_int(1));
+	alloc_field(o,val_id("rdev"),alloc_int(dev));
+	alloc_field(o,val_id("size"),alloc_int32(data.nFileSizeLow));
+	#else
+	gc_enter_blocking();
+	struct stat s;
 	if( stat(val_string(path),&s) != 0 )
 	{
 		gc_exit_blocking();
@@ -400,7 +490,7 @@ static value sys_stat( value path ) {
 	STATF(nlink);
 	STATF(rdev);
 	STATF(size);
-	STATF(mode);
+	#endif
 	return o;
 	#endif
 }
@@ -426,6 +516,25 @@ static value sys_file_type( value path ) {
 	#else
 	struct stat s;
 	val_check(path,string);
+	#ifdef NEKO_WINDOWS
+	const wchar_t* _path = val_wstring(path);
+	gc_enter_blocking();
+	WIN32_FILE_ATTRIBUTE_DATA data;
+	if( !GetFileAttributesExW(_path,GetFileExInfoStandard,&data) )
+	{
+		gc_exit_blocking();
+		return alloc_null();
+	}
+	gc_exit_blocking();
+	if ((data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+	{
+		return alloc_string("dir");
+	}
+	else
+	{
+		return alloc_string("file");
+	}
+	#else
 	gc_enter_blocking();
 	if( stat(val_string(path),&s) != 0 )
 	{
@@ -449,6 +558,7 @@ static value sys_file_type( value path ) {
 	if( s.st_mode & S_IFSOCK )
 		return alloc_string("sock");
 #endif
+	#endif
 	return alloc_null();
 	#endif
 }
@@ -463,16 +573,23 @@ static value sys_create_dir( value path, value mode ) {
 	#else
 	val_check(path,string);
 	val_check(mode,int);
+	#ifdef NEKO_WINDOWS
+	const wchar_t* _path = val_wstring(path);
 	gc_enter_blocking();
-#ifdef NEKO_WINDOWS
-	if( _mkdir(val_string(path)) != 0 )
-#else
-	if( mkdir(val_string(path),val_int(mode)) != 0 )
-#endif
+	if( _wmkdir(_path) != 0 )
 	{
 		gc_exit_blocking();
 		return alloc_null();
 	}
+	#else
+	const char* _path = val_string(path);
+	gc_enter_blocking();
+	if( _mkdir(val_string(path),val_int(mode)) != 0 )
+	{
+		gc_exit_blocking();
+		return alloc_null();
+	}
+	#endif
 	gc_exit_blocking();
 	return alloc_bool(true);
 	#endif
@@ -487,8 +604,15 @@ static value sys_remove_dir( value path ) {
 	return alloc_bool(true);
 	#else
 	val_check(path,string);
+	#ifdef NEKO_WINDOWS
+	const wchar_t* _path = val_wstring(path);
 	gc_enter_blocking();
-	bool ok = _rmdir(val_string(path)) != 0;
+	bool ok = _wrmdir(_path) != 0;
+	#else
+	const char* _path = val_string(path);
+	gc_enter_blocking();
+	bool ok = _rmdir(_path) != 0;
+	#endif
 	gc_exit_blocking();
 	return alloc_bool(ok);
 	#endif
@@ -640,11 +764,11 @@ static value file_full_path( value path ) {
 #if defined(HX_WINRT)
 	return path;
 #elif defined(NEKO_WINDOWS)
-	char buf[MAX_PATH+1];
+	wchar_t buf[MAX_PATH+1];
 	val_check(path,string);
-	if( GetFullPathNameA(val_string(path),MAX_PATH+1,buf,NULL) == 0 )
+	if( GetFullPathNameW(val_wstring(path),MAX_PATH+1,buf,NULL) == 0 )
 		return alloc_null();
-	return alloc_string(buf);
+	return alloc_wstring(buf);
 #elif defined(EPPC)
 	return path;
 #else
@@ -666,11 +790,11 @@ static value sys_exe_path() {
    Windows::Storage::StorageFolder^ installedLocation = package->InstalledLocation;
    return(alloc_wstring(installedLocation->Path->Data()));
 #elif defined(NEKO_WINDOWS)
-	wchar_t path[MAX_PATH];
-	if( GetModuleFileNameW(NULL,path,MAX_PATH) == 0 )
+	wchar_t path[MAX_PATH+1];
+	if( GetModuleFileNameW(NULL,path,MAX_PATH+1) == 0 )
 		return alloc_null();
 	return alloc_wstring(path);
-#elif defined(NEKO_MAC) && !defined(IPHONE)
+#elif defined(NEKO_MAC) && !defined(IPHONE) && !defined(APPLETV)
 	char path[PATH_MAX+1];
 	uint32_t path_len = PATH_MAX;
 	if( _NSGetExecutablePath(path, &path_len) )

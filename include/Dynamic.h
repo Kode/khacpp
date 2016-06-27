@@ -68,8 +68,8 @@ public:
    inline operator char () const { return mPtr ? mPtr->__ToInt() : 0; }
    inline operator signed char () const { return mPtr ? mPtr->__ToInt() : 0; }
    inline operator bool() const { return mPtr && mPtr->__ToInt(); }
-   inline operator cpp::Int64() const { return mPtr && mPtr->__ToInt64(); }
-   inline operator cpp::UInt64() const { return mPtr && mPtr->__ToInt64(); }
+   inline operator cpp::Int64() const { return mPtr ? mPtr->__ToInt64() : 0; }
+   inline operator cpp::UInt64() const { return mPtr ? mPtr->__ToInt64() : 0; }
 
    // Conversion to generic pointer requires you to tag the class with a typedef
    template<typename T>
@@ -165,6 +165,21 @@ public:
       bool operator op (unsigned char inRHS)  const { return IsNumeric() && ((double)(*this) op (double)inRHS); } \
       bool operator op (bool inRHS)  const { return IsBool() && ((double)(*this) op (double)inRHS); } \
 
+   bool operator != (const String &inRHS)  const { return !mPtr || ((String)(*this) != inRHS); }
+   bool operator != (double inRHS)  const { return !IsNumeric() || ((double)(*this) != inRHS); }
+   bool operator != (cpp::Int64 inRHS)  const { return !IsNumeric() || ((cpp::Int64)(*this) != inRHS); }
+   bool operator != (cpp::UInt64 inRHS)  const { return !IsNumeric() || ((cpp::Int64)(*this) != inRHS); }
+   bool operator != (float inRHS)  const { return !IsNumeric() || ((double)(*this) != inRHS); }
+   bool operator != (int inRHS)  const { return !IsNumeric() || ((double)(*this) != (double)inRHS); }
+   bool operator != (unsigned int inRHS)  const { return !IsNumeric() || ((double)(*this) != (double)inRHS); }
+   bool operator != (short inRHS)  const { return !IsNumeric() || ((double)(*this) != (double)inRHS); }
+   bool operator != (unsigned short inRHS)  const { return !IsNumeric() || ((double)(*this) != (double)inRHS); }
+   bool operator != (signed char inRHS)  const { return !IsNumeric() || ((double)(*this) != (double)inRHS); }
+   bool operator != (unsigned char inRHS)  const { return !IsNumeric() || ((double)(*this) != (double)inRHS); }
+   bool operator != (bool inRHS)  const { return !IsBool() || ((double)(*this) != (double)inRHS); }
+
+
+
    #define DYNAMIC_COMPARE_OP_ALL( op ) \
       bool operator op (const Dynamic &inRHS) const { return mPtr && (Compare(inRHS) op 0); } \
       bool operator op (const cpp::Variant &inRHS) const { return *this op Dynamic(inRHS); } \
@@ -172,7 +187,6 @@ public:
 
 
    DYNAMIC_COMPARE_OP( == )
-   DYNAMIC_COMPARE_OP( != )
    DYNAMIC_COMPARE_OP_ALL( < )
    DYNAMIC_COMPARE_OP_ALL( <= )
    DYNAMIC_COMPARE_OP_ALL( >= )
@@ -380,14 +394,7 @@ inline bool operator != (const T &inLHS,const Dynamic &inRHS) { return inRHS!=in
 HX_DYNAMIC_OP_ISEQ(String)
 HX_DYNAMIC_OP_ISEQ(double)
 HX_DYNAMIC_OP_ISEQ(float)
-HX_DYNAMIC_OP_ISEQ(cpp::Int64)
-HX_DYNAMIC_OP_ISEQ(cpp::UInt64)
 HX_DYNAMIC_OP_ISEQ(int)
-HX_DYNAMIC_OP_ISEQ(unsigned int)
-HX_DYNAMIC_OP_ISEQ(short)
-HX_DYNAMIC_OP_ISEQ(unsigned short)
-HX_DYNAMIC_OP_ISEQ(signed char)
-HX_DYNAMIC_OP_ISEQ(unsigned char)
 HX_DYNAMIC_OP_ISEQ(bool)
 
 inline bool operator < (bool inLHS,const Dynamic &inRHS) { return false; }
@@ -413,22 +420,8 @@ bool operator==(Platform::Box<T> ^inPtr, nullptr_t)
       { return inRHS.IsNumeric() && (inLHS op (double)inRHS); } \
    inline bool operator op (float inLHS,const ::Dynamic &inRHS) \
       { return inRHS.IsNumeric() && ((double)inLHS op (double)inRHS); } \
-   inline bool operator op (cpp::Int64 inLHS,const ::Dynamic &inRHS) \
-      { return inRHS.IsNumeric() && (inLHS op (double)inRHS); } \
-   inline bool operator op (cpp::UInt64 inLHS,const ::Dynamic &inRHS) \
-      { return inRHS.IsNumeric() && (inLHS op (double)inRHS); } \
    inline bool operator op (int inLHS,const ::Dynamic &inRHS) \
-      { return inRHS.IsNumeric() && (inLHS op (double)inRHS); } \
-   inline bool operator op (unsigned int inLHS,const ::Dynamic &inRHS) \
-      { return inRHS.IsNumeric() && (inLHS op (double)inRHS); } \
-   inline bool operator op (short inLHS,const ::Dynamic &inRHS) \
-      { return inRHS.IsNumeric() && (inLHS op (double)inRHS); } \
-   inline bool operator op (unsigned short inLHS,const ::Dynamic &inRHS) \
-      { return inRHS.IsNumeric() && (inLHS op (double)inRHS); } \
-   inline bool operator op (signed char inLHS,const ::Dynamic &inRHS) \
-      { return inRHS.IsNumeric() && (inLHS op (double)inRHS); } \
-   inline bool operator op (unsigned char inLHS,const ::Dynamic &inRHS) \
-      { return inRHS.IsNumeric() && (inLHS op (double)inRHS); }
+      { return inRHS.IsNumeric() && (inLHS op (double)inRHS); } 
 
 COMPARE_DYNAMIC_OP( < )
 COMPARE_DYNAMIC_OP( <= )
@@ -458,7 +451,7 @@ double operator%(const double &inLHS,const Dynamic &inRHS);
 double operator%(const float &inLHS,const Dynamic &inRHS);
 
 template<typename T,typename H> String::String(const cpp::Struct<T,H> &inRHS) { *this = (String)inRHS; }
-template<typename OBJ> String::String(const hx::ObjectPtr<OBJ> &inRHS) { *this = (String)inRHS; }
+template<typename OBJ> String::String(const hx::ObjectPtr<OBJ> &inRHS) { *this = Dynamic(inRHS); }
 
 
 

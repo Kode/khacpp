@@ -153,6 +153,7 @@ Array<unsigned char> __hxcpp_resource_bytes(String inName)
 
 // -- hx::Native -------
 
+#if HXCPP_API_LEVEL >= 330
 extern "C" void __hxcpp_lib_main();
 namespace hx
 {
@@ -170,6 +171,7 @@ namespace hx
       }
    }
 }
+#endif
 
 
 // --- System ---------------------------------------------------------------------
@@ -234,7 +236,12 @@ void __hxcpp_stdlibs_boot()
 
 void __trace(Dynamic inObj, Dynamic inData)
 {
-#if defined(TIZEN)
+#ifdef HX_WINRT
+   WINRT_PRINTF("%s:%d: %s\n",
+               inData==null() ? "?" : Dynamic((inData)->__Field(HX_CSTRING("fileName"), HX_PROP_DYNAMIC))->toString().__s,
+               inData==null() ? 0 : Dynamic((inData)->__Field( HX_CSTRING("lineNumber") , HX_PROP_DYNAMIC))->__ToInt(),
+               inObj.GetPtr() ? inObj->toString().__s : "null" );
+#elif defined(TIZEN)
    AppLogInternal(inData==null() ? "?" : Dynamic(inData->__Field( HX_CSTRING("fileName")), HX_PROP_DYNAMIC)->toString().__s,
       inData==null() ? 0 : (int)(inData->__Field( HX_CSTRING("lineNumber")), HX_PROP_DYNAMIC),
       "%s\n", inObj.GetPtr() ? inObj->toString().__s : "null" );
@@ -333,12 +340,22 @@ static void ParseCommandLine(LPTSTR psrc, Array<String> &out)
     LPTSTR pStart = psrc;
     bool skipQuote = false;
 
+    // Pairs of double-quotes vanish...
+    while(psrc[0]=='\"' && psrc[1]=='\"')
+       psrc += 2;
+
     if (*psrc == '\"')
     {
         // scan from just past the first double-quote through the next
         // double-quote, or up to a null, whichever comes first
-        while ((*(++psrc) != '\"') && (*psrc != '\0'))
-            continue;
+        psrc++;
+        while ((*psrc!= '\"') && (*psrc != '\0'))
+        {
+           psrc++;
+           // Pairs of double-quotes vanish...
+           while(psrc[0]=='\"' && psrc[1]=='\"')
+              psrc += 2;
+        }
 
         skipQuote = true;
     }

@@ -40,7 +40,7 @@
    #include <sys/wait.h>
 #endif
 
-#ifndef IPHONE
+#if !defined(IPHONE) && !defined(APPLETV)
    #ifdef NEKO_MAC
       #include <sys/syslimits.h>
       #include <limits.h>
@@ -523,17 +523,11 @@ double _hx_std_sys_cpu_time()
    sys_read_dir : string -> string list
    <doc>Return the content of a directory</doc>
 **/
-Array<String> _hx_std_sys_read_dir( String p)
+Array<String> _hx_std_sys_read_dir( String p )
 {
    Array<String> result = Array_obj<String>::__new();
 
-#if defined(HX_WINRT) && defined(__cplusplus_winrt)
-   auto folder = (Windows::Storage::StorageFolder::GetFolderFromPathAsync( ref new Platform::String(val_wstring(p)) ))->GetResults();
-   auto results = folder->GetFilesAsync(Windows::Storage::Search::CommonFileQuery::DefaultQuery)->GetResults();
-   for(int i=0;i<results->Size;i++)
-      result->push(String(results->GetAt(i)->Path));
-
-#elif defined(NEKO_WINDOWS)
+#if defined(NEKO_WINDOWS)
    const wchar_t *path = p.__WCStr();
    size_t len = wcslen(path);
    if (len>MAX_PATH)
@@ -647,7 +641,7 @@ String _hx_std_sys_exe_path()
    if( GetModuleFileNameW(NULL,path,MAX_PATH) == 0 )
       return null();
    return String(path);
-#elif defined(NEKO_MAC) && !defined(IPHONE)
+#elif defined(NEKO_MAC) && !defined(IPHONE) && !defined(APPLETV)
    char path[PATH_MAX+1];
    uint32_t path_len = PATH_MAX;
    if( _NSGetExecutablePath(path, &path_len) )

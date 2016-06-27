@@ -17,8 +17,11 @@ class FileGroup
    public var mCacheDepends:Array<String>;
    public var mDependHash:String;
    public var mAsLibrary:Bool;
+   public var mAddTwice:Bool;
    public var mSetImportDir:Bool;
    public var mUseCache:Bool;
+   public var mCacheProject:String;
+   public var mTags:String;
    
    public function new(inDir:String,inId:String,inSetImportDir = false)
    {
@@ -34,14 +37,59 @@ class FileGroup
       mId = inId;
       mConfig = "";
       mAsLibrary = false;
+      mAddTwice = false;
       mSetImportDir = inSetImportDir;
       mUseCache = false;
+      mCacheProject = "";
+      mTags = "haxe,static";
+   }
+
+   public function filter(defines:Map<String,String>)
+   {
+      var newFiles = new Array<File>();
+      for(file in mFiles)
+         if (file.keep(defines))
+            newFiles.push(file);
+      mFiles = newFiles;
+   }
+
+   public function getTags()
+   {
+      return mTags;
+   }
+
+   public function addTag(inTag:String)
+   {
+      if (inTag!=null && inTag!="")
+      {
+         var have = mTags.split(",");
+         if (have.indexOf(inTag)<0)
+         {
+            have.push(inTag);
+            mTags = have.join(",");
+         }
+      }
+   }
+
+   public function isPrecompiled() return mPrecompiledHeader!="";
+
+   public function dontPrecompile()
+   {
+      mPrecompiledHeader = "";
    }
 
    public function addCompilerFlag(inFlag:String)
    {
       mCompilerFlags.push(inFlag);
    }
+
+   public function getCacheProject()
+   {
+      if (mCacheProject=="")
+         mCacheProject = mId;
+      return mCacheProject;
+   }
+
 
    public function addDepend(inFile:String, inDateOnly:Bool)
    {
@@ -160,9 +208,11 @@ class FileGroup
       return changed;
    }
 
-   public function getPchDir()
+   public function getPchDir(inObjDir:String)
    {
-      return "__pch/" + mId ;
+      var result = inObjDir + "/__pch/" + mId ;
+      PathManager.mkdir(result);
+      return result;
    }
 
    public function getPchName()
@@ -174,6 +224,8 @@ class FileGroup
    {
       return inStamp<mNewest;
    }
+
+   public function isCached() return CompileCache.hasCache && mUseCache;
 
    public function preBuild()
    {

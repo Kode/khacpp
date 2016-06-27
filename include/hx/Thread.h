@@ -7,6 +7,10 @@
 #ifndef HX_THREAD_H
 #define HX_THREAD_H
 
+#ifndef HXCPP_HEADER_VERSION
+#include "hx/HeaderVersion.h"
+#endif
+
 #ifdef SYS_CONSOLE
 
 #elif defined(HX_WINRT)

@@ -287,7 +287,7 @@ public:
    void Concat(hx::ArrayBase *outResult,const char *inEnd, int inLen);
 
 
-   void reserve(int inN);
+   void reserve(int inN) const;
 
    // Set numeric values to 0, pointers to null, bools to false
    void zero(Dynamic inFirst, Dynamic inCount);
@@ -388,6 +388,7 @@ public:
 
    // Defined later so we can use "Array"
    static Array<ELEM_> __new(int inSize=0,int inReserve=0);
+   static Array<ELEM_> fromData(const ELEM_ *inData,int inCount);
 
    virtual bool AllocAtomic() const { return !hx::ContainsPointers<ELEM_>(); }
 
@@ -426,7 +427,7 @@ public:
    }
 
 
-   inline void memcpy(int inStart, ELEM_ *inData, int inElements)
+   inline void memcpy(int inStart, const ELEM_ *inData, int inElements)
    {
       EnsureSize(inStart+inElements);
       int s = GetElementSize();
@@ -941,6 +942,16 @@ template<typename ELEM_>
 Array<ELEM_> Array_obj<ELEM_>::__new(int inSize,int inReserve)
  { return  Array<ELEM_>(new Array_obj(inSize,inReserve)); }
 
+template<typename ELEM_>
+Array<ELEM_> Array_obj<ELEM_>::fromData(const ELEM_ *inData,int inCount)
+{
+   Array<ELEM_> result = new Array_obj(inCount,inCount);
+   if (inCount)
+       result->memcpy(0, inData, inCount);
+   return result;
+}
+
+
 
 template<>
 inline bool Dynamic::IsClass<Array<Dynamic> >()
@@ -1002,26 +1013,26 @@ Array<ELEM_> Array_obj<ELEM_>::__SetSizeExact(int inLen)
 
 // Static externs 
 template<typename ARRAY>
-inline ARRAY _hx_array_set_size_exact(ARRAY &inArray, int inLen)
+inline ARRAY _hx_array_set_size_exact(ARRAY inArray, int inLen)
 {
    return inArray->__SetSizeExact(inLen);
 }
 
 template<typename ARRAY1,typename ARRAY2>
-int _hx_array_memcmp(ARRAY1 &inArray1, ARRAY2 &inArray2)
+inline int _hx_array_memcmp(ARRAY1 inArray1, ARRAY2 inArray2)
 {
    return inArray1->memcmp(inArray2);
 }
 
 template<typename ARRAY,typename VALUE>
-typename ARRAY::Elem _hx_array_unsafe_set(ARRAY &inArray, int inIndex, VALUE inValue)
+inline typename ARRAY::Elem _hx_array_unsafe_set(ARRAY inArray, int inIndex, VALUE inValue)
 {
    return inArray->__unsafe_set(inIndex, inValue);
 }
 
 
 template<typename ARRAY>
-typename ARRAY::Elem _hx_array_unsafe_get(ARRAY &inArray, int inIndex)
+inline typename ARRAY::Elem _hx_array_unsafe_get(ARRAY inArray, int inIndex)
 {
    return inArray->__unsafe_get(inIndex);
 }

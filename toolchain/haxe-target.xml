@@ -38,6 +38,7 @@
   <depend name="${HXCPP}/include/hx/StdLibs.h"/>
   <depend name="${HXCPP}/include/hx/Native.h"/>
   <depend name="${HXCPP}/include/hx/OS.h"/>
+  <depend name="${HXCPP}/include/hx/HeaderVersion.h"/>
   <depend name="${HXCPP}/include/hx/Unordered.h"/>
   <depend name="${HXCPP}/include/hx/LessThanEq.h"/>
   <depend name="${HXCPP}/include/cpp/Pointer.h"/>
@@ -60,37 +61,37 @@
   <options name="Options.txt"/>
   <config  name="HxcppConfig.h"/>
 
-  <precompiledheader name="hxcpp" dir="${HXCPP}/include" if="USE_PRECOMPILED_HEADERS"/>
+  <precompiledheader name="hxcpp" dir="${HXCPP}/include" />
   <cache value="1" />
 </files>
 
 
-<files id="__resources__">
-  <cache value="1" />
+<files id="__resources__" tags="haxe" >
+  <cache value="1" project="haxe" />
 </files>
 
 <files id="__externs__">
-  <cache value="1" />
+  <cache value="1" project="haxe" />
 </files>
 
 
-<files id="__main__">
+<files id="__main__" tags="haxe,main,static" >
   <depend files="hxcpp-depends"/>
   <depend name="${HXCPP}/include/hx/HxcppMain.h"/>
   <options name="Options.txt"/>
   <compilerflag value="-DHX_DECLARE_MAIN"/>
-  <cache value="1" />
+  <cache value="1" project="haxe" />
 </files>
 
-<files id="__lib__">
+<files id="__lib__" tags="haxe,main,static" >
   <depend files="hxcpp-depends"/>
   <options name="Options.txt"/>
   <compilerflag value="-DHX_DECLARE_MAIN"/>
-  <cache value="1" />
+  <cache value="1" project="haxe" />
 </files>
 
 
-<files id="cppia" dir="${HXCPP}" >
+<files id="cppia" dir="${HXCPP}" tags="haxe"  >
   <depend files="hxcpp-depends"/>
   <options name="Options.txt"/>
   <depend name="${HXCPP}/src/hx/cppia/Cppia.h" />
@@ -107,34 +108,33 @@
   <file name = "src/hx/cppia/HaxeNative.cpp" />
   <file name = "src/hx/cppia/CppiaVars.cpp" />
   <file name = "src/hx/cppia/CppiaCompiler.cpp" if="CPPIA_JIT" />
-  <cache value="1" />
+  <cache value="1" project="hxcpp-cppia" asLibrary="true" />
 </files>
 
 
-<files id="runtime" dir="${HXCPP}">
+<files id="runtime" dir="${HXCPP}" tags="haxe" >
   <depend files="hxcpp-depends"/>
   <options name="Options.txt"/>
   <depend name="${HXCPP}/src/hx/Hash.h"/>
   <depend name="${HXCPP}/src/hx/gc/GcRegCapture.h"/>
-
   <compilerflag value="-D_CRT_SECURE_NO_DEPRECATE"/>
 
   <compilerflag value="-DHX_UNDEFINE_H" />
 
-  <precompiledheader name="hxcpp" dir="${HXCPP}/include" if="USE_PRECOMPILED_HEADERS"/>
+  <precompiledheader name="hxcpp" dir="${HXCPP}/include" />
 
   <file name = "src/hx/Anon.cpp"/>
   <file name = "src/hx/Boot.cpp"/>
-  <file name = "src/hx/CFFI.cpp"/>
+  <file name = "src/hx/CFFI.cpp" tags="haxe,static" />
   <file name = "src/hx/Date.cpp"/>
-  <file name = "src/hx/gc/GcCommon.cpp"/>
-  <file name = "src/hx/gc/Immix.cpp"/>
-  <file name = "src/hx/gc/GcRegCapture.cpp"/>
+  <file name = "src/hx/gc/GcCommon.cpp" tags="haxe,gc" />
+  <file name = "src/hx/gc/Immix.cpp" tags="haxe,gc" />
+  <file name = "src/hx/gc/GcRegCapture.cpp" tags="haxe,gc" />
   <file name = "src/hx/Hash.cpp"/>
   <file name = "src/hx/Interface.cpp"/>
-  <file name = "src/hx/Lib.cpp"/>
+  <file name = "src/hx/Lib.cpp" tags="haxe,static" />
   <file name = "src/hx/Object.cpp"/>
-  <file name = "src/hx/StdLibs.cpp"/>
+  <file name = "src/hx/StdLibs.cpp" tags="haxe,static" />
   <file name = "src/hx/Debug.cpp"/>
   <file name = "src/hx/Thread.cpp"/>
   <file name = "src/hx/RunLibs.cpp" if="static_link"/>
@@ -145,9 +145,10 @@
   <file name = "src/ObjcData.mm" if="objc"/>
   <file name = "src/Enum.cpp"/>
   <file name = "src/Math.cpp"/>
-  <file name = "src/String.cpp"/>
+  <file name = "src/String.cpp" tags="haxe,hxstring" />
 
-  <cache value="1" />
+  <addTwice if="linux" />
+  <cache value="1" project="hxcpp_runtime" asLibrary="true" />
 </files>
 
 
