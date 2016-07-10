@@ -64,7 +64,7 @@
 #define HXCPP_ALIGN_FLOAT
 #endif
 
-#if defined(__LP64__) || defined(_LP64)
+#if defined(__LP64__) || defined(_LP64) || defined(_WIN64)
 #if !defined(HXCPP_M64)
 #define HXCPP_M64
 #endif

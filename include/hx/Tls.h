@@ -52,6 +52,10 @@
          return inData;
       }
 
+      static inline DATA* readgsqword(int offset) {
+         return (DATA *)__readgsqword(offset);
+      }
+
       inline operator DATA *()
       {
          #if !defined(HXCPP_M64) && (_MSC_VER >= 1400)
@@ -64,7 +68,7 @@
          return extra[mFastOffset];
          #elif (_MSC_VER >= 1400) & !defined(HXCPP_DEBUG)// 64 bit version...
          if (mSlot < 64)
-           return (DATA *)__readgsqword(mFastOffset);
+           return readgsqword(mFastOffset);
          else
            return (DATA *)TlsGetValue(mSlot);
          #else

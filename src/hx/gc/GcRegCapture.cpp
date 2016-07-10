@@ -1,3 +1,4 @@
+#include "hxcpp.h"
 #include "GcRegCapture.h"
 
 
