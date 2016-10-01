@@ -39,6 +39,10 @@
 
 #include "bignum.h"
 
+#ifdef SYS_ANDROID
+#undef MBEDTLS_HAVE_ASM
+#endif
+
 #if defined(MBEDTLS_HAVE_ASM)
 
 #ifndef asm
