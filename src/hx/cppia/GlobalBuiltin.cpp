@@ -144,6 +144,26 @@ public:
    {
       return  FUNC();
    }
+   #ifdef CPPIA_JIT
+   static void SLJIT_CALL run(double *outResult)
+   {
+      *outResult = FUNC();
+   }
+
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   {
+      if (destType==etFloat && isMemoryVal(inDest) )
+      {
+         compiler->callNative( (void *)run, inDest.as(jtFloat));
+      }
+      else
+      {
+         JitTemp temp(compiler,jtFloat);
+         compiler->callNative( (void *)run, temp);
+         compiler->convert(temp, etFloat, inDest, destType);
+      }
+   }
+  #endif
 };
 
 template<typename ARG0, typename RET, RET (*FUNC)(ARG0)>

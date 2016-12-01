@@ -1,4 +1,4 @@
-#ifndef HX_CLASS_H
+   #ifndef HX_CLASS_H
 #define HX_CLASS_H
 
 
@@ -98,6 +98,8 @@ namespace hx
 class HXCPP_EXTERN_CLASS_ATTRIBUTES Class_obj : public hx::Object
 {
 public:
+   HX_IS_INSTANCE_OF enum { _hx_ClassId = 2 };
+
    Class_obj() : mSuper(0) { };
    Class_obj(const String &inClassName, String inStatics[], String inMembers[],
              hx::ConstructEmptyFunc inConstructEmpty, hx::ConstructArgsFunc inConstructArgs,
@@ -255,9 +257,16 @@ inline void RegisterClass(const String &inClassName, hx::Class inClass)
 template<typename T>
 inline bool TCanCast(hx::Object *inPtr)
 {
-	return inPtr && ( dynamic_cast<T *>(inPtr->__GetRealObject())
-                  #if (HXCPP_API_LEVEL < 330)
-                  || inPtr->__ToInterface(typeid(T))
+	return inPtr && (
+                  #if (HXCPP_API_LEVEL >= 332)
+                     inPtr->_hx_isInstanceOf(T::_hx_ClassId)
+                  #elif (HXCPP_API_LEVEL==331)
+                     dynamic_cast<T *>(inPtr)
+                  #else
+                     dynamic_cast<T *>(inPtr->__GetRealObject())
+                     #if (HXCPP_API_LEVEL < 330)
+                     || inPtr->__ToInterface(typeid(T))
+                     #endif
                   #endif
                   );
 }
@@ -267,7 +276,7 @@ inline bool TCanCast(hx::Object *inPtr)
 template<int HASH>
 inline bool TIsInterface(hx::Object *inPtr)
 {
-	return inPtr && inPtr->__GetRealObject()->_hx_getInterface(HASH);
+	return inPtr && inPtr->_hx_getInterface(HASH);
 }
 #endif
 

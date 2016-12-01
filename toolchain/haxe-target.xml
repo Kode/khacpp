@@ -23,7 +23,9 @@
   <depend name="${HXCPP}/include/null.h"/>
   <depend name="${HXCPP}/include/hx/Class.h"/>
   <depend name="${HXCPP}/include/Enum.h"/>
+  <depend name="${HXCPP}/include/hx/StackContext.h"/>
   <depend name="${HXCPP}/include/hx/Debug.h"/>
+  <depend name="${HXCPP}/include/hx/QuickVec.h"/>
   <depend name="${HXCPP}/include/hx/Telemetry.h"/>
   <depend name="${HXCPP}/include/hx/Object.h"/>
   <depend name="${HXCPP}/include/hx/Anon.h"/>
@@ -38,6 +40,7 @@
   <depend name="${HXCPP}/include/hx/StdLibs.h"/>
   <depend name="${HXCPP}/include/hx/Native.h"/>
   <depend name="${HXCPP}/include/hx/OS.h"/>
+  <depend name="${HXCPP}/include/hx/ObjcHelpers.h"/>
   <depend name="${HXCPP}/include/hx/HeaderVersion.h"/>
   <depend name="${HXCPP}/include/hx/Unordered.h"/>
   <depend name="${HXCPP}/include/hx/LessThanEq.h"/>
@@ -59,7 +62,7 @@
 <files id="haxe">
   <depend files="hxcpp-depends"/>
   <options name="Options.txt"/>
-  <config  name="HxcppConfig.h"/>
+  <config  name="HxcppConfig${LIBEXTRA}.h"/>
 
   <precompiledheader name="hxcpp" dir="${HXCPP}/include" />
   <cache value="1" />
@@ -102,6 +105,9 @@
 
   <file name = "src/hx/cppia/Cppia.cpp" />
   <file name = "src/hx/cppia/CppiaCtx.cpp" />
+  <file name = "src/hx/cppia/CppiaClasses.cpp" />
+  <file name = "src/hx/cppia/CppiaFunction.cpp" />
+  <file name = "src/hx/cppia/CppiaModule.cpp" />
   <file name = "src/hx/cppia/ArrayBuiltin.cpp" />
   <file name = "src/hx/cppia/StringBuiltin.cpp" />
   <file name = "src/hx/cppia/GlobalBuiltin.cpp" />
@@ -136,8 +142,12 @@
   <file name = "src/hx/Object.cpp"/>
   <file name = "src/hx/StdLibs.cpp" tags="haxe,static" />
   <file name = "src/hx/Debug.cpp"/>
+  <file name = "src/hx/Debugger.cpp" if="HXCPP_DEBUGGER" />
+  <file name = "src/hx/Telemetry.cpp" if="HXCPP_TELEMETRY" />
+  <file name = "src/hx/Profiler.cpp" if="HXCPP_PROFILER" />
   <file name = "src/hx/Thread.cpp"/>
-  <file name = "src/hx/RunLibs.cpp" if="static_link"/>
+  <file name = "src/hx/RunLibs.cpp" if="static_link||dll_link"/>
+  <file name = "src/hx/AndroidCompat.cpp" if="android"/>
 
   <file name = "src/Array.cpp"/>
   <file name = "src/hx/Class.cpp"/>
@@ -184,6 +194,8 @@
   <ext value="${LIBEXTRA}.a" if="iphonesim" unless="dll_import" />
   <ext value="${LIBEXTRA}.a" if="appletvos" unless="dll_import" />
   <ext value="${LIBEXTRA}.a" if="appletvsim" unless="dll_import" />
+  <ext value="${LIBEXTRA}.a" if="watchos" unless="dll_import" />
+  <ext value="${LIBEXTRA}.a" if="watchsimulator" unless="dll_import" />
 
   <section if="android">
      <ext value="${LIBEXTRA}.so" />

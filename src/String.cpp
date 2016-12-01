@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <set>
-#include <stdlib.h>
+#include "hx/Hash.h"
 
 using namespace hx;
 
@@ -78,6 +78,16 @@ Dynamic sConstDynamicStrings[256];
 typedef std::set<String> ConstStringSet;
 ConstStringSet sConstStringSet;
 
+#ifdef HXCPP_COMBINE_STRINGS
+static bool sIsIdent[256];
+bool InitIdent()
+{
+   for(int i=0;i<256;i++)
+      sIsIdent[i]= (i>='a' && i<='z') || (i>='A' && i<='Z') || (i>='0' && i<='9') || (i=='_');
+   return true;
+}
+#endif
+
 static int UTF8Bytes(int c)
 {
       if( c <= 0x7F )
@@ -88,7 +98,7 @@ static int UTF8Bytes(int c)
          return 3;
       else
          return 4;
-}
+   }
 
 static void UTF8EncodeAdvance(char * &ioPtr,int c)
 {
@@ -368,7 +378,7 @@ String _hx_utf8_sub(String inString, int inStart, int inLen)
 
 
 
-static HX_CHAR *GCStringDup(const HX_CHAR *inStr,int inLen, int *outLen=0)
+static const HX_CHAR *GCStringDup(const HX_CHAR *inStr,int inLen, int *outLen=0)
 {
    if (inStr==0 && inLen<=0)
    {
@@ -377,18 +387,71 @@ static HX_CHAR *GCStringDup(const HX_CHAR *inStr,int inLen, int *outLen=0)
       return (HX_CHAR *)sEmptyString.__s;
    }
 
-   if (inLen==-1)
+   int len = inLen;
+   if (len==-1)
    {
-       inLen=0;
-       while(inStr[inLen]) inLen++;
+      len=0;
+      while(inStr[len])
+         len++;
    }
-   
-   if (outLen)
-      *outLen = inLen;
 
-   HX_CHAR *result = hx::NewString(inLen);
-   memcpy(result,inStr,sizeof(HX_CHAR)*(inLen));
-   result[inLen] = '\0';
+   if (outLen)
+      *outLen = len;
+
+   if (len==1)
+      return String::fromCharCode(inStr[0]).__s;
+
+   #ifdef HXCPP_COMBINE_STRINGS
+   bool ident = len<20 && sIsIdent[inStr[0]] && (inStr[0]<'0' || inStr[0]>'9');
+   if (ident && len>3)
+      for(int p=1; p<len;p++)
+         if (!sIsIdent[ inStr[p] ])
+         {
+            ident = false;
+            break;
+         }
+
+   if (ident)
+   {
+      hx::StackContext *ctx = hx::StackContext::getCurrent();
+      if (!ctx->stringSet)
+         ctx->stringSet = new WeakStringSet();
+
+      unsigned int hash = 0;
+      for(int i=0;i<len;i++)
+         hash = hash*223 + ((unsigned char *)inStr)[i];
+
+      struct Finder
+      {
+         int len;
+         const HX_CHAR *ptr;
+         Finder(int len, const HX_CHAR *inPtr) : len(len), ptr(inPtr) { }
+         bool operator==(const String &inStr) const
+         {
+            return len == inStr.length && !memcmp(ptr, inStr.__s, len*sizeof(HX_CHAR));
+         }
+      };
+      String found;
+      if (ctx->stringSet->findEquivalentKey(found, hash, Finder(len, inStr)))
+         return found.__s;
+
+      HX_CHAR *result = hx::NewString(len + 4);
+      memcpy(result,inStr,sizeof(HX_CHAR)*(len));
+      result[len] = '\0';
+      *((unsigned int *)(result + len + 1)) = hash;
+      ((unsigned int *)(result))[-1] |= HX_GC_STRING_HASH;
+
+      String asString(result, len);
+      ctx->stringSet->TSet( asString, true );
+
+      return result;
+   }
+   #endif
+
+   HX_CHAR *result = hx::NewString(len);
+   memcpy(result,inStr,sizeof(HX_CHAR)*(len));
+   result[len] = '\0';
+
    return result;
 }
 
@@ -669,6 +732,10 @@ String &String::dupConst()
    {
       __s = sit->__s;
    }
+   else if (length==1)
+   {
+      __s = String::fromCharCode(__s[0]);
+   }
    else
    {
       HX_CHAR *ch  = (HX_CHAR *)InternalCreateConstBuffer(__s,length+1,true);
@@ -851,8 +918,13 @@ void __hxcpp_string_of_bytes(Array<unsigned char> &inBytes,String &outString,int
    #ifdef HX_UTF8_STRINGS
    if (inCopyPointer)
       outString = String( (const HX_CHAR *)inBytes->GetBase(), len);
+   else if (len==0)
+      outString = HX_CSTRING("");
+   else if (len==1)
+      outString = String::fromCharCode( inBytes[pos] );
    else
       outString = String( GCStringDup(inBytes->GetBase()+pos, len, 0), len);
+
    #else
    const unsigned char *ptr = (unsigned char *)inBytes->GetBase() + pos;
    const unsigned char *last = ptr + len;
@@ -1063,14 +1135,10 @@ String String::substr(int inFirst, Dynamic inLen) const
    if ((len+inFirst > length) ) len = length - inFirst;
    if (len==0)
       return HX_CSTRING("");
-
    if (len==1)
-      return fromCharCode(__s[inFirst]);
+      return String::fromCharCode(__s[inFirst]);
 
-   HX_CHAR *ptr = hx::NewString(len);
-   memcpy(ptr,__s+inFirst,len*sizeof(HX_CHAR));
-   ptr[len] = 0;
-   return String(ptr,len);
+   return String( GCStringDup(__s+inFirst, len, 0), len );
 }
 
 String String::substring(int startIndex, Dynamic inEndIndex) const
@@ -1276,6 +1344,8 @@ inline int _wtoi(const wchar_t *inStr)
 class StringData : public hx::Object
 {
 public:
+   enum { _hx_ClassId = 3 };
+
    inline void *operator new( size_t inSize, hx::NewObjectType inAlloc=hx::NewObjContainer)
       { return hx::Object::operator new(inSize,inAlloc); }
 
@@ -1283,7 +1353,9 @@ public:
    StringData(String inValue) : mValue(inValue) {};
 
    hx::Class __GetClass() const { return __StringClass; }
+   #if (HXCPP_API_LEVEL<331)
    bool __Is(hx::Object *inClass) const { return dynamic_cast< StringData *>(inClass); }
+   #endif
 
    virtual int __GetType() const { return vtString; }
    String __ToString() const { return mValue; }
@@ -1367,6 +1439,10 @@ hx::Object *String::__ToObject() const
 
 void String::__boot()
 {
+   #ifdef HXCPP_COMBINE_STRINGS
+   InitIdent();
+   #endif
+
    Static(__StringClass) = hx::_hx_RegisterClass(HX_CSTRING("String"),TCanCast<StringData>,sStringStatics, sStringFields,
            &CreateEmptyString, &CreateString, 0, 0, 0
     );

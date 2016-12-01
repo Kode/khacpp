@@ -1,4 +1,5 @@
 #ifndef HX_QUICKVEC_INCLUDED
+#define HX_QUICKVEC_INCLUDED
 
 #include <stdlib.h>
 
@@ -8,10 +9,20 @@ namespace hx
 template<typename T>
 struct QuickVec
 {
+   int mAlloc;
+   int mSize;
+   T *mPtr;
+
    QuickVec() : mPtr(0), mAlloc(0), mSize(0) { } 
+   ~QuickVec()
+   {
+      if (mPtr)
+         free(mPtr);
+   }
+
    inline void push(const T &inT)
    {
-      if (mSize+1>=mAlloc)
+      if (mSize+1>mAlloc)
       {
          mAlloc = 10 + (mSize*3/2);
          mPtr = (T *)realloc(mPtr,sizeof(T)*mAlloc);
@@ -27,6 +38,29 @@ struct QuickVec
       }
       mSize = inSize;
    }
+   bool safeReserveExtra(int inN)
+   {
+      int want = mSize + inN;
+      if (want>mAlloc)
+      {
+         int wantAlloc = 10 + (mSize*3/2);
+         if (wantAlloc<want)
+            wantAlloc = want;
+         T *newBuffer = (T *)malloc( sizeof(T)*wantAlloc );
+         if (!newBuffer)
+            return false;
+         mAlloc = wantAlloc;
+         if (mPtr)
+         {
+            memcpy(newBuffer, mPtr, mSize*sizeof(T));
+            free(mPtr);
+         }
+         mPtr = newBuffer;
+      }
+      return true;
+   }
+   inline void pop_back() { --mSize; }
+   inline T &back() { return mPtr[mSize-1]; }
    inline T pop()
    {
       return mPtr[--mSize];
@@ -69,10 +103,11 @@ struct QuickVec
    }
    inline int size() const { return mSize; }
    inline T &operator[](int inIndex) { return mPtr[inIndex]; }
+   inline const T &operator[](int inIndex) const { return mPtr[inIndex]; }
 
-   int mAlloc;
-   int mSize;
-   T *mPtr;
+private:
+   QuickVec(const QuickVec<T> &);
+   void operator =(const QuickVec<T> &);
 };
 
 
@@ -142,6 +177,10 @@ public:
       mTailPos = 1;
       return mTail->mElems[0];
    }
+
+private:
+   QuickDeque(const QuickDeque<T> &);
+   void operator=(const QuickDeque<T> &);
 };
 
 } // end namespace hx

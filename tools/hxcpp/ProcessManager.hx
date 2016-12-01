@@ -129,8 +129,12 @@ class ProcessManager
          {
             if (!ignoreErrors)
             {
-               var text = formatMessage(command, args);
-               Log.error("error running " + text , e);
+               //var text = formatMessage(command, args);
+               //Log.error("Error while running command\n" + text , e);
+               if (Log.verbose)
+               {
+                  Log.error ("", e);
+               }
                return 1;
             }
             return 0;
@@ -206,7 +210,11 @@ class ProcessManager
          {
             if (!ignoreErrors)
             {
-               Log.error("error running " + formatMessage(command,args), e);
+               //Log.error("Error while running command\n" + formatMessage(command,args), e);
+               if (Log.verbose)
+               {
+                  Log.error ("", e);
+               }
             }
             return null;
          }
@@ -265,7 +273,7 @@ class ProcessManager
       
       if (result != 0)
       {  
-         throw ("Error running: " + command + " " + args.join (" ") + " [" + path + "]"); 
+         throw ("Error while running command\n" + formatMessage(command, args) + (path != "" ? " [" + path + "]" : "")); 
       }
       
       return result;
@@ -346,7 +354,7 @@ class ProcessManager
                else
                {
                   if (error==null || error=="")
-                     error = "error running " + formatMessage(command, args);
+                     error = "Error while running command\n" + formatMessage(command, args);
                   Log.error(error);
                }
 
@@ -382,7 +390,7 @@ class ProcessManager
          Log.info(inText,"");
 
       if (!Log.quiet)
-         Log.v("   " + formatMessage(command, args));
+         Log.v(" - \x1b[1mRunning command:\x1b[0m " + formatMessage(command, args));
       Log.unlock();
 
       var output = new Array<String>();
@@ -464,7 +472,13 @@ class ProcessManager
          if (BuildTool.threadExitCode == 0)
          {
             Log.lock();
-            var message = "While running :" + formatMessage(command, args) + "\n";
+            var message = "";
+            if (Log.verbose)
+            {
+               Log.println("");
+               message += "Error while running command\n";
+               message += formatMessage(command,args) + "\n\n";
+            }
             if (output.length > 0)
             {
                message += output.join("\n") + "\n";

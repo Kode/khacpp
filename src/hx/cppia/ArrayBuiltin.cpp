@@ -31,6 +31,33 @@ enum ArrayFunc
    af__SetSizeExact,
 };
 
+static const char *sFuncNames[] =
+{
+   "afConcat",
+   "afCopy",
+   "afInsert",
+   "afIterator",
+   "afJoin",
+   "afPop",
+   "afPush",
+   "afRemove",
+   "afReverse",
+   "afShift",
+   "afSlice",
+   "afSplice",
+   "afSort",
+   "afToString",
+   "afUnshift",
+   "afMap",
+   "afFilter",
+   "afIndexOf",
+   "afLastIndexOf",
+   "af__get",
+   "af__set",
+   "af__crement",
+   "af__SetSizeExact",
+};
+
 static int sArgCount[] = 
 {
    1, //afConcat,
@@ -101,6 +128,15 @@ struct ArrayAddEq
 };
 
 
+#ifdef CPPIA_JIT
+static ArrayBase * SLJIT_CALL array_expand_size(ArrayBase *inArray, int inSize)
+{
+   inArray->Realloc(inSize+1);
+   return inArray;
+}
+#endif
+ 
+
 
 template<typename ELEM, typename FUNC>
 struct ArraySetter : public ArrayBuiltinBase
@@ -109,6 +145,7 @@ struct ArraySetter : public ArrayBuiltinBase
       : ArrayBuiltinBase(inSrc,inThisExpr,ioExpressions)
    {
    }
+   const char *getName() { return "ArraySetter"; }
    virtual ExprType getType()
    {
       return (ExprType)ExprTypeOf<ELEM>::value;
@@ -153,8 +190,91 @@ struct ArraySetter : public ArrayBuiltinBase
       FUNC::run(elem, ctx, args[1]);
       return Dynamic(elem).mPtr;
    }
+
+   #ifdef CPPIA_JIT
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   {
+      JitTemp thisVal(compiler,jtPointer);
+      thisExpr->genCode(compiler, thisVal, etObject);
+
+      // sJitTemp1 = index
+      JitTemp index(compiler,jtInt);
+      args[0]->genCode(compiler, index, etInt);
+      compiler->move(sJitTemp1,index);
+
+      // sJitTemp0 = this
+      compiler->move(sJitTemp0, thisVal);
+
+      JumpId enough = compiler->compare( cmpI_LESS, sJitTemp1.as(jtInt),
+                                         sJitTemp0.star(jtInt, ArrayBase::allocOffset()) );
+      // Make some room
+      compiler->callNative( (void *)array_expand_size,  sJitTemp0.as(jtPointer), sJitTemp1.as(jtInt) );
+      // sJitTemp0 is still this, restore length...
+      compiler->move( sJitTemp1,index);
+
+      compiler->comeFrom(enough);
+      // Check length..
+      JumpId lengthOk = compiler->compare( cmpI_LESS_EQUAL, sJitTemp1.as(jtInt),
+                                         sJitTemp0.star(jtInt, ArrayBase::lengthOffset()) );
+
+      compiler->add(sJitTemp0.star(jtInt, ArrayBase::lengthOffset()), sJitTemp1.as(jtInt), (int)1);
+
+      compiler->comeFrom(lengthOk);
+
+      ExprType elemType = (ExprType)ExprTypeOf<ELEM>::value;
+      JitTemp value(compiler,getJitType(elemType));
+
+      args[1]->genCode(compiler, value, elemType);
+
+
+
+      // sJitTemp1 = this
+      compiler->move(sJitTemp1, thisVal);
+      // sJitTemp1 = this->base
+      compiler->move(sJitTemp1, sJitTemp1.star(jtPointer, ArrayBase::baseOffset()).as(jtPointer) );
+
+      // sJitTemp0 = index
+      compiler->move(sJitTemp0, index);
+
+
+      if (sizeof(ELEM)==1) // uchar, bool
+      {
+         compiler->move( sJitTemp1.atReg(sJitTemp0).as(jtByte), value );
+      }
+      else if (elemType==etString)
+      {
+         compiler->mult( sJitTemp0, sJitTemp0.as(jtInt), (int)sizeof(String), false );
+         compiler->add( sJitTemp0, sJitTemp1.as(jtPointer), sJitTemp0);
+         compiler->move( sJitTemp0, value );
+      }
+      else if (sizeof(ELEM)==2)
+      {
+         compiler->move( sJitTemp1.atReg(sJitTemp0,1), value );
+      }
+      else if (sizeof(ELEM)==4)
+      {
+         compiler->move( sJitTemp1.atReg(sJitTemp0,2), value );
+      }
+      else if (sizeof(ELEM)==8)
+      {
+         compiler->move( sJitTemp1.atReg(sJitTemp0,3), value );
+      }
+      else
+      {
+         printf("Unknown element size\n");
+      }
+   }
+   #endif
 };
 
+#ifdef CPPIA_JIT
+static ArrayBase * SLJIT_CALL array_expand(ArrayBase *inArray)
+{
+  inArray->Realloc( inArray->length + 1 );
+  return inArray;
+}
+#endif
+ 
 
 
 template<typename ELEM, int FUNC, typename CREMENT>
@@ -164,6 +284,7 @@ struct ArrayBuiltin : public ArrayBuiltinBase
       : ArrayBuiltinBase(inSrc,inThisExpr,ioExpressions)
    {
    }
+   const char *getName() { return sFuncNames[FUNC]; }
 
    ExprType getType()
    {
@@ -684,6 +805,151 @@ struct ArrayBuiltin : public ArrayBuiltinBase
       return 0;
    }
 
+   #ifdef CPPIA_JIT
+   static ArrayBase * SLJIT_CALL array_expand(ArrayBase *inArray)
+   {
+      inArray->Realloc( inArray->length + 1 );
+      return inArray;
+   }
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   {
+      // TODO - null check
+      switch(FUNC)
+      {
+         case afPush:
+            {
+               thisExpr->genCode(compiler, sJitTemp0, etObject);
+               JumpId enough = compiler->compare( cmpI_LESS, sJitTemp0.star(jtInt, ArrayBase::lengthOffset()),
+                                                             sJitTemp0.star(jtInt, ArrayBase::allocOffset()) );
+
+               // result comes back in sJitTemp0
+               compiler->callNative( (void *)array_expand,  sJitTemp0 );
+               compiler->comeFrom(enough);
+
+               JitTemp arrayThis(compiler,jtPointer);
+               compiler->move(arrayThis, sJitTemp0);
+
+               ExprType elemType = (ExprType)ExprTypeOf<ELEM>::value;
+               JitTemp tempVal(compiler,getJitType(elemType));
+               args[0]->genCode(compiler, tempVal, elemType);
+
+               // sJitTemp1 = this
+               compiler->move(sJitTemp1, arrayThis);
+               // sJitTemp0 = length
+               compiler->move(sJitTemp0, sJitTemp1.star(jtInt, ArrayBase::lengthOffset()) );
+               // this->length = length+1
+               compiler->add(sJitTemp1.star(jtInt, ArrayBase::lengthOffset()), sJitTemp0, (int)1 );
+
+               // sJitTemp1 = this->base
+               compiler->move(sJitTemp1, sJitTemp1.star(jtPointer, ArrayBase::baseOffset()).as(jtPointer) );
+
+               if (sizeof(ELEM)==1) // uchar, bool
+               {
+                  compiler->move( sJitTemp1.atReg(sJitTemp0).as(jtByte), tempVal );
+               }
+               else if (elemType==etString)
+               {
+                  compiler->mult( sJitTemp0, sJitTemp0.as(jtInt), (int)sizeof(String), false );
+                  compiler->add( sJitTemp0, sJitTemp1.as(jtPointer), sJitTemp0);
+                  compiler->move( sJitTemp0, tempVal );
+               }
+               else if (sizeof(ELEM)==2)
+               {
+                  compiler->move( sJitTemp1.atReg(sJitTemp0,1), tempVal );
+               }
+               else if (sizeof(ELEM)==4)
+               {
+                  compiler->move( sJitTemp1.atReg(sJitTemp0,2), tempVal );
+               }
+               else if (sizeof(ELEM)==8)
+               {
+                  compiler->move( sJitTemp1.atReg(sJitTemp0,3), tempVal );
+               }
+               else
+               {
+                  printf("Unknown element size\n");
+               }
+
+               break;
+            }
+
+         case af__get:
+            {
+               JitTemp thisVal(compiler,jtPointer);
+               thisExpr->genCode(compiler, thisVal, etObject);
+
+               // sJitTemp0 = index
+               args[0]->genCode(compiler, sJitTemp0, etInt);
+
+               // sJitTemp1 = this
+               compiler->move(sJitTemp1, thisVal);
+
+               // Check length..
+               JumpId lengthOk = compiler->compare( cmpI_LESS, sJitTemp0.as(jtInt),
+                                                  sJitTemp1.star(jtInt, ArrayBase::lengthOffset()) );
+               // Out of bounds - return null / zero
+               compiler->returnNull(inDest, destType);
+               JumpId writtenNull = compiler->jump();
+
+
+               compiler->comeFrom(lengthOk);
+
+               ExprType elemType = (ExprType)ExprTypeOf<ELEM>::value;
+
+               // sJitTemp0 = index
+               // sJitTemp1 = this
+               compiler->move(sJitTemp1, sJitTemp1.star(jtPointer, ArrayBase::baseOffset()).as(jtPointer) );
+               // sJitTemp1 = this->base
+
+
+               if (sizeof(ELEM)==1) // uchar, bool
+               {
+                  if (destType!=etInt)
+                  {
+                     compiler->move( sJitTemp1, sJitTemp1.atReg(sJitTemp0).as(jtByte) );
+                     compiler->convert(sJitTemp1, etInt, inDest, destType);
+                  }
+                  else
+                     compiler->move( inDest.as(jtInt),  sJitTemp1.atReg(sJitTemp0).as(jtByte) );
+               }
+               else if (elemType==etString)
+               {
+                  compiler->mult( sJitTemp0, sJitTemp0.as(jtInt), (int)sizeof(String), false );
+                  compiler->add( sJitTemp0, sJitTemp1.as(jtPointer), sJitTemp0);
+                  compiler->convert( sJitTemp0.star(jtString), etString, inDest, destType );
+               }
+               else if (sizeof(ELEM)==2)
+               {
+                  if (destType!=etInt)
+                  {
+                     compiler->move(sJitTemp1.as(jtInt),sJitTemp1.atReg(sJitTemp0,1).as(jtShort));
+                     compiler->convert(sJitTemp1,etInt, inDest, destType);
+                  }
+                  else
+                     compiler->move( inDest.as(jtInt),  sJitTemp1.atReg(sJitTemp0).as(jtShort) );
+               }
+               else if (sizeof(ELEM)==4)
+               {
+                  compiler->convert( sJitTemp1.atReg(sJitTemp0,2), elemType, inDest, destType );
+               }
+               else if (sizeof(ELEM)==8)
+               {
+                  compiler->convert( sJitTemp1.atReg(sJitTemp0,3), elemType, inDest, destType );
+               }
+               else
+               {
+                  printf("Unknown element size\n");
+               }
+               compiler->comeFrom(writtenNull);
+
+               break;
+            }
+
+         default:
+            compiler->traceStrings("ArrayBuiltin::",sFuncNames[FUNC]);
+      }
+   }
+   #endif
 };
 
 
@@ -709,6 +975,7 @@ struct ArrayBuiltinAny : public ArrayBuiltinBase
       : ArrayBuiltinBase(inSrc,inThisExpr,ioExpressions)
    {
    }
+   const char *getName() { return sFuncNames[FUNC]; }
 
    int  runInt(CppiaCtx *ctx)
    {
@@ -812,13 +1079,18 @@ struct ArrayBuiltinAny : public ArrayBuiltinBase
       {
          int i = args[0]->runInt(ctx);
          BCR_CHECK;
-         Dynamic val = args[1]->runObject(ctx);
-         BCR_CHECK;
          if (OP==aoSet)
+         {
+            Dynamic val = args[1]->runObject(ctx);
+            BCR_CHECK;
             return thisVal->__SetItem(i, val).mPtr;
+         }
 
          Dynamic orig = thisVal->__GetItem(i);
          CPPIA_CHECK(orig.mPtr);
+
+         Dynamic val = args[1]->runObject(ctx);
+         BCR_CHECK;
          switch(OP)
          {
             case aoSet: break;

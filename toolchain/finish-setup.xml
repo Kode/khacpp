@@ -27,7 +27,8 @@
 
 
 <set name="OBJDBG" value="-debug" if="debug" />
-<set name="OBJEXT" value="${M64}${F32}${STAT}${OBJDBG}${NOCONSOLE}${RPI}${APIFP}${PRIME}" />
+<set name="OBJOPT" value="-opt" if="HXCPP_OPTIMIZE_LINK" unless="debug" />
+<set name="OBJEXT" value="${M64}${F32}${STAT}${OBJDBG}${OBJOPT}${NOCONSOLE}${RPI}${APIFP}${PRIME}" />
 
 <set name="STD_MODULE_LINK" value="static_link" if="static_link"/>
 <set name="STD_MODULE_LINK" value="exe" if="HXCPP_JS_PRIME"/>
@@ -45,6 +46,8 @@
 </section>
 <set name="LIBEXTRA" value=".appletvsim-64" if="appletvsim"/>
 <set name="LIBEXTRA" value=".appletvsim" if="appletvsim" unless="HXCPP_M64"/>
+<set name="LIBEXTRA" value=".watchos" if="watchos" />
+<set name="LIBEXTRA" value=".watchsimulator" if="watchsimulator" />
 <section if="appletvos">
    <set name="LIBEXTRA" value=".appletvos-64" if="HXCPP_ARM64"/>
 </section>
@@ -65,6 +68,7 @@
 <set name="haxelink" value="dll" if="android" unless="static_link" />
 <set name="haxelink" value="exe" if="exe_link"/>
 <set name="haxelink" value="dll" if="dll_import"/>
+<set name="haxelink" value="dll" if="dll_link"/>
 
 <set name="HXCPP_IOS_STDCPP" value="1" unless="HXCPP_CPP11" if="iphoneos"/>
 <set name="HXCPP_IOS_STDCPP" value="1" unless="HXCPP_CPP11" if="iphonesim"/>

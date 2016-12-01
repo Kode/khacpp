@@ -45,12 +45,16 @@ Dynamic DynEmptyString;
 class IntData : public hx::Object
 {
 public:
+   HX_IS_INSTANCE_OF enum { _hx_ClassId = 4 };
+
    inline void *operator new( size_t inSize, hx::NewObjectType inAlloc=NewObjAlloc, const char *inName="Int")
       { return hx::Object::operator new(inSize,inAlloc,inName); }
    IntData(int inValue=0) : mValue(inValue) {};
 
    hx::Class __GetClass() const { return __IntClass; }
+   #if (HXCPP_API_LEVEL<331)
    bool __Is(hx::Object *inClass) const { return dynamic_cast< IntData *>(inClass); }
+   #endif
 
    virtual int __GetType() const { return vtInt; }
 
@@ -74,12 +78,16 @@ public:
 class BoolData : public hx::Object
 {
 public:
+   HX_IS_INSTANCE_OF enum { _hx_ClassId = 5 };
+
    inline void *operator new( size_t inSize, hx::NewObjectType inAlloc=NewObjAlloc,const char *inName="Bool")
       { return hx::Object::operator new(inSize,inAlloc,"Bool"); }
    BoolData(bool inValue=false) : mValue(inValue) {};
 
    hx::Class __GetClass() const { return __BoolClass; }
+   #if (HXCPP_API_LEVEL<331)
    bool __Is(hx::Object *inClass) const { return dynamic_cast< BoolData *>(inClass); }
+   #endif
 
    virtual int __GetType() const { return vtBool; }
 
@@ -103,12 +111,16 @@ public:
 class DoubleData : public hx::Object
 {
 public:
+   HX_IS_INSTANCE_OF enum { _hx_ClassId = 6 };
+
    inline void *operator new( size_t inSize, hx::NewObjectType inAlloc=NewObjAlloc,const char *inName="Float")
       { return hx::Object::operator new(inSize,inAlloc,inName); }
    DoubleData(double inValue=0) : mValue(inValue) {};
 
    hx::Class __GetClass() const { return __FloatClass; }
+   #if (HXCPP_API_LEVEL<331)
    bool __Is(hx::Object *inClass) const { return dynamic_cast< DoubleData *>(inClass); }
+   #endif
 
    virtual int __GetType() const { return vtFloat; }
    String toString() { return String(mValue); }
@@ -134,23 +146,52 @@ public:
 class Int64Data : public hx::Object
 {
 public:
+   HX_IS_INSTANCE_OF enum { _hx_ClassId = 7 };
+
    inline void *operator new( size_t inSize, hx::NewObjectType inAlloc=NewObjAlloc,const char *inName="Int64")
       { return hx::Object::operator new(inSize,inAlloc,inName); }
    Int64Data(cpp::Int64 inValue=0) : mValue(inValue) {};
 
    hx::Class __GetClass() const { return __Int64Class; }
-   bool __Is(hx::Object *inClass) const { return dynamic_cast< DoubleData *>(inClass); }
+   #if (HXCPP_API_LEVEL<331)
+   bool __Is(hx::Object *inClass) const { return dynamic_cast< Int64Data *>(inClass); }
+   #endif
 
-   virtual int __GetType() const { return vtFloat; }
+   virtual int __GetType() const { return vtInt64; }
    String toString() { return String(mValue); }
    String __ToString() const { return String(mValue); }
    double __ToDouble() const { return mValue; }
    int __ToInt() const { return (int)mValue; }
    cpp::Int64 __ToInt64() const { return mValue; }
+   void __GetFields(Array<String> &outFields)
+   {
+      outFields->push( HX_HCSTRING("hi","\x01","\x5b","\x00","\x00") );
+      outFields->push( HX_HCSTRING("lo","\x83","\x5e","\x00","\x00") );
+   }
+   hx::Val __Field(const String &inName, hx::PropertyAccess inCallProp)
+   {
+      if (HX_FIELD_EQ(inName,"hi") ) { return hx::Val( (int)(mValue>>32)); }
+      if (HX_FIELD_EQ(inName,"lo") ) { return hx::Val( (int)(mValue&0xffffffff)); }
+      return hx::Object::__Field(inName,inCallProp);
+   }
+   hx::Val __SetField(const String &inName,const hx::Val &inValue, hx::PropertyAccess inCallProp)
+   {
+      if (HX_FIELD_EQ(inName,"hi") )
+      {
+         mValue = (int)(mValue & 0xffffffff) | (cpp::Int64(inValue.Cast< int >())<<32);
+         return inValue;
+      }
+      if (HX_FIELD_EQ(inName,"lo") )
+      {
+         mValue = (mValue & (cpp::Int64(0xffffffff)<<32) ) | cpp::Int64( (unsigned int)(inValue.Cast< int >()));
+         return inValue;
+      }
+      return hx::Object::__SetField(inName,inValue,inCallProp);
+   }
 
    int __Compare(const hx::Object *inRHS) const
    {
-      double rval = inRHS->__ToDouble();
+      double rval = inRHS->__ToInt64();
       if (rval==mValue)
          return 0;
 
@@ -158,7 +199,9 @@ public:
    }
 
 
-   double mValue;
+
+
+    cpp::Int64 mValue;
 };
 
 
@@ -172,7 +215,9 @@ public:
    PointerData(void *inValue) : mValue(inValue) {};
 
    hx::Class __GetClass() const { return __PointerClass; }
+   #if (HXCPP_API_LEVEL<331)
    bool __Is(hx::Object *inClass) const { return dynamic_cast< PointerData *>(inClass); }
+   #endif
 
    // k_cpp_pointer
    int __GetType() const { return vtAbstractBase + 2; }
@@ -211,7 +256,9 @@ public:
    }
 
    hx::Class __GetClass() const { return __PointerClass; }
+   #if (HXCPP_API_LEVEL<331)
    bool __Is(hx::Object *inClass) const { return dynamic_cast< StructData *>(inClass); }
+   #endif
 
    // k_cpp_struct
    int __GetType() const { return vtAbstractBase + 3; }
@@ -223,13 +270,13 @@ public:
    String __ToString() const
    {
       String result;
-      mHandler(cpp::dhoToString, mValue, &result );
+      mHandler(cpp::dhoToString, mValue, 0, &result );
       return result;
    }
    const char *__CStr() const
    {
       const char *result = "unknown";
-      mHandler(cpp::dhoGetClassName, mValue, &result );
+      mHandler(cpp::dhoGetClassName, mValue, 0, &result );
       return result;
    }
 
@@ -566,6 +613,15 @@ static void sVisitStatics(HX_VISIT_PARAMS) {
 
 #endif
 
+static Dynamic createEmptyInt64()
+{
+   return new Int64Data();
+}
+
+static Dynamic createInt64(hx::DynamicArray inArgs)
+{
+   return new Int64Data();
+}
 
 void Dynamic::__boot()
 {
@@ -578,6 +634,9 @@ void Dynamic::__boot()
    Static(__IntClass) = hx::_hx_RegisterClass(HX_CSTRING("Int"),IsInt,sNone,sNone,0,0, 0 );
    Static(__FloatClass) = hx::_hx_RegisterClass(HX_CSTRING("Float"),IsFloat,sNone,sNone, 0,0,&__IntClass );
    Static(__Int64Class) = hx::_hx_RegisterClass(HX_CSTRING("cpp::Int64"),IsInt64,sNone,sNone, 0,0,&__IntClass );
+   __Int64Class->mConstructEmpty = &createEmptyInt64;
+   __Int64Class->mConstructArgs = &createInt64;
+
    Static(__PointerClass) = hx::_hx_RegisterClass(HX_CSTRING("cpp::Pointer"),IsPointer,sNone,sNone, 0,0,&__PointerClass );
    DynTrue = Dynamic( new (hx::NewObjConst) hx::BoolData(true) );
    DynFalse = Dynamic( new (hx::NewObjConst) hx::BoolData(false) );

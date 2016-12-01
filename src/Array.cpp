@@ -441,6 +441,11 @@ struct ArrayBase_##func : public hx::Object \
    { \
       ret mThis->__##func(arg_list); return Dynamic(); \
    } \
+   int __Compare(const hx::Object *inRHS) const \
+   { \
+      if (!dynamic_cast<const ArrayBase_##func *>(inRHS)) return -1; \
+      return (mThis==inRHS->__GetHandle() ? 0 : -1); \
+   } \
 }; \
 Dynamic ArrayBase::func##_dyn()  { return new ArrayBase_##func(this);  }
 
@@ -792,7 +797,7 @@ void VirtualArray_obj::MakeIntArray()
       base = new Array_obj<int>(0,0);
    else
    {
-      Array<Int> result = Dynamic(base);
+      Array<int> result = Dynamic(base);
       base = result.mPtr;
    }
    store = arrayInt;
@@ -839,13 +844,13 @@ void VirtualArray_obj::MakeBoolArray()
    if (store==arrayEmpty && base )
    {
       int len = base->length;
-      base = new Array_obj<Bool>(len,len);
+      base = new Array_obj<bool>(len,len);
    }
    else if (!base)
-      base = new Array_obj<Bool>(0,0);
+      base = new Array_obj<bool>(0,0);
    else
    {
-      Array<Bool> result = Dynamic(base);
+      Array<bool> result = Dynamic(base);
       base = result.mPtr;
    }
    store = arrayBool;

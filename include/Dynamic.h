@@ -81,7 +81,11 @@ public:
    //inline operator cpp::Variant() const { return cpp::Variant(mPtr); }
 #ifdef __OBJC__
 #ifdef HXCPP_OBJC
+   #ifdef OBJC_ARC
+   inline operator id() const { return mPtr ? (__bridge id)mPtr->__GetHandle() : 0; }
+   #else
    inline operator id() const { return mPtr ? (id)mPtr->__GetHandle() : 0; }
+   #endif
 #endif
 #endif
    inline bool operator !() const { return !mPtr || !mPtr->__ToInt(); }
@@ -122,7 +126,11 @@ public:
    {
       if (mPtr==0) return inRHS.mPtr==0 ? 0 : -1;
       if (inRHS.mPtr==0) return -1;
+      #if (HXCPP_API_LEVEL>=331)
+      return mPtr->__Compare(inRHS.mPtr);
+      #else
       return mPtr->__Compare(inRHS.mPtr->__GetRealObject());
+      #endif
    }
 
    bool operator==(const null &inRHS) const { return mPtr==0; }
@@ -134,7 +142,11 @@ public:
       //if (mPtr==inRHS.mPtr) return true;
       if (!mPtr && !inRHS.mPtr) return true;
       if (!mPtr || !inRHS.mPtr) return false;
+      #if (HXCPP_API_LEVEL>=331)
+      return mPtr->__Compare(inRHS.mPtr)==0;
+      #else
       return mPtr->__Compare(inRHS.mPtr->__GetRealObject())==0;
+      #endif
    }
 
    bool operator != (const Dynamic &inRHS) const
@@ -143,7 +155,11 @@ public:
       //if (mPtr==inRHS.mPtr) return true;
       if (!mPtr && !inRHS.mPtr) return false;
       if (!mPtr || !inRHS.mPtr) return true;
+      #if (HXCPP_API_LEVEL>=331)
+      return mPtr->__Compare(inRHS.mPtr)!=0;
+      #else
       return mPtr->__Compare(inRHS.mPtr->__GetRealObject())!=0;
+      #endif
    }
 
 
@@ -197,7 +213,11 @@ public:
    {
       if (mPtr==inRHS.mPtr) return true;
       if (!mPtr || !inRHS.mPtr) return false;
+      #if (HXCPP_API_LEVEL>=331)
+      return mPtr == inRHS.mPtr;
+      #else
       return mPtr->__GetRealObject() == inRHS.mPtr->__GetRealObject();
+      #endif
    }
 
    template<typename T_>
@@ -205,7 +225,11 @@ public:
    {
       if (mPtr==inRHS.mPtr) return false;
       if (!mPtr || !inRHS.mPtr) return true;
+      #if (HXCPP_API_LEVEL>=331)
+      return mPtr != inRHS.mPtr;
+      #else
       return mPtr->__GetRealObject() != inRHS.mPtr->__GetRealObject();
+      #endif
    }
 
 
@@ -273,6 +297,12 @@ public:
    static void ThrowBadFunctionError();
    inline void CheckFPtr() { if (!mPtr) ThrowBadFunctionError(); }
 
+   inline  ::Dynamic operator()() { CheckFPtr(); return mPtr->__run(); }
+   inline  ::Dynamic operator()(const Dynamic &inArg0) { CheckFPtr(); return mPtr->__run(inArg0); }
+   inline  ::Dynamic operator()(const Dynamic &inArg0,const Dynamic &inArg1) { CheckFPtr(); return mPtr->__run(inArg0,inArg1); }
+   inline  ::Dynamic operator()(const Dynamic &inArg0,const Dynamic &inArg1,const Dynamic &inArg2) { CheckFPtr(); return mPtr->__run(inArg0,inArg1,inArg2); }
+   inline  ::Dynamic operator()(const Dynamic &inArg0,const Dynamic &inArg1,const Dynamic &inArg2,const Dynamic &inArg3) { CheckFPtr(); return mPtr->__run(inArg0,inArg1,inArg2,inArg3); }
+   inline  ::Dynamic operator()(const Dynamic &inArg0,const Dynamic &inArg1,const Dynamic &inArg2,const Dynamic &inArg3,const Dynamic &inArg4) { CheckFPtr(); return mPtr->__run(inArg0,inArg1,inArg2,inArg3,inArg4); }
 
    HX_DECLARE_DYNAMIC_FUNCTIONS;
 

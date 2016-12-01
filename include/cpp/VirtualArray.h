@@ -79,6 +79,8 @@ public:
       VirtualArray result = new VirtualArray_obj(hx::arrayEmpty);
       if (inSize>0)
          result->__SetSizeExact(inSize);
+      if (inReserve>0)
+         result->reserve(inReserve);
       return result;
    }
 
@@ -315,6 +317,19 @@ public:
    inline char *GetBase() { return base ? base->GetBase() : 0; }
 
    int GetElementSize() const { checkBase(); return store==hx::arrayEmpty ? 0 : base->GetElementSize(); }
+
+   inline void reserve(int inSize) const
+   {
+      if (base)
+         base->reserve(inSize);
+   }
+
+   inline int capacity()
+   {
+      if (base)
+         return base->capacity();
+      return 0;
+   }
 
    void __SetSize(int inLen)
    {
@@ -605,6 +620,14 @@ inline bool VirtualArray::operator==( const Array<SOURCE_> &inRHS )
 } namespace hx {
 template<> inline void MarkMember(cpp::VirtualArray &outT,hx::MarkContext *__inCtx)
   { HX_MARK_OBJECT(outT.mPtr); }
+
+#ifdef HXCPP_VISIT_ALLOCS
+template<> inline void VisitMember(cpp::VirtualArray &outT,hx::VisitContext *__inCtx)
+{
+   HX_VISIT_OBJECT(outT.mPtr);
+}
+#endif
+
 } namespace cpp {
 
 #endif // HX_VARRAY_DEFINED

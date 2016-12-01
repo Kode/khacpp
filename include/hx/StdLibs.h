@@ -154,7 +154,7 @@ HXCPP_EXTERN_CLASS_ATTRIBUTES void          __int_hash_set(Dynamic &ioHash,int i
 HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic       __int_hash_get(Dynamic &ioHash,int inKey);
 HXCPP_EXTERN_CLASS_ATTRIBUTES bool          __int_hash_exists(Dynamic &ioHash,int inKey);
 HXCPP_EXTERN_CLASS_ATTRIBUTES bool          __int_hash_remove(Dynamic &ioHash,int inKey);
-HXCPP_EXTERN_CLASS_ATTRIBUTES Array<Int>    __int_hash_keys(Dynamic &ioHash);
+HXCPP_EXTERN_CLASS_ATTRIBUTES Array<int>    __int_hash_keys(Dynamic &ioHash);
 HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic       __int_hash_values(Dynamic &ioHash);
 // Typed IntHash access...
 HXCPP_EXTERN_CLASS_ATTRIBUTES void          __int_hash_set_int(Dynamic &ioHash,int inKey,int inValue);
@@ -285,12 +285,9 @@ inline void __hxcpp_align_set_float32( unsigned char *base, int addr, float v)
    #ifdef HXCPP_ALIGN_FLOAT
    if (addr & 3)
    {
-      unsigned char *fBuf = (unsigned char *)&v;
-      base += addr;
-      base[0] = fBuf[0];
-      base[1] = fBuf[1];
-      base[2] = fBuf[2];
-      base[3] = fBuf[3];
+      const unsigned int *src = (const unsigned int *)&v;
+      unsigned int *dest = (unsigned int *)(base+addr);
+      *dest = *src;
    }
    else
    #endif
@@ -304,12 +301,9 @@ inline float __hxcpp_align_get_float32( unsigned char *base, int addr)
    if (addr & 3)
    {
       float buf;
-      unsigned char *fBuf = (unsigned char *)&buf;
-      base += addr;
-      fBuf[0] = base[0];
-      fBuf[1] = base[1];
-      fBuf[2] = base[2];
-      fBuf[3] = base[3];
+      unsigned int *dest = (unsigned int *)&buf;
+      const unsigned int *src = (const unsigned int *)(base+addr);
+      *dest = *src;
       return buf;
    }
    #endif
@@ -322,16 +316,10 @@ inline void __hxcpp_align_set_float64( unsigned char *base, int addr, double v)
    #ifdef HXCPP_ALIGN_FLOAT
    if (addr & 3)
    {
-      unsigned char *dBuf = (unsigned char *)&v;
-      base += addr;
-      base[0] = dBuf[0];
-      base[1] = dBuf[1];
-      base[2] = dBuf[2];
-      base[3] = dBuf[3];
-      base[4] = dBuf[4];
-      base[5] = dBuf[5];
-      base[6] = dBuf[6];
-      base[7] = dBuf[7];
+      unsigned int *dest = (unsigned int *)(base + addr);
+      const unsigned int *src = (const unsigned int *)&v;
+      *dest++ = *src++;
+      *dest++ = *src++;
    }
    else
    #endif
@@ -345,16 +333,10 @@ inline double __hxcpp_align_get_float64( unsigned char *base, int addr)
    if (addr & 3)
    {
       double buf;
-      unsigned char *dBuf = (unsigned char *)&buf;
-      base += addr;
-      dBuf[0] = base[0];
-      dBuf[1] = base[1];
-      dBuf[2] = base[2];
-      dBuf[3] = base[3];
-      dBuf[4] = base[4];
-      dBuf[5] = base[5];
-      dBuf[6] = base[6];
-      dBuf[7] = base[7];
+      unsigned int *dest = (unsigned int *)&buf;
+      const unsigned int *src = (const unsigned int *)(base + addr);
+      *dest++ = *src++;
+      *dest++ = *src++;
       return buf;
    }
    #endif
@@ -482,11 +464,36 @@ inline int __hxcpp_reinterpret_float64_as_le_int32_high(double inValue)
    return asInts[1];
 }
 
+#ifdef __OBJC__
+#ifdef HXCPP_OBJC
+
+inline NSData *_hx_bytes_to_nsdata( ::Array<unsigned char> inBytes)
+{
+   if (!inBytes.mPtr)
+     return nil;
+
+   return [NSData dataWithBytes: inBytes->getBase() length:inBytes->length ];
+
+}
+
+inline ::Array<unsigned char> _hx_nsdata_to_bytes(NSData *inData)
+{
+   if (inData==nil)
+      return null();
+
+   return ::Array_obj<unsigned char>::fromData( (const unsigned char *)inData.bytes, inData.length );
+}
+
+#endif
+#endif
+
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_regexp_new_options(String s, String options);
+
 // EReg.hx -> src/hx/libs/regexp/RegExp.cpp
 HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_regexp_new_options(String s, String options);
 HXCPP_EXTERN_CLASS_ATTRIBUTES bool    _hx_regexp_match(Dynamic handle, String string, int pos, int len);
 HXCPP_EXTERN_CLASS_ATTRIBUTES String  _hx_regexp_matched(Dynamic handle, int pos);
-HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_regexp_matched_pos(Dynamic handle, Int match);
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_regexp_matched_pos(Dynamic handle, int match);
 
 
 // haxe.zip.(Un)Compress.hx -> src/hx/libs/zlib/ZLib.cpp
@@ -589,8 +596,8 @@ HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_listen( Dynamic o, int n );
 HXCPP_EXTERN_CLASS_ATTRIBUTES Array<Dynamic> _hx_std_socket_select( Array<Dynamic> rs, Array<Dynamic> ws, Array<Dynamic> es, Dynamic timeout );
 HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_fast_select( Array<Dynamic> rs, Array<Dynamic> ws, Array<Dynamic> es, Dynamic timeout );
 HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_std_socket_accept( Dynamic o );
-HXCPP_EXTERN_CLASS_ATTRIBUTES Array<Int> _hx_std_socket_peer( Dynamic o );
-HXCPP_EXTERN_CLASS_ATTRIBUTES Array<Int> _hx_std_socket_host( Dynamic o );
+HXCPP_EXTERN_CLASS_ATTRIBUTES Array<int> _hx_std_socket_peer( Dynamic o );
+HXCPP_EXTERN_CLASS_ATTRIBUTES Array<int> _hx_std_socket_host( Dynamic o );
 HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_set_timeout( Dynamic o, Dynamic t );
 HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_shutdown( Dynamic o, bool r, bool w );
 HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_socket_set_blocking( Dynamic o, bool b );
@@ -657,8 +664,8 @@ Dynamic _hx_ssl_cert_load_path( String path );
 String _hx_ssl_cert_get_subject( Dynamic hcert, String objname );
 String _hx_ssl_cert_get_issuer( Dynamic hcert, String objname );
 Array<String> _hx_ssl_cert_get_altnames( Dynamic hcert );
-Array<Int> _hx_ssl_cert_get_notbefore( Dynamic hcert );
-Array<Int> _hx_ssl_cert_get_notafter( Dynamic hcert );
+Array<int> _hx_ssl_cert_get_notbefore( Dynamic hcert );
+Array<int> _hx_ssl_cert_get_notafter( Dynamic hcert );
 Dynamic _hx_ssl_cert_get_next( Dynamic hcert );
 Dynamic _hx_ssl_cert_add_pem( Dynamic hcert, String data );
 Dynamic _hx_ssl_cert_add_der( Dynamic hcert, Array<unsigned char> buf );

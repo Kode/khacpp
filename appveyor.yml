@@ -39,6 +39,7 @@ install:
     - cd %APPVEYOR_BUILD_FOLDER%
     - mkdir "%HAXELIB_ROOT%"
     - haxelib setup "%HAXELIB_ROOT%"
+    - haxelib install record-macros
 
 build_script:
     - haxelib dev hxcpp %APPVEYOR_BUILD_FOLDER%
@@ -54,4 +55,4 @@ test_script:
     - haxe compile.hxml -debug -D HXCPP_M%HXCPP_ARCH% && .\bin\TestMain-debug
     # tests from haxe repo
     - cd %HAXE_ROOT%\tests\unit
-    - haxe compile-cpp.hxml -D HXCPP_M%HXCPP_ARCH% && .\bin\cpp\Test-debug
+    - haxe compile-cpp.hxml -D HXCPP_M%HXCPP_ARCH% && .\bin\cpp\TestMain-debug

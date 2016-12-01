@@ -118,7 +118,7 @@ struct CompareTraits<cpp::Int64>
 {
    enum { type = (int)CompareAsInt64 };
 
-   inline static int toInt(cpp::Int64 inValue) { return inValue; }
+   inline static int toInt(cpp::Int64 inValue) { return (int)inValue; }
    inline static double toDouble(cpp::Int64 inValue) { return inValue; }
    inline static cpp::Int64 toInt64(cpp::Int64 inValue) { return inValue; }
    inline static String toString(cpp::Int64 inValue) { return String(); }
@@ -133,7 +133,7 @@ struct CompareTraits<cpp::UInt64>
 {
    enum { type = (int)CompareAsInt64 };
 
-   inline static int toInt(cpp::UInt64 inValue) { return inValue; }
+   inline static int toInt(cpp::UInt64 inValue) { return (int)inValue; }
    inline static double toDouble(cpp::UInt64 inValue) { return inValue; }
    // Return value is unsigned ...
    inline static cpp::UInt64 toInt64(cpp::UInt64 inValue) { return inValue; }
@@ -295,8 +295,12 @@ inline bool TestLessEq(const T1 &v1, const T2 &v2)
    else if (traits1::type<=(int)CompareAsDouble || traits2::type<=(int)CompareAsDouble)
    {
       // numeric with a object...
-      if (traits1::isNull(v1) || traits2::isNull(v2))
-         return false;
+
+      // null can only be equal to null...
+      bool n1 = traits1::isNull(v1);
+      bool n2 = traits2::isNull(v2);
+      if (n1 || n2)
+         return EQ ? n1==n2 : !LESS && n1!=n2/* false,false = not equal*/;
 
       return LESS ? ( EQ ? traits1::toDouble(v1) <= traits2::toDouble(v2) :
                            traits1::toDouble(v1) <  traits2::toDouble(v2)  ) :
@@ -312,7 +316,7 @@ inline bool TestLessEq(const T1 &v1, const T2 &v2)
       bool n1 = traits1::isNull(v1);
       bool n2 = traits2::isNull(v2);
       if (n1 || n2)
-         return EQ ? n1==n2 : n1!=n2;
+         return EQ ? n1==n2 : !LESS && n1!=n2 /* false,false = not equal*/;
 
       int t1 = traits1::getDynamicCompareType(v1);
       int t2 = traits2::getDynamicCompareType(v2);

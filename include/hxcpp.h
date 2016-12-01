@@ -25,6 +25,7 @@
 #else
    #include <typeinfo>
    #include <stdint.h>
+   #include <cstddef>
    namespace hx { typedef std::type_info type_info; }
    #ifndef EMSCRIPTEN
       using hx::type_info;
@@ -60,8 +61,8 @@
   #include <stddef.h>
 #endif
 
-#ifdef EMSCRIPTEN
-#define HXCPP_ALIGN_FLOAT
+#if defined(EMSCRIPTEN)  || defined(_ARM_) || defined(__arm__)
+   #define HXCPP_ALIGN_FLOAT
 #endif
 
 #if defined(__LP64__) || defined(_LP64) || defined(_WIN64)
@@ -142,10 +143,11 @@ typedef char HX_CHAR;
 #endif
 
 // HX_HCSTRING is for constant strings with built-in hashes
-//     HX_GC_CONST_ALLOC_BIT
+//     HX_GC_CONST_ALLOC_BIT | HX_GC_STRING_HASH
 // HX_CSTRING is for constant strings without built-in hashes
-//     HX_GC_CONST_ALLOC_BIT | HX_GC_NO_STRING_HASH
+//     HX_GC_CONST_ALLOC_BIT
 
+// HX_GC_STRING_HASH  = 00 00 01 00
 
 // For making generated code easier to read
 #define HX_HASH_JOIN(A, B) A ## B
@@ -156,23 +158,18 @@ typedef char HX_CHAR;
 
 
 
-
 #ifdef HXCPP_BIG_ENDIAN
-#define HX_HCSTRING(s,h0,h1,h2,h3) ::String( (const HX_CHAR *)((h3 h2 h1 h0 "\x80\x00\x00\x00" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
-#define HX_(s,h0,h1,h2,h3) ::String( (const HX_CHAR *)((HX_HEX_QUOTE(h3) HX_HEX_QUOTE(h2) HX_HEX_QUOTE(h1) HX_HEX_QUOTE(h0) "\x80\x00\x00\x00" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
-#define HX_STRINGI(s,len) ::String( (const HX_CHAR *)(("\xc0\x00\x00\x00" s)) + 4 ,len)
+
+#define HX_HCSTRING(s,h0,h1,h2,h3) ::String( const_cast<char *>((h3 h2 h1 h0 "\x80\x10\x00\x00" s)) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
+#define HX_(s,h0,h1,h2,h3) ::String( const_cast<char *>(( HX_HEX_QUOTE(h3) HX_HEX_QUOTE(h2) HX_HEX_QUOTE(h1) HX_HEX_QUOTE(h0) "\x80\x10\x00\x00" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
+#define HX_STRINGI(s,len) ::String( const_cast<char *>(("\x80\x00\x00\x00" s)) + 4 ,len)
+
 #else
 
-#ifdef HX_WINRT
-#define HX_HCSTRING(s,h0,h1,h2,h3) ::String( const_cast<char *>((h0 h1 h2 h3 "\x00\x00\x00\x80" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
-#define HX_(s,h0,h1,h2,h3) ::String( const_cast<char *>((HX_HEX_QUOTE(h0) HX_HEX_QUOTE(h1) HX_HEX_QUOTE(h2) HX_HEX_QUOTE(h3) "\x00\x00\x00\x80" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
-#define HX_STRINGI(s,len) ::String( const_cast<char *>(("\x00\x00\x0\xc0" s)) + 4 ,len)
-#else
-#define HX_HCSTRING(s,h0,h1,h2,h3) ::String( (const HX_CHAR *)((h0 h1 h2 h3 "\x00\x00\x00\x80" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
-#define HX_(s,h0,h1,h2,h3) ::String( (const HX_CHAR *)((HX_HEX_QUOTE(h0) HX_HEX_QUOTE(h1) HX_HEX_QUOTE(h2) HX_HEX_QUOTE(h3) "\x00\x00\x00\x80" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
+#define HX_HCSTRING(s,h0,h1,h2,h3) ::String( const_cast<char *>((h0 h1 h2 h3 "\x00\x00\x10\x80" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
+#define HX_(s,h0,h1,h2,h3) ::String( const_cast<char *>(( HX_HEX_QUOTE(h0) HX_HEX_QUOTE(h1) HX_HEX_QUOTE(h2) HX_HEX_QUOTE(h3) "\x00\x00\x10\x80" s )) + 8 , sizeof(s)/sizeof(HX_CHAR)-1)
+#define HX_STRINGI(s,len) ::String( const_cast<char *>(("\x00\x00\x0\x80" s)) + 4 ,len)
 
-#define HX_STRINGI(s,len) ::String( (const HX_CHAR *)(("\x00\x00\x0\xc0" s)) + 4 ,len)
-#endif
 #endif
 
 
@@ -196,9 +193,10 @@ typedef char HX_CHAR;
 // HXCPP includes...
 
 // Basic mapping from haxe -> c++
-
+#if (HXCPP_API_LEVEL<=330)
 typedef int Int;
 typedef bool Bool;
+#endif
 
 #ifdef HXCPP_FLOAT32
 typedef float Float;
@@ -239,6 +237,7 @@ namespace hx { class Object; }
 namespace hx { class FieldRef; }
 namespace hx { class IndexRef; }
 namespace hx { class NativeInterface; }
+namespace hx { class StackContext; }
 namespace hx { template<typename T> class Native; }
 namespace hx { template<typename O> class ObjectPtr; }
 namespace cpp { template<typename S,typename H> class Struct; }
@@ -267,7 +266,8 @@ class String;
 
 // Use an external routine to throw to avoid sjlj overhead on iphone.
 namespace hx { HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic Throw(Dynamic inDynamic); }
-namespace hx { HXCPP_EXTERN_CLASS_ATTRIBUTES void CriticalError(const String &inError); }
+namespace hx { HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic Rethrow(Dynamic inDynamic); }
+namespace hx { HXCPP_EXTERN_CLASS_ATTRIBUTES void CriticalError(const String &inError, bool inAllowFixup=false); }
 namespace hx { HXCPP_EXTERN_CLASS_ATTRIBUTES void NullReference(const char *type, bool allowFixup); }
 namespace hx { extern String sNone[]; }
 void __hxcpp_check_overflow(int inVal);
@@ -289,6 +289,8 @@ typedef ::cpp::Variant Val;
 typedef ::Dynamic Val;
 #endif
 
+//#define HXCPP_GC_NURSERY
+//#define HXCPP_COMBINE_STRINGS
 
 #if (HXCPP_API_LEVEL >= 313)
 enum PropertyAccessMode
@@ -310,7 +312,7 @@ typedef bool PropertyAccess;
 
 } // end namespace hx
 
-
+#define HX_COMMA ,
 
 
 // The order of these includes has been chosen to minimize forward declarations.
@@ -321,6 +323,7 @@ typedef bool PropertyAccess;
 #include <cpp/Variant.h>
 #include <hx/ErrorCodes.h>
 #include <hx/GC.h>
+#include <hx/StackContext.h>
 #include "null.h"
 #include <hx/Object.h>
 #include "hxString.h"
@@ -335,6 +338,9 @@ typedef bool PropertyAccess;
 #include "Enum.h"
 #include <hx/Interface.h>
 #include <hx/Telemetry.h>
+#if defined(__OBJC__) && defined(HXCPP_OBJC)
+  #include <hx/ObjcHelpers.h>
+#endif
 #include <hx/StdLibs.h>
 #include <cpp/Pointer.h>
 #include <hx/Native.h>

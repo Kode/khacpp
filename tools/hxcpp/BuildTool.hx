@@ -269,7 +269,7 @@ class BuildTool
 
    public function pushFile(inFilename:String, inWhy:String, inSection:String="")
    {
-      Log.info("", " - \x1b[1mParsing " + inWhy + ":\x1b[0m " + inFilename + (inSection == "" ? "" : " (section \"" + inSection + "\")"));
+      Log.info("", " - \x1b[1mParsing " + inWhy + ":\x1b[0m " + inFilename + (inSection == "" ? "" : " \x1b[3m(section \"" + inSection + "\")\x1b[0m"));
       mFileStack.push(inFilename);
    }
 
@@ -426,8 +426,15 @@ class BuildTool
             lines.push("#endif");
             lines.push("");
 
-            var filename = mCompiler.mObjDir + "/" + group.mConfig;
-            sys.io.File.saveContent(filename, lines.join("\n") );
+            var filename = mDefines.exists("HXCPP_OUTPUT_CONFIG_NAME") ?
+                           mDefines.get("HXCPP_OUTPUT_CONFIG_NAME") :
+                           PathManager.combine( target.mOutputDir, group.mConfig );
+            if (!PathManager.isAbsolute(filename))
+               filename = PathManager.combine( Sys.getCwd(), filename);
+
+            var content = lines.join("\n");
+            if (!FileSystem.exists(filename) || sys.io.File.getContent(filename)!=content)
+               sys.io.File.saveContent(filename, content);
             addOutput("config",filename);
          }
 
@@ -442,7 +449,33 @@ class BuildTool
                if (first)
                {
                   first = false;
-                  Log.info(" - Compiling group '" + group.mId + "' with flags " +  group.mCompilerFlags.concat(mCompiler.getFlagStrings()).join(" ") + " tags=" + group.mTags.split(",") );
+                  Log.lock();
+                  Log.println("");
+                  Log.info("\x1b[33;1mCompiling group: " + group.mId + "\x1b[0m");
+                  var message = "\x1b[1m" + mCompiler.mExe + "\x1b[0m";
+                  var flags = group.mCompilerFlags.concat(mCompiler.getFlagStrings());
+                  for (compilerFlag in flags)
+                  {
+                     if (StringTools.startsWith(compilerFlag, "-D"))
+                     {
+                        var index = compilerFlag.indexOf("(");
+                        if (index > -1)
+                        {
+                           message += " \x1b[1m" + compilerFlag.substr(0, index) + "\x1b[0m\x1b[2m" + compilerFlag.substr(index) + "\x1b[0m";
+                        }
+                        else
+                        {
+                           message += " \x1b[1m" + compilerFlag + "\x1b[0m";
+                        }
+                     }
+                     else
+                     {
+                        message += " \x1b[0m" + compilerFlag + "\x1b[0m";
+                     }
+                  }
+                  message += " \x1b[2m...\x1b[0m \x1b[2mtags=" + group.mTags.split(",") + "\x1b[0m";
+                  Log.info(message);
+                  Log.unlock();
                }
                groupMutex.release();
             }
@@ -777,7 +810,10 @@ class BuildTool
 
    public function createLinker(inXML:Fast,inBase:Linker):Linker
    {
-      var l = (inBase!=null && !inXML.has.replace) ? inBase : new Linker(substitute(inXML.att.exe));
+      var exe:String = inXML.has.exe ? substitute(inXML.att.exe) : null;
+      if (inBase!=null && !inXML.has.replace && inBase.mExe==null)
+         inBase.mExe = exe;
+      var l = (inBase!=null && !inXML.has.replace) ? inBase : new Linker(exe);
       for(el in inXML.elements)
       {
          if (valid(el,""))
@@ -1373,7 +1409,7 @@ class BuildTool
          defines.set("appletv", "appletv");
       }
  
-     
+
 
       if (makefile=="" || Log.verbose)
       {
@@ -1472,6 +1508,21 @@ class BuildTool
          defines.set("apple","apple");
          defines.set("BINDIR","AppleTV");
       }
+      else if (defines.exists("watchos"))
+      {
+         defines.set("toolchain","watchos");
+         defines.set("apple","apple");
+         defines.set("applewatch","applewatch");
+         defines.set("BINDIR","watchos");
+      }
+      else if (defines.exists("watchsimulator"))
+      {
+         defines.set("toolchain","watchsimulator");
+         defines.set("applewatch","applewatch");
+         defines.set("apple","apple");
+         defines.set("BINDIR","watchsimulator");
+      }
+ 
       else if (defines.exists("android"))
       {
          defines.set("toolchain","android");
@@ -1698,6 +1749,30 @@ class BuildTool
                defines.set("TVOS_VER",best);
          }
       }
+
+
+      if (defines.exists("applewatch") && !defines.exists("WATCHOS_VER"))
+      {
+         var dev_path = defines.get("DEVELOPER_DIR") + "/Platforms/WatchOS.platform/Developer/SDKs/";
+         if (FileSystem.exists(dev_path))
+         {
+            var best="";
+            var files = FileSystem.readDirectory(dev_path);
+            var extract_version = ~/^WatchOS(.*).sdk$/;
+            for(file in files)
+            {
+               if (extract_version.match(file))
+               {
+                  var ver = extract_version.matched(1);
+                  if (Std.parseFloat (ver)>Std.parseFloat (best))
+                     best = ver;
+               }
+            }
+            if (best!="")
+               defines.set("WATCHOS_VER",best);
+         }
+      }
+
       
       if (defines.exists("macos") && !defines.exists("MACOSX_VER"))
       {

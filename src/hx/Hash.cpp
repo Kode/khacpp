@@ -165,11 +165,11 @@ bool  __int_hash_remove(Dynamic &ioHash,int inKey)
    return hash->remove(inKey);
 }
 
-Array<Int> __int_hash_keys(Dynamic &ioHash)
+Array<int> __int_hash_keys(Dynamic &ioHash)
 {
    IntHashBase *hash = static_cast<IntHashBase *>(ioHash.GetPtr());
    if (!hash)
-      return Array_obj<Int>::__new();
+      return Array_obj<int>::__new();
    return hash->keys();
 }
 
@@ -409,11 +409,15 @@ typedef hx::Hash< TDynamicElement<int,true> >    WeakDynamicHashInt;
 typedef hx::Hash< TDynamicElement<Float,true> >   WeakDynamicHashFloat;
 typedef hx::Hash< TDynamicElement<String,true> >  WeakDynamicHashString;
 
+#if (HXCPP_API_LEVEL<331)
 inline void toRealObject(Dynamic &ioObject)
 {
    if (ioObject!=null())
       ioObject = ioObject->__GetRealObject();
 }
+#else
+   #define toRealObject(x)
+#endif
 
 }
 

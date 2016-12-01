@@ -4,6 +4,9 @@ os:
   - linux
   - osx
 
+sudo: required
+dist: trusty
+
 install:
   # install dependencies
   - if [ "${TRAVIS_OS_NAME}" = "linux" ]; then
@@ -30,12 +33,13 @@ install:
   # build haxe
   - git clone --recursive https://github.com/HaxeFoundation/haxe.git ~/haxe
   - pushd ~/haxe
-  - make OCAMLOPT=ocamlopt.opt ADD_REVISION=1 && sudo make install
+  - make OCAMLOPT=ocamlopt.opt ADD_REVISION=1 && sudo make install INSTALL_DIR=/usr/local
   - popd
   - haxe -version
   # setup haxelib
   - mkdir ~/haxelib && haxelib setup ~/haxelib
   - haxelib dev hxcpp $TRAVIS_BUILD_DIR
+  - haxelib install record-macros
 
 env:
   - HXCPP_COMPILE_CACHE=~/hxcache
@@ -53,6 +57,6 @@ script:
   - haxe --run RunTests std32
   - haxe --run RunTests std64
   - cd ~/haxe/tests/unit
-  - haxe compile-cpp.hxml -D HXCPP_M32 && ./bin/cpp/Test-debug && rm -rf bin/cpp
-  - haxe compile-cpp.hxml -D HXCPP_M64 && ./bin/cpp/Test-debug
+  - haxe compile-cpp.hxml -D HXCPP_M32 && ./bin/cpp/TestMain-debug && rm -rf bin/cpp
+  - haxe compile-cpp.hxml -D HXCPP_M64 && ./bin/cpp/TestMain-debug
   - haxe compile-cppia.hxml -debug && haxelib run hxcpp ./bin/unit.cppia

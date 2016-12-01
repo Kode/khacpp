@@ -289,6 +289,8 @@ public:
 
    void reserve(int inN) const;
 
+   inline int capacity() const { return mAlloc; }
+
    // Set numeric values to 0, pointers to null, bools to false
    void zero(Dynamic inFirst, Dynamic inCount);
 
@@ -311,6 +313,11 @@ public:
    int getPodSize() const { return mPodSize; }
 
    mutable int length;
+
+   static inline int baseOffset() { return (int)offsetof(ArrayBase,mBase); }
+   static inline int allocOffset() { return (int)offsetof(ArrayBase,mAlloc); }
+   static inline int lengthOffset() { return (int)offsetof(ArrayBase,length); }
+
 protected:
    mutable int mAlloc;
    mutable char  *mBase;
@@ -532,8 +539,6 @@ public:
    { 
       if( idx < 0 ) idx += length; 
       if (idx>=length || idx<0) return false; 
-
-      ELEM_ e = __get(idx); 
       RemoveElement(idx); 
       return true; 
    }
@@ -690,6 +695,13 @@ public:
       return (hx::ArrayStore) hx::ArrayTraits<ELEM_>::StoreType;
    }
 
+   inline ELEM_ &setCtx(hx::Ctx *_hx_ctx, int inIdx, ELEM_ inValue)
+   {
+      ELEM_ &elem = Item(inIdx);
+      HX_ARRAY_WB(this,inIdx,inValue);
+      return elem = inValue;
+   }
+
 
    // Dynamic interface
    #if (HXCPP_API_LEVEL < 330)
@@ -748,6 +760,8 @@ public:
 
    virtual void set(int inIndex, const cpp::Variant &inValue) { Item(inIndex) = ELEM_(inValue); }
    virtual void setUnsafe(int inIndex, const cpp::Variant &inValue) { *(ELEM_ *)(mBase + inIndex*sizeof(ELEM_)) = ELEM_(inValue); }
+
+
    #endif
 };
 
@@ -924,7 +938,6 @@ public:
    inline bool operator==(const cpp::VirtualArray &varray) const { return varray==*this; }
    inline bool operator!=(const cpp::VirtualArray &varray) const { return varray!=*this; }
    #endif
-
 
 
    inline ELEM_ &operator[](int inIdx) { return CheckGetPtr()->Item(inIdx); }

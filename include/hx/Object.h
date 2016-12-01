@@ -5,9 +5,6 @@
 #error "Please include hxcpp.h, not hx/Object.h"
 #endif
 
-#ifdef HXCPP_TELEMETRY
-extern void __hxt_gc_new(void* obj, int inSize, const char *inName);
-#endif
 
 
 // --- Constants -------------------------------------------------------
@@ -42,7 +39,27 @@ typedef Array<Dynamic> DynamicArray;
 HXCPP_EXTERN_CLASS_ATTRIBUTES null BadCast();
 
 #ifdef HXCPP_SCRIPTABLE
-typedef void (*StackExecute)(struct CppiaCtx *ctx);
+
+// CPPIA_CALL = fastcall on x86(32), nothing otherwise
+#if (HXCPP_API_LEVEL >= 331)
+   #if (defined(_WIN32) && !defined(_M_X64) && !defined(__x86_64__) && !defined(_ARM_) ) || \
+      defined(HXCPP_X86) || defined(__i386__) || defined(__i386) || \
+        (!defined(_WIN32) && !defined(_ARM_) && !defined(__arm__) && !defined(__x86_64__) )
+
+      #if defined(__GNUC__) && !defined(__APPLE__)
+         #define CPPIA_CALL __attribute__ ((fastcall))
+      #elif defined(_MSC_VER)
+         #define CPPIA_CALL __fastcall
+      #endif
+   #endif
+#endif
+
+#ifndef CPPIA_CALL
+   #define CPPIA_CALL
+#endif
+
+
+typedef void (CPPIA_CALL *StackExecute)(struct StackContext *ctx);
 struct ScriptFunction
 {
    ScriptFunction(StackExecute inExe=0,const char *inSig=0)
@@ -73,65 +90,30 @@ enum NewObjectType
 class HXCPP_EXTERN_CLASS_ATTRIBUTES Object
 {
 public:
-   // These allocate the function using the garbage-colleced malloc
+   enum { _hx_ClassId = 1 };
+
+
    inline void *operator new( size_t inSize, bool inContainer=true, const char *inName=0 )
    {
       #ifdef HX_USE_INLINE_IMMIX_OPERATOR_NEW
-         ImmixAllocator *alloc =  hx::gMultiThreadMode ? tlsImmixAllocator : gMainThreadAlloc;
+         ImmixAllocator *alloc =  hx::gMultiThreadMode ? tlsStackContext : gMainThreadContext;
 
          #ifdef HXCPP_DEBUG
          if (!alloc)
             BadImmixAlloc();
          #endif
 
-         #ifndef HXCPP_ALIGN_ALLOC
-            // Inline the fast-path if we can
-            // We know the object can hold a pointer (vtable) and that the size is int-aligned
-
-            int start = alloc->spaceStart;
-            int end = start + sizeof(int) + inSize;
-
-            if ( end <= (alloc->spaceEnd WITH_PAUSE_FOR_COLLECT_FLAG ) )
-            {
-               alloc->spaceStart = end;
-
-               int startRow = start>>IMMIX_LINE_BITS;
-
-               alloc->allocStartFlags[ startRow ] |= gImmixStartFlag[start&127];
-               //alloc->allocBase[ startRow ] |= (1<<( (start>>2) & 31) );
-
-               unsigned int *buffer = (unsigned int *)(alloc->allocBase + start);
-
-               if (inContainer)
-                  *buffer++ =  (( (end+(IMMIX_LINE_LEN-1))>>IMMIX_LINE_BITS) -startRow) |
-                               (inSize<<IMMIX_ALLOC_SIZE_SHIFT) |
-                               gMarkIDWithContainer;
-               else
-                  *buffer++ =  (( (end+(IMMIX_LINE_LEN-1))>>IMMIX_LINE_BITS) -startRow) |
-                               (inSize<<IMMIX_ALLOC_SIZE_SHIFT) |
-                               gMarkID;
-
-               #ifdef HXCPP_TELEMETRY
-               __hxt_gc_new(buffer, inSize, inName);
-               #endif
-               return buffer;
-            }
-         #endif // HXCPP_ALIGN_ALLOC
-
-         // Fall back to external method
-         void *result = alloc->CallAlloc(inSize, inContainer ? IMMIX_ALLOC_IS_CONTAINER : 0);
+         return ImmixAllocator::alloc(alloc, inSize, inContainer, inName);
 
       #else // Not HX_USE_INLINE_IMMIX_OPERATOR_NEW ...
 
          void *result = hx::InternalNew(inSize,inContainer);
 
+         #ifdef HXCPP_TELEMETRY
+            __hxt_gc_new(result, inSize, inName);
+         #endif
+         return result;
       #endif
-
-
-      #ifdef HXCPP_TELEMETRY
-         __hxt_gc_new(result, inSize, inName);
-      #endif
-      return result;
    }
 
    inline void *operator new( size_t inSize, hx::NewObjectType inType,  const char *inName=0 )
@@ -147,16 +129,15 @@ public:
    void operator delete( void *, hx::NewObjectType) { }
    void operator delete( void *, hx::NewObjectType, const char * ) { }
 
+   virtual bool _hx_isInstanceOf(int inClassId);
+
    //virtual void *__root();
    virtual void __Mark(hx::MarkContext *__inCtx) { }
    #ifdef HXCPP_VISIT_ALLOCS
    virtual void __Visit(hx::VisitContext *__inCtx) { }
    #endif
-   virtual bool __Is(hx::Object *inClass) const { return true; }
-   virtual hx::Object *__GetRealObject() { return this; }
 
    // helpers...
-   bool __Is(Dynamic inClass ) const;
    inline bool __IsArray() const { return __GetType()==vtArray; }
 
    virtual int __GetType() const { return vtClass; }
@@ -175,11 +156,16 @@ public:
    virtual bool __HasField(const String &inString);
    virtual hx::Val __Field(const String &inString, hx::PropertyAccess inCallProp);
 
+   #if (HXCPP_API_LEVEL <= 330)
+   virtual bool __Is(hx::Object *inClass) const { return true; }
+   virtual hx::Object *__GetRealObject() { return this; }
+   bool __Is(Dynamic inClass ) const;
+   #endif
+
    #if (HXCPP_API_LEVEL >= 330)
    // Non-virtual
    Dynamic __IField(int inFieldID);
    double __INumField(int inFieldID);
-
    virtual void *_hx_getInterface(int inId);
    #else
    virtual hx::Object *__ToInterface(const hx::type_info &inInterface) { return 0; }
@@ -191,8 +177,8 @@ public:
    virtual String __Tag() const;
    virtual int __Index() const;
    virtual void __SetSize(int inLen) { }
-
    #endif
+
    virtual hx::Val __SetField(const String &inField,const hx::Val &inValue, hx::PropertyAccess inCallProp);
 
    virtual void  __SetThis(Dynamic inThis);
@@ -224,8 +210,12 @@ public:
    static hx::ScriptFunction __script_construct;
    #endif
 
+   #if (HXCPP_API_LEVEL>=331)
+   inline bool __compare( hx::Object *inRHS ) { return this!=inRHS; }
+   #else
    inline bool __compare( hx::Object *inRHS )
       { return __GetRealObject()!=inRHS->__GetRealObject(); }
+   #endif
 
    static hx::Class &__SGetClass();
    static void __boot();
@@ -251,10 +241,17 @@ protected:
    {
       if (inPtr)
       {
-         mPtr = dynamic_cast<OBJ_ *>(inPtr->__GetRealObject());
-         #if (HXCPP_API_LEVEL < 330)
-         if (!mPtr)
-            mPtr = (Ptr)inPtr->__ToInterface(typeid(Obj));
+         #if (HXCPP_API_LEVEL>=332)
+            if (inPtr->_hx_isInstanceOf(OBJ_::_hx_ClassId))
+               mPtr = reinterpret_cast<OBJ_ *>(inPtr);
+         #elif (HXCPP_API_LEVEL>=331)
+            mPtr = dynamic_cast<OBJ_ *>(inPtr);
+         #else
+            mPtr = dynamic_cast<OBJ_ *>(inPtr->__GetRealObject());
+            #if (HXCPP_API_LEVEL < 330)
+            if (!mPtr)
+               mPtr = (Ptr)inPtr->__ToInterface(typeid(Obj));
+            #endif
          #endif
          if (inThrowOnInvalid && !mPtr)
             ::hx::BadCast();
