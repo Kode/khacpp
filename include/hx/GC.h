@@ -307,7 +307,7 @@ extern bool gMultiThreadMode;
 
 
 
-class StackContext;
+struct StackContext;
 
 EXTERN_FAST_TLS_DATA(StackContext, tlsStackContext);
 
