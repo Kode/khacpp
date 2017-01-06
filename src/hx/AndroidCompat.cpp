@@ -9,7 +9,7 @@
 // These functions are inlined prior to android-ndk-platform-21, which means they
 // are missing from the libc functions on those phones, and you will get link errors.
 
-#if HXCPP_ANDROID_PLATFORM>=21
+#if 0 && HXCPP_ANDROID_PLATFORM>=21
 extern "C" {
 
 int rand() { return lrand48(); }
