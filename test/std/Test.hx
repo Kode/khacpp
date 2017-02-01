@@ -44,6 +44,13 @@ class Test
    static var errors = new Array<String>();
    static var lastErrorCount = 0;
 
+   var x:Int;
+
+   public function new()
+   {
+      x = 1;
+   }
+
    public static function log(t:String)
    {
       Sys.println(t);
@@ -816,6 +823,35 @@ class Test
       return ok();
    }
 
+   public dynamic function getX() return x;
+
+   public static function testDynamicMember()
+   {
+      log("Test dynamic member");
+      var t = new Test();
+      if (t.getX()!=1)
+         error("Bad dynamic member function");
+      return ok();
+   }
+
+
+   @:noDebug
+   public static function testNoDebug()
+   {
+      log("Test noDebug");
+      // Just testing to see it it compiles...
+      if (  null == new haxe.io.BytesBuffer() )
+         error("Bad alloc");
+      return ok();
+   }
+
+   @:noDebug
+   public static function testNoDebugNoAlloc()
+   {
+      log("Test noDebug, no alloc");
+      return ok();
+   }
+
 
    public static function main()
    {
@@ -844,6 +880,9 @@ class Test
          exitCode |= testSsl();
          exitCode |= testSerialization();
          exitCode |= testFloatReads();
+         exitCode |= testDynamicMember();
+         exitCode |= testNoDebug();
+         exitCode |= testNoDebugNoAlloc();
 
          if (exitCode!=0)
             Sys.println("############# Errors running tests:\n   " + errors.join("\n   ") );

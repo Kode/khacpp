@@ -1091,7 +1091,7 @@ Array<String> String::split(const String &inDelimiter) const
          #endif
       #endif
       {
-         result.Add( substr(last,pos-last) );
+         result->push( substr(last,pos-last) );
          pos += len;
          last = pos;
       }
@@ -1101,7 +1101,7 @@ Array<String> String::split(const String &inDelimiter) const
       }
    }
 
-   result.Add( substr(last,null()) );
+   result->push( substr(last,null()) );
 
    return result;
 }
@@ -1165,7 +1165,7 @@ String String::substring(int startIndex, Dynamic inEndIndex) const
    return substr( startIndex, endIndex - startIndex );
 }
 
-String String::operator+(String inRHS) const
+String String::operator+(const String &inRHS) const
 {
    if (!__s) return HX_CSTRING("null") + inRHS;
    if (!length)
@@ -1185,7 +1185,7 @@ String String::operator+(String inRHS) const
 }
 
 
-String &String::operator+=(String inRHS)
+String &String::operator+=(const String &inRHS)
 {
    if (length==0)
    {
@@ -1215,6 +1215,7 @@ String &String::operator+=(String inRHS)
 struct __String_##func : public hx::Object \
 { \
    bool __IsFunction() const { return true; } \
+   HX_IS_INSTANCE_OF enum { _hx_ClassId = hx::clsIdClosure }; \
    String mThis; \
    __String_##func(const String &inThis) : mThis(inThis) { } \
    String toString() const{ return HX_CSTRING(#func); } \
@@ -1344,7 +1345,7 @@ inline int _wtoi(const wchar_t *inStr)
 class StringData : public hx::Object
 {
 public:
-   enum { _hx_ClassId = 3 };
+   HX_IS_INSTANCE_OF enum { _hx_ClassId = hx::clsIdString };
 
    inline void *operator new( size_t inSize, hx::NewObjectType inAlloc=hx::NewObjContainer)
       { return hx::Object::operator new(inSize,inAlloc); }

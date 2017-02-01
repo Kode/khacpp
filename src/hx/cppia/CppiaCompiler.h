@@ -17,6 +17,10 @@
 #include <vector>
 
 
+#define TRY_NATIVE try {
+#define CATCH_NATIVE } catch(Dynamic e) {  CppiaCtx::getCurrent()->exception = e.mPtr ? e.mPtr : Dynamic(String("",0)).mPtr; }
+
+
 extern "C" struct sljit_jump;
 extern "C" struct sljit_label;
 
@@ -36,7 +40,7 @@ enum JitPosition
    jposStarReg,
    jposPointerVal,
    jposIntVal,
-   jposFloatVal,
+   //jposFloatVal,
 };
 
 enum JitType
@@ -83,18 +87,29 @@ struct JitVal
    }
    JitVal(int inValue)
    {
+      offset = 0;
+      reg0 = 0;
+      reg1 = 0;
       position = jposIntVal;
       type = jtInt;
       iVal = inValue;
    }
+   /*
    JitVal(double inValue)
    {
+      offset = 0;
+      reg0 = 0;
+      reg1 = 0;
       position = jposFloatVal;
       type = jtFloat;
       dVal = inValue;
    }
+   */
    JitVal(void *inValue)
    {
+      offset = 0;
+      reg0 = 0;
+      reg1 = 0;
       position = jposPointerVal;
       type = jtPointer;
       pVal = inValue;
@@ -152,7 +167,7 @@ struct JitThisPos : public JitVal
 
 enum JitCompare
 {
-   // Pointer compare
+   // Pointer compare / String compare
    cmpP_EQUAL =             0,
    cmpP_ZERO =              0,
    cmpP_NOT_EQUAL =         1,
@@ -217,6 +232,16 @@ enum JitCompare
 
 };
 
+enum BitOp
+{
+   bitOpAnd,
+   bitOpOr,
+   bitOpXOr,
+   bitOpUSR,
+   bitOpShiftL,
+   bitOpShiftR,
+};
+
 bool isMemoryVal(const JitVal &inVal);
 
 extern JitReg sJitFrame;
@@ -243,6 +268,8 @@ typedef sljit_jump  *JumpId;
 
 typedef void (SLJIT_CALL *CppiaFunc)(CppiaCtx *inCtx);
 
+typedef std::vector<JumpId> ThrowList;
+
 class CppiaCompiler
 {
 public:
@@ -254,7 +281,6 @@ public:
    virtual void setError(const char *inError) = 0;
    virtual void crash() = 0;
 
-   virtual void allocArgs(int inCount)=0;
    virtual int getCurrentFrameSize() = 0;
    virtual void restoreFrameSize(int inSize) = 0;
    virtual void addFrame(ExprType inType) = 0;
@@ -267,8 +293,10 @@ public:
    virtual JitVal functionArg(int inIndex) = 0;
 
    
-   virtual void convert(const JitVal &inSrc, ExprType inSrcType, const JitVal &inTarget, ExprType inToType) = 0;
+   virtual void convert(const JitVal &inSrc, ExprType inSrcType, const JitVal &inTarget, ExprType inToType, bool asBool=false) = 0;
    virtual void convertResult(ExprType inSrcType, const JitVal &inTarget, ExprType inToType) = 0;
+   virtual void convertReturnReg(ExprType inSrcType, const JitVal &inTarget, ExprType inToType, bool asBool=false) = 0;
+   virtual void genVariantValueTemp0(int inOffset, const JitVal &inDest, ExprType destType) = 0;
    virtual void returnNull(const JitVal &inTarget, ExprType inToType) = 0;
 
    virtual void beginGeneration(int inArgs=1) = 0;
@@ -282,19 +310,27 @@ public:
    virtual void  addBreak() = 0;
    virtual void  setBreakTarget() = 0;
 
+   virtual ThrowList *pushCatching(ThrowList *inCatching) = 0;
+   virtual void  popCatching(ThrowList *) = 0;
+   virtual void  addThrow() = 0;
+   virtual void  checkException() = 0;
+
    // Unconditional
    virtual JumpId jump(LabelId inTo=0) = 0;
    virtual void   jump(const JitVal &inWhere) = 0;
-   // Conditional
+   // Conditional - int/pointer
    virtual JumpId compare(JitCompare condition, const JitVal &v0, const JitVal &v1, LabelId andJump=0) = 0;
-   virtual JumpId fcompare(JitCompare condition, const JitVal &v0, const JitVal &v1, LabelId andJump=0) = 0;
+   // Conditional - Float
+   virtual JumpId fcompare(JitCompare condition, const JitVal &v0, const JitVal &v1, LabelId andJump, bool inReverse) = 0;
+   // Conditional - String
+   virtual JumpId scompare(JitCompare condition, const JitVal &v0, const JitVal &v1, LabelId andJump=0) = 0;
    // Link
    virtual void  comeFrom(JumpId inWhere) = 0;
    virtual LabelId  addLabel() = 0;
 
    inline  JumpId notNull(const JitVal &v0) { return compare(cmpP_NOT_ZERO, v0, (void *)0); }
 
-   virtual void setFramePointer(int inArgStart) = 0;
+   virtual void setMaxPointer() = 0;
 
    // Scriptable?
    virtual void addReturn() = 0;
@@ -305,10 +341,12 @@ public:
    virtual void traceFloat(const char *inLabel, const JitVal &inValue) = 0;
    virtual void traceStrings(const char *inS0, const char *inS1) = 0;
    virtual void traceInt(const char *inLabel, const JitVal &inValue) = 0;
+   virtual void traceString(const char *inLabel, const JitVal &inValue) = 0;
 
-   virtual void set(const JitVal &inDest, const JitVal &inSrc) = 0;
+   virtual void negate(const JitVal &inDest, const JitVal &inSrc) = 0;
    virtual void add(const JitVal &inDest, const JitVal &v0, const JitVal &v1 ) = 0;
-   virtual void bitOr(const JitVal &inDest, const JitVal &v0, const JitVal &v1 ) = 0;
+   virtual void bitOp(BitOp inOp, const JitVal &inDest, const JitVal &v0, const JitVal &v1 ) = 0;
+   virtual void bitNot(const JitVal &inDest, const JitVal &v0 ) = 0;
    virtual void mult(const JitVal &inDest, const JitVal &v0, const JitVal &v1, bool asFloat ) = 0;
    virtual void sub(const JitVal &inDest, const JitVal &v0, const JitVal &v1, bool asFloat ) = 0;
    virtual void fdiv(const JitVal &inDest, const JitVal &v0, const JitVal &v1 ) = 0;
@@ -362,6 +400,26 @@ struct JitTemp : public JitVal
    ~JitTemp()
    {
       compiler->freeTempSize(size);
+   }
+
+   JitVal star(JitType inType=jtPointer, int inOffset=0) { return JitVal(inType, offset+inOffset, jposStar, sLocalReg, 0); }
+   JitVal star(ExprType inType, int inOffset=0) { return JitVal(getJitType(inType), offset+inOffset, jposStar, sLocalReg, 0); }
+
+};
+
+struct JitSave
+{
+   JitTemp temp;
+   JitVal  value;
+
+   JitSave(CppiaCompiler *compiler, const JitVal &val)
+      : temp(compiler, val.type), value(val)
+   {
+      compiler->move(temp, value);
+   }
+   ~JitSave()
+   {
+      temp.compiler->move(value,temp);
    }
 };
 

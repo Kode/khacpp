@@ -55,6 +55,27 @@ struct SubStrExpr : public StringExpr
       else
          return val.substring(start,end);
    }
+   #ifdef CPPIA_JIT
+   static void SLJIT_CALL runSubstr(String *ioValue, int start, hx::Object *end)
+   {
+      *ioValue = ioValue->substr(start, Dynamic(end));
+   }
+   static void SLJIT_CALL runSubstring(String *ioValue, int start, hx::Object *end)
+   {
+      *ioValue = ioValue->substring(start, Dynamic(end));
+   }
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   {
+      JitTemp ioValue(compiler,jtString);
+      JitTemp startVal(compiler,jtInt);
+
+      strVal->genCode(compiler, ioValue, etString);
+      a0->genCode(compiler, startVal, etInt);
+      a1->genCode(compiler, sJitArg2, etObject);
+      compiler->callNative( SUBSTR ? (void *)runSubstr : (void *)runSubstring, ioValue, startVal, sJitArg2.as(jtPointer) );
+      compiler->convert(ioValue, etString, inDest, destType);
+   }
+   #endif
 };
 
 
@@ -72,6 +93,31 @@ struct ToCaseExpr : public StringExpr
       else
          return val.toLowerCase();
    }
+   #ifdef CPPIA_JIT
+   static void SLJIT_CALL strToCase(String *ioVal)
+   {
+      if (UPPER)
+         *ioVal = ioVal->toUpperCase();
+      else
+         *ioVal = ioVal->toLowerCase();
+   }
+
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   {
+      if (destType==etString)
+      {
+         strVal->genCode(compiler, inDest, destType);
+         compiler->callNative( (void *)strToCase,  inDest.as(jtString) );
+      }
+      else
+      {
+         JitTemp tmpVal(compiler,jtString);
+         strVal->genCode(compiler, tmpVal, etString);
+         compiler->callNative( (void *)strToCase,  tmpVal);
+         compiler->convert( tmpVal, etString, inDest, destType );
+      }
+   }
+   #endif
 };
 
 template<bool CODE,bool AS_INT>
@@ -129,6 +175,52 @@ struct CharAtExpr : public StringExpr
       else
          return Dynamic(val.charAt(idx)).mPtr;
    }
+
+   #ifdef CPPIA_JIT
+   static hx::Object *SLJIT_CALL runCharCodeAt(String *inValue, int inIndex)
+   {
+      return (inValue->charCodeAt(inIndex)).mPtr;
+   }
+   static void SLJIT_CALL runCharAt(String *ioValue, int inIndex)
+   {
+      *ioValue = ioValue->charAt(inIndex);
+   }
+
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   {
+      JitTemp value(compiler,jtString);
+      strVal->genCode(compiler, value, etString);
+      a0->genCode(compiler, sJitTemp1, etInt);
+
+      if (CODE)
+      {
+         if (AS_INT)
+         {
+            // sJitTemp1 = __s
+            compiler->move( sJitTemp0.as(jtPointer), value.star(jtPointer,sizeof(int)) );
+            if (destType==etInt)
+            {
+               compiler->move(inDest.as(jtInt), sJitTemp0.atReg(sJitTemp1,0,jtByte) );
+            }
+            else
+            {
+               compiler->move(sJitTemp0.as(jtInt), sJitTemp0.atReg(sJitTemp1,0,jtByte) );
+               compiler->convertReturnReg(etInt, inDest, destType);
+            }
+         }
+         else
+         {
+            compiler->callNative( (void *)runCharCodeAt, value, sJitTemp1.as(jtInt));
+            compiler->convertReturnReg( etObject, inDest, destType);
+         }
+      }
+      else
+      {
+         compiler->callNative( (void *)runCharAt, value, sJitTemp1.as(jtInt));
+         compiler->convert(value, etString, inDest, destType);
+      }
+   }
+   #endif
 };
 
 
@@ -161,6 +253,25 @@ struct SplitExpr : public CppiaExpr
       BCR_CHECK;
       return val.split(separator).mPtr;
    }
+
+
+   #ifdef CPPIA_JIT
+   static hx::Object *SLJIT_CALL runSplit(String *inValue, String *sep)
+   {
+      return (inValue->split(*sep)).mPtr;
+   }
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   {
+      JitTemp value(compiler,jtString);
+      JitTemp sep(compiler,jtString);
+
+      strVal->genCode(compiler, value, etString);
+      a0->genCode(compiler, sep, etString);
+      compiler->callNative( (void *)runSplit, value, sep );
+      compiler->convertReturnReg(etObject, inDest, destType);
+   }
+   #endif
+
 };
 
 
@@ -202,6 +313,30 @@ struct IndexOfExpr : public CppiaExpr
          return val.indexOf(s,first);
    }
    hx::Object *runObject(CppiaCtx *ctx) { return Dynamic(runInt(ctx)).mPtr; }
+
+
+   #ifdef CPPIA_JIT
+   static int SLJIT_CALL runIndexOf(String *ioValue, String *sought, hx::Object *first)
+   {
+      return ioValue->indexOf(*sought, Dynamic(first));
+   }
+   static int SLJIT_CALL runLastIndexOf(String *ioValue, String *sought, hx::Object *first)
+   {
+      return ioValue->lastIndexOf(*sought, Dynamic(first));
+   }
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   {
+      JitTemp value(compiler,jtString);
+      JitTemp soughtTemp(compiler,jtString);
+
+      strVal->genCode(compiler, value, etString);
+      sought->genCode(compiler, soughtTemp, etString);
+      start->genCode(compiler, sJitArg2, etObject);
+      compiler->callNative( LAST ? (void *)runLastIndexOf : (void *)runIndexOf, value, soughtTemp, sJitArg2.as(jtPointer) );
+      compiler->convertReturnReg(etInt, inDest, destType);
+   }
+   #endif
+
 };
 
 

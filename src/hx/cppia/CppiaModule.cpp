@@ -243,6 +243,7 @@ void CppiaConst::fromStream(CppiaStream &stream)
       int strIndex = stream.getInt();
       String val = stream.module->strings[strIndex];
       dval = atof(val.__s);
+      ival = dval;
    }
    else if (tok[0]=='s')
    {
@@ -322,6 +323,12 @@ public:
             DBGLOG("--- Run --------------------------------------------\n");
             CppiaCtx *ctx = CppiaCtx::getCurrent();
             ctx->runVoid(cppia->main);
+            if (ctx->exception)
+            {
+               hx::Object *e = ctx->exception;
+               ctx->exception = 0;
+               hx::Throw( Dynamic(e) );
+            }
          }
          catch(const char *errorString)
          {

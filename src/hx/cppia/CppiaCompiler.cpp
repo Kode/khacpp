@@ -3,7 +3,10 @@
 
 #include "Cppia.h"
 
+
 #include "sljit_src/sljitLir.c"
+
+
 
 namespace hx
 {
@@ -21,10 +24,16 @@ static void SLJIT_CALL my_trace_strings(const char *inText, const char *inValue)
 {
    printf("%s%s\n", inText, inValue); 
 }
+static void SLJIT_CALL my_trace_string(const char *inText, String *inValue)
+{
+   printf("%s%s\n", inText, inValue->__s); 
+}
 
-static void SLJIT_CALL my_trace_ptr_func(const char *inText, void *inPtr)
+static void SLJIT_CALL my_trace_ptr_func(const char *inText, hx::Object **inPtr)
 {
    printf("%s = %p\n",inText, inPtr);
+   //printf("*= %s\n", (*inPtr)->toString().__s);
+   //*(int *)0=0;
 }
 static void SLJIT_CALL my_trace_int_func(const char *inText, int inValue)
 {
@@ -40,7 +49,7 @@ static void SLJIT_CALL my_trace_obj_func(const char *inText, hx::Object *inPtr)
    printf("%s = %s\n",inText, inPtr ? inPtr->__ToString().__s : "NULL" );
 }
 
-static void *SLJIT_CALL intToObj(int inVal)
+static hx::Object *SLJIT_CALL intToObj(int inVal)
 {
    return Dynamic(inVal).mPtr;
 }
@@ -50,17 +59,15 @@ static void SLJIT_CALL intToStr(int inVal, String *outString)
 }
 static void SLJIT_CALL objToStr(hx::Object *inVal, String *outString)
 {
-   *outString = inVal ? inVal->toString() : HX_CSTRING("null");
+   *outString = inVal ? inVal->toString() : String();
 }
-static int SLJIT_CALL objToInt(hx::Object *inVal)
+int SLJIT_CALL objToInt(hx::Object *inVal)
 {
-   // TODO - check pointer
-   return inVal->__ToInt();
+   return inVal ? inVal->__ToInt() : 0;
 }
 static void SLJIT_CALL objToFloat(hx::Object *inVal,double *outFloat)
 {
-   // TODO - check pointer
-   *outFloat =  inVal->__ToDouble();
+   *outFloat =  inVal ? inVal->__ToDouble() : 0.0;
 }
 
 static void *SLJIT_CALL strToObj(String *inStr)
@@ -78,7 +85,36 @@ static void SLJIT_CALL floatToStr(double *inDouble, String *outStr)
 
 }
 
+static hx::Object * SLJIT_CALL variantToObject(cpp::Variant *inVariant)
+{
+   return Dynamic( *inVariant ).mPtr;
+}
 
+
+static int SLJIT_CALL variantToInt(cpp::Variant *inVariant)
+{
+   return *inVariant;
+}
+
+static void SLJIT_CALL variantToFloat(cpp::Variant *inVariant, double *outValue)
+{
+   *outValue = *inVariant;
+}
+
+static void SLJIT_CALL variantToString(cpp::Variant *inVariant, String *outValue)
+{
+   *outValue = *inVariant;
+}
+
+static int SLJIT_CALL strEqual(const String *inS0, const String *inS1)
+{
+   return *inS0 == *inS1;
+}
+
+static int SLJIT_CALL strNotEqual(const String *inS0, const String *inS1)
+{
+   return *inS0 != *inS1;
+}
 
 
 int getJitTypeSize(JitType inType)
@@ -169,19 +205,24 @@ public:
    struct sljit_compiler *compiler;
 
    QuickVec<JumpId> allBreaks;
+   QuickVec<JumpId> uncaught;
    LabelId continuePos;
+   ThrowList *catching;
 
    bool usesCtx;
    bool usesThis;
    bool usesFrame;
+   bool makesNativeCalls;
 
    int localSize;
    int frameSize;
+   int maxFrameSize;
    int baseFrameSize;
 
    int maxTempCount;
    int maxFTempCount;
    int maxLocalSize;
+
 
 
    CppiaJitCompiler(int inFrameSize)
@@ -194,8 +235,10 @@ public:
       usesFrame = false;
       usesThis = false;
       usesCtx = false;
+      makesNativeCalls = false;
       continuePos = 0;
-      frameSize = baseFrameSize = sizeof(void *) + inFrameSize;
+      catching = 0;
+      maxFrameSize = frameSize = baseFrameSize = sizeof(void *) + inFrameSize;
    }
 
 
@@ -220,6 +263,8 @@ public:
    void addFrame(ExprType inType)
    {
       frameSize += getJitTypeSize( getJitType(inType) );
+      if (frameSize>maxFrameSize)
+         maxFrameSize = frameSize;
    }
 
 
@@ -247,17 +292,25 @@ public:
       usesCtx = true;
 
       if (usesFrame)
+      {
          move( sJitFrame, sJitCtxFrame );
+         if (makesNativeCalls)
+             add( sJitCtxPointer, sJitFrame, maxFrameSize );
+      }
 
       if (usesThis)
          move( sJitThis, JitFramePos(0) );
 
       frameSize = baseFrameSize;
-
+      uncaught.setSize(0);
+      catching = 0;
    }
 
    CppiaFunc finishGeneration()
    {
+      for(int i=0;i<uncaught.size();i++)
+         comeFrom(uncaught[i]);
+      uncaught.setSize(0);
       sljit_emit_return(compiler, SLJIT_UNUSED, SLJIT_UNUSED, 0);
       CppiaFunc func = (CppiaFunc)sljit_generate_code(compiler);
       sljit_free_compiler(compiler);
@@ -339,7 +392,7 @@ public:
          sljit_emit_ijump(compiler, SLJIT_CALL0+inArgs, t, getData(inVal));
    }
 
-   JumpId jump(LabelId inTo)
+   JumpId jump(LabelId inTo=0)
    {
       if (compiler)
       {
@@ -374,20 +427,77 @@ public:
    }
 
 
-   JumpId fcompare(JitCompare condition, const JitVal &v0, const JitVal &v1, LabelId andJump)
+   JumpId fcompare(JitCompare condition, const JitVal &v0, const JitVal &v1, LabelId andJump,bool inReverse)
    {
       sljit_sw t0 = getTarget(v0);
       sljit_sw t1 = getTarget(v1);
+      // TODO - multiple JumpId...
       if (compiler)
       {
-         JumpId result = sljit_emit_fcmp(compiler, condition, t0, getData(v0), t1, getData(v1) );
-         if (andJump)
-            sljit_set_label(result, andJump);
-         return result;
+         bool jumpOnNan = condition==cmpD_NOT_EQUAL;
+         if (inReverse)
+         {
+            jumpOnNan = !jumpOnNan;
+            condition = (JitCompare)( (int)condition ^ 0x01 );
+         }
+
+         if (jumpOnNan)
+         {
+            JumpId passed = sljit_emit_fcmp(compiler, condition, t0, getData(v0), t1, getData(v1) );
+
+            // test failed, but test nan
+            JumpId notNan = sljit_emit_jump(compiler,SLJIT_D_ORDERED);
+
+            // is nan - fallthough
+            // test passed, ro was nan
+            comeFrom(passed);
+            JumpId good = sljit_emit_jump(compiler,SLJIT_JUMP);
+            if (andJump)
+               sljit_set_label(good, andJump);
+
+            comeFrom(notNan);
+            return good;
+         }
+         else
+         {
+            JumpId userCmpPassed = sljit_emit_fcmp(compiler, condition, t0, getData(v0), t1, getData(v1) );
+            // user test failed - will also fail with nan, so done.
+            JumpId userCmpFailed = sljit_emit_jump(compiler,SLJIT_JUMP);
+
+            // user test passed - unless nan ...
+            comeFrom(userCmpPassed);
+
+            // Result is not-nan when user test passed
+            JumpId notNan = sljit_emit_jump(compiler,SLJIT_D_ORDERED);
+            if (andJump)
+               sljit_set_label(notNan, andJump);
+            // is nan ..
+
+            comeFrom(userCmpFailed);
+
+            return notNan;
+         }
       }
       return 0;
    }
 
+
+   JumpId scompare(JitCompare condition, const JitVal &v0, const JitVal &v1, LabelId andJump)
+   {
+      switch(condition)
+      {
+         case cmpP_EQUAL:
+            callNative( (void *)strEqual, v0, v1 );
+            break;
+         case cmpP_NOT_EQUAL:
+            callNative( (void *)strNotEqual, v0, v1 );
+            break;
+         default:
+            printf("Unknown string compare\n");
+            *(int *)0=0;
+      }
+      return compare(cmpI_NOT_EQUAL, sJitReturnReg.as(jtInt), (int)0, andJump);
+   }
 
    // Link
    void  comeFrom(JumpId inJump)
@@ -517,7 +627,7 @@ public:
 
          case jposPointerVal:
          case jposIntVal:
-         case jposFloatVal:
+         //case jposFloatVal:
             return SLJIT_IMM;
 
 
@@ -544,12 +654,11 @@ public:
          case jposIntVal:
             return (sljit_sw)inVal.iVal;
 
-         case jposFloatVal:
+         //case jposFloatVal:
             // ? dval pointer?
-            return (sljit_sw)inVal.dVal;
+            //return (sljit_sw)inVal.dVal;
 
          case jposStarReg:
-            // ? dval pointer?
             return (sljit_sw)inVal.offset;
 
          default:
@@ -565,6 +674,8 @@ public:
          return inV1.type;
       if (inV1.type==jtByte || inV2.type==jtByte)
          return jtByte;
+      if (inV1.type==jtShort || inV2.type==jtShort)
+         return jtShort;
 
       // Copying parts into string ...
       if (inV1.type==jtString && inV2.type==jtInt)
@@ -576,6 +687,9 @@ public:
       if (inV1.type==jtPointer && inV2.type==jtString)
          return jtPointer;
 
+      if (inV1.type==jtInt && (inV2.type==jtByte || inV2.type==jtShort))
+         return inV1.type;
+
       if (inV1.type!=inV1.type)
          setError("Type mismatch");
       return inV1.type;
@@ -585,6 +699,7 @@ public:
    // May required indirect offsets
    void move(const JitVal &inDest, const JitVal &inSrc)
    {
+      // TODO - better equality test
       if (inDest==inSrc || !inDest.valid())
          return;
 
@@ -611,6 +726,10 @@ public:
             emit_op1(SLJIT_IMOV_UB, inDest, inSrc);
             break;
 
+         case jtShort:
+            emit_op1(SLJIT_IMOV_UH, inDest, inSrc);
+            break;
+
          case jtString:
             if (!isMemoryVal(inDest) || !isMemoryVal(inSrc))
             {
@@ -619,8 +738,8 @@ public:
             }
             else
             {
-               emit_op1(SLJIT_MOV_SI, inDest, inSrc);
-               emit_op1(SLJIT_MOV_P, inDest + 4, inSrc + 4);
+               emit_op1(SLJIT_MOV_SI, inDest.as(jtInt), inSrc.as(jtInt));
+               emit_op1(SLJIT_MOV_P, inDest.as(jtPointer) + 4, inSrc.as(jtPointer) + 4);
             }
             break;
 
@@ -632,9 +751,9 @@ public:
    }
 
 
-   void setFramePointer(int inArgStart)
+   void setMaxPointer()
    {
-      add( sJitCtxPointer, sJitFrame, inArgStart );
+      add( sJitCtxPointer, sJitFrame, maxFrameSize );
    }
 
    void makeAddress(const JitVal &outAddress, const JitVal &inSrc)
@@ -650,25 +769,38 @@ public:
    }
 
 
-   void convert(const JitVal &inSrc, ExprType inSrcType, const JitVal &inTarget, ExprType inToType)
+   void convert(const JitVal &inSrc, ExprType inSrcType, const JitVal &inTarget, ExprType inToType, bool asBool=false)
    {
       if (!inTarget.valid())
          return;
 
       if (inSrcType==inToType)
       {
-         getTarget(inSrc);
-         getTarget(inTarget);
-         move( inTarget, inSrc );
+         JitType jt = getJitType(inSrcType);
+         getTarget(inSrc.as(jt));
+         getTarget(inTarget.as(jt));
+         move( inTarget.as(jt), inSrc.as(jt) );
       }
       else if (inToType==etObject)
       {
          switch(inSrcType)
          {
             case etInt:
-               callNative( (void *)intToObj, inSrc.as(jtInt));
-               if (inTarget!=sJitReturnReg)
-                  emit_op1(SLJIT_MOV_P, inTarget, sJitReturnReg.as(jtPointer));
+               if (asBool)
+               {
+                  JumpId isFalse = compare( cmpI_ZERO, inSrc.as(jtInt), 0, 0);
+                  move(inTarget.as(jtPointer), (void *)Dynamic(true).mPtr);
+                  JumpId done = jump();
+                  comeFrom(isFalse);
+                  move(inTarget.as(jtPointer), (void *)Dynamic(false).mPtr);
+                  comeFrom(done);
+               }
+               else
+               {
+                  callNative( (void *)intToObj, inSrc.as(jtInt));
+                  if (inTarget!=sJitReturnReg)
+                     emit_op1(SLJIT_MOV_P, inTarget, sJitReturnReg.as(jtPointer));
+               }
                break;
 
             case etFloat:
@@ -685,7 +817,7 @@ public:
                add( sJitArg0, inSrc.getReg().as(jtPointer), inSrc.offset );
                callNative( (void *)strToObj, sJitArg0);
                if (inTarget!=sJitReturnReg)
-                  emit_op1(SLJIT_MOV_P, inTarget, sJitReturnReg);
+                  emit_op1(SLJIT_MOV_P, inTarget, sJitReturnReg.as(jtPointer));
                break;
 
             default:
@@ -697,16 +829,30 @@ public:
          switch(inSrcType)
          {
             case etInt:
-               if (inSrc==sJitTemp1)
+               if (asBool)
                {
-                  move(sJitArg0, inSrc);
-                  add( sJitTemp1, inTarget.getReg(), inTarget.offset );
-                  callNative( (void *)intToStr, sJitArg0.as(jtInt), sJitTemp1.as(jtPointer));
+                  JumpId isFalse = compare( cmpI_ZERO, inSrc.as(jtInt), 0, 0);
+                  move(inTarget.as(jtInt), 4);
+                  move(inTarget.as(jtPointer)+4, (void *)String(true).__s );
+                  JumpId done = jump();
+                  comeFrom(isFalse);
+                  move(inTarget.as(jtInt), 5);
+                  move(inTarget.as(jtPointer)+4, (void *)String(false).__s );
+                  comeFrom(done);
                }
                else
                {
-                  makeAddress(sJitTemp1,inTarget);
-                  callNative( (void *)intToStr, inSrc.as(jtInt), sJitTemp1.as(jtPointer) );
+                  if (inSrc==sJitTemp1)
+                  {
+                     move(sJitArg0, inSrc);
+                     add( sJitTemp1, inTarget.getReg(), inTarget.offset );
+                     callNative( (void *)intToStr, sJitArg0.as(jtInt), sJitTemp1.as(jtPointer));
+                  }
+                  else
+                  {
+                     makeAddress(sJitTemp1,inTarget);
+                     callNative( (void *)intToStr, inSrc.as(jtInt), sJitTemp1.as(jtPointer) );
+                  }
                }
                break;
             case etFloat:
@@ -764,8 +910,13 @@ public:
                }
                break;
 
+            case etFloat:
+               move(inTarget.as(jtFloat), inSrc.as(jtFloat));
+               break;
+
             default:
-               printf("TODO - other to float\n");
+               printf("TODO - other to float (%d)\n", inSrcType);
+               *(int *)0=0;
          }
       }
       else if (inToType==etInt)
@@ -792,6 +943,90 @@ public:
       }
    }
 
+
+   void genVariantValueTemp0(int inOffset, const JitVal &inDest, ExprType destType)
+   {
+      std::vector<JumpId> jumpDone;
+
+      move(sJitTemp1, sJitTemp0.star(jtInt, inOffset + (int)offsetof(cpp::Variant,type) ) );
+      switch(destType)
+      {
+         case etObject:
+            {
+               JumpId isObject = compare(cmpI_EQUAL, sJitTemp1.as(jtInt), (int)cpp::Variant::typeObject, 0);
+
+               // Not object ...
+               add( sJitArg0, sJitTemp0.as(jtPointer), inOffset );
+               callNative( (void *)variantToObject, sJitArg0 );
+               if (inDest!=sJitReturnReg)
+                  move(inDest, sJitReturnReg.as(jtPointer));
+
+               jumpDone.push_back( jump() );
+
+               comeFrom(isObject);
+               move( inDest, sJitTemp0.star(jtPointer, inOffset + (int)offsetof(cpp::Variant,valObject) ) );
+            }
+            break;
+         case etString:
+            {
+            JumpId isString = compare(cmpI_EQUAL, sJitTemp1.as(jtInt), (int)cpp::Variant::typeString, 0);
+
+            // Not string ...
+            add( sJitArg0, sJitTemp0.as(jtPointer), inOffset );
+            callNative( (void *)variantToString, sJitArg0, inDest.as(jtString) );
+            jumpDone.push_back( jump() );
+
+            comeFrom(isString);
+            move( inDest.as(jtInt), sJitTemp0.star(jtInt, inOffset + (int)offsetof(cpp::Variant,valStringLen) ) );
+            move( inDest.as(jtPointer) + sizeof(int), sJitTemp0.star(jtPointer, inOffset + (int)offsetof(cpp::Variant,valStringPtr) ) );
+            }
+            break;
+
+         case etFloat:
+            {
+            JumpId isFloat = compare(cmpI_EQUAL, sJitTemp1.as(jtInt), (int)cpp::Variant::typeDouble, 0);
+
+            JumpId notInt = compare(cmpI_NOT_EQUAL, sJitTemp1.as(jtInt), (int)cpp::Variant::typeInt, 0);
+            // Is int...
+            convert(  sJitTemp0.star(jtInt, inOffset + (int)offsetof(cpp::Variant,valInt) ), etInt, inDest, destType );
+            jumpDone.push_back( jump() );
+
+            comeFrom(notInt);
+            // Not Int/Float ...
+            add( sJitArg0, sJitTemp0.as(jtPointer), inOffset );
+            callNative( (void *)variantToFloat, sJitArg0, inDest.as(jtFloat) );
+            jumpDone.push_back( jump() );
+
+            comeFrom(isFloat);
+            move( inDest.as(jtFloat), sJitTemp0.star(jtFloat, inOffset + (int)offsetof(cpp::Variant,valDouble) ) );
+            }
+            break;
+
+         case etInt:
+            {
+            JumpId isInt = compare(cmpI_EQUAL, sJitTemp1.as(jtInt), (int)cpp::Variant::typeInt, 0);
+
+            // Not Int ...
+            add( sJitArg0, sJitTemp0.as(jtPointer), inOffset );
+            callNative( (void *)variantToInt, sJitArg0 );
+            if (inDest!=sJitReturnReg)
+                move(inDest, sJitReturnReg.as(jtInt));
+            jumpDone.push_back( jump() );
+
+            comeFrom(isInt);
+            move( inDest.as(jtInt), sJitTemp0.star(jtInt, inOffset + (int)offsetof(cpp::Variant,valInt) ) );
+            }
+            break;
+
+         default: ;
+      }
+
+      for(int j=0;j<jumpDone.size();j++)
+         comeFrom(jumpDone[j]);
+   }
+
+
+
    void convertResult(ExprType inSrcType, const JitVal &inTarget, ExprType inToType)
    {
       if (inSrcType!=etVoid && inSrcType!=etNull && inToType!=etVoid && inToType!=etNull)
@@ -800,22 +1035,34 @@ public:
       }
    }
 
+
+   void convertReturnReg(ExprType inSrcType, const JitVal &inTarget, ExprType inToType, bool asBool = false)
+   {
+      if (inSrcType!=etVoid && inSrcType!=etNull && inToType!=etVoid && inToType!=etNull)
+      {
+         convert( sJitReturnReg, inSrcType, inTarget, inToType, asBool);
+      }
+   }
+
    void returnNull(const JitVal &inTarget, ExprType inToType)
    {
       switch(inToType)
       {
          case etObject:
-            move(inTarget, (void *)0);
+            move(inTarget.as(jtPointer), (void *)0);
             break;
          case etString:
-            move(inTarget.as(jtPointer), (int)0);
-            move(inTarget.as(jtInt) + 4, (void *)0);
+            {
+            move(inTarget.as(jtInt), (int)0);
+            move(inTarget.as(jtPointer) + 4, (void *)0);
+            }
             break;
          case etInt:
-            move(inTarget, (int)0);
+            move(inTarget.as(jtInt), (int)0);
             break;
          case etFloat:
-            move(inTarget, JitVal((void *)&sZero).as(jtFloat) );
+            move(sJitTemp0, JitVal((void *)&sZero) );
+            move(inTarget.as(jtFloat), sJitTemp0.star(etFloat) );
             break;
       }
    }
@@ -857,12 +1104,23 @@ public:
    {
       callNative( (void *)my_trace_strings, JitVal( (void *)inS0 ), JitVal( (void *)inS1 ));
    }
-
-
-
-   void set(const JitVal &inDest, const JitVal &inSrc)
+   void traceString(const char *inLabel, const JitVal &inValue)
    {
+      callNative( (void *)my_trace_string, JitVal( (void *)inLabel ), inValue );
    }
+
+   void negate(const JitVal &inDest, const JitVal &inSrc)
+   {
+      if (inSrc.type==jtFloat)
+      {
+         emit_fop1(SLJIT_DNEG, inDest, inSrc);
+      }
+      else
+      {
+         emit_op1(SLJIT_INEG, inDest,  inSrc);
+      }
+   }
+
 
    void add(const JitVal &inDest, const JitVal &v0, const JitVal &v1 )
    {
@@ -886,9 +1144,34 @@ public:
    }
 
 
-   void bitOr(const JitVal &inDest, const JitVal &v0, const JitVal &v1 )
+   void bitNot(const JitVal &inDest, const JitVal &v0)
    {
-     emit_op2(SLJIT_IOR, inDest, v0, v1);
+      emit_op1(SLJIT_INOT, inDest, v0);
+   }
+
+   void bitOp(BitOp inOp, const JitVal &inDest, const JitVal &v0, const JitVal &v1 )
+   {
+      switch(inOp)
+      {
+         case bitOpAnd:
+            emit_op2(SLJIT_AND, inDest, v0, v1);
+            break;
+         case bitOpOr:
+            emit_op2(SLJIT_IOR, inDest, v0, v1);
+            break;
+         case bitOpXOr:
+            emit_op2(SLJIT_IXOR, inDest, v0, v1);
+            break;
+         case bitOpUSR:
+            emit_op2(SLJIT_LSHR, inDest, v0, v1);
+            break;
+         case bitOpShiftL:
+            emit_op2(SLJIT_ISHL, inDest, v0, v1);
+            break;
+         case bitOpShiftR:
+            emit_op2(SLJIT_ASHR, inDest, v0, v1);
+            break;
+      }
    }
 
    void mult(const JitVal &inDest, const JitVal &v0, const JitVal &v1, bool asFloat )
@@ -966,21 +1249,6 @@ public:
    }
 
 
-
-
-   void allocArgs(int inCount)
-   {
-   }
-   /*
-   void call(CppiaFunc func,JitType inReturnType)
-   {
-   }
-
-   void call(const JitVal &func,JitType inReturnType)
-   {
-   }
-   */
-
    void call(const JitVal &func,const JitVal &inArg0)
    {
       move(sJitArg0,inArg0);
@@ -989,6 +1257,7 @@ public:
 
    void callNative(void *func)
    {
+      makesNativeCalls = true;
       if (maxTempCount<1)
          maxTempCount =1;
       if (compiler)
@@ -998,6 +1267,7 @@ public:
    }
    void callNative(void *func, const JitVal &inArg0)
    {
+      makesNativeCalls = true;
       if (maxTempCount<1)
          maxTempCount =1;
       int restoreLocal = -1;
@@ -1025,6 +1295,7 @@ public:
    }
    void callNative(void *func, const JitVal &inArg0, const JitVal &inArg1)
    {
+      makesNativeCalls = true;
       if (maxTempCount<2)
          maxTempCount =2;
 
@@ -1036,6 +1307,12 @@ public:
             add( sJitArg0, inArg0.getReg().as(jtPointer), inArg0.offset);
          else
          {
+            if (inArg0.type==jtString)
+            {
+               printf("Passing string value in register error.\n");
+               *(int *)0=0;
+            }
+ 
             restoreLocal = localSize;
             JitLocalPos temp(allocTemp(jtFloat),jtFloat);
             move( temp, inArg0 );
@@ -1047,12 +1324,17 @@ public:
 
 
 
-      if (inArg1.type==jtFloat || inArg0.type==jtString)
+      if (inArg1.type==jtFloat || inArg1.type==jtString)
       {
          if (isMemoryVal(inArg1))
             add( sJitArg1, inArg1.getReg().as(jtPointer), inArg1.offset);
          else
          {
+            if (inArg1.type==jtString)
+            {
+               printf("Passing string value in register error.\n");
+               *(int *)0=0;
+            }
             restoreLocal = localSize;
             JitLocalPos temp(allocTemp(jtFloat),jtFloat);
             move( temp, inArg1 );
@@ -1074,16 +1356,116 @@ public:
 
    void callNative(void *func, const JitVal &inArg0, const JitVal &inArg1, const JitVal &inArg2)
    {
+      makesNativeCalls = true;
       if (maxTempCount<3)
          maxTempCount =3;
+      int restoreLocal = -1;
 
-      move( sJitArg0, inArg0);
-      move( sJitArg1, inArg1);
-      move( sJitArg2, inArg2);
+      if (inArg0.type==jtFloat || inArg0.type==jtString)
+      {
+         if (isMemoryVal(inArg0))
+            add( sJitArg0, inArg0.getReg().as(jtPointer), inArg0.offset);
+         else
+         {
+            if (inArg0.type==jtString)
+            {
+               printf("Passing string value in register error.\n");
+               *(int *)0=0;
+            }
+ 
+            restoreLocal = localSize;
+            JitLocalPos temp(allocTemp(jtFloat),jtFloat);
+            move( temp, inArg0 );
+            add(sJitArg0, temp.getReg().as(jtPointer), temp.offset);
+         }
+      }
+      else
+         move( sJitArg0, inArg0);
+
+
+
+      if (inArg1.type==jtFloat || inArg1.type==jtString)
+      {
+         if (isMemoryVal(inArg1))
+            add( sJitArg1, inArg1.getReg().as(jtPointer), inArg1.offset);
+         else
+         {
+            if (inArg1.type==jtString)
+            {
+               printf("Passing string value in register error.\n");
+               *(int *)0=0;
+            }
+            restoreLocal = localSize;
+            JitLocalPos temp(allocTemp(jtFloat),jtFloat);
+            move( temp, inArg1 );
+            add(sJitArg1, temp.getReg().as(jtPointer), temp.offset);
+         }
+      }
+      else
+         move( sJitArg1, inArg1);
+
+
+
+      if (inArg2.type==jtFloat || inArg2.type==jtString)
+      {
+         if (isMemoryVal(inArg2))
+            add( sJitArg2, inArg2.getReg().as(jtPointer), inArg2.offset);
+         else
+         {
+            if (inArg2.type==jtString)
+            {
+               printf("Passing string value in register error.\n");
+               *(int *)0=0;
+            }
+            restoreLocal = localSize;
+            JitLocalPos temp(allocTemp(jtFloat),jtFloat);
+            move( temp, inArg2 );
+            add(sJitArg2, temp.getReg().as(jtPointer), temp.offset);
+         }
+      }
+      else
+         move( sJitArg2, inArg2);
+
+
+
+
       if (compiler)
       {
          sljit_emit_ijump(compiler, SLJIT_CALL3, SLJIT_IMM, SLJIT_FUNC_OFFSET(func));
       }
+
+      if (restoreLocal>=0)
+         localSize = restoreLocal;
+   }
+
+   void checkException()
+   {
+      JumpId onException = compare( cmpP_NOT_ZERO,sJitCtx.star(jtPointer, offsetof(hx::StackContext,exception)),(void *)0, 0 );
+      if (catching)
+         catching->push_back( onException );
+      else
+         uncaught.push( onException );
+
+   }
+
+
+   void addThrow()
+   {
+      if (catching)
+         catching->push_back( jump() );
+      else
+         uncaught.push( jump() );
+   }
+
+   ThrowList *pushCatching(ThrowList *inList)
+   {
+      ThrowList *oldList = catching;
+      catching = inList;
+      return oldList;
+   }
+   void popCatching(ThrowList *inList)
+   {
+      catching = inList;
    }
 
 };

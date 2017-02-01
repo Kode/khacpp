@@ -13,7 +13,7 @@
 #define HX_ARG_LIST::ARG:: ::ARG_LIST::::end::
 
 #define HX_DEFINE_DYNAMIC_FUNC0(class,func,ret) \
- ::NS::Dynamic __##class##func(hx::NS::Object *inObj) \
+static ::NS::Dynamic __##class##func(hx::NS::Object *inObj) \
 { \
       ret reinterpret_cast<class *>(inObj)->func(); return  ::NS::Dynamic(); \
 }; \
@@ -24,7 +24,7 @@
 
 
 #define HX_DEFINE_DYNAMIC_FUNC(class,N,func,ret,array_list,dynamic_arg_list,arg_list) \
- ::NS::Dynamic __##class##func(hx::NS::Object *inObj, dynamic_arg_list) \
+static ::NS::Dynamic __##class##func(hx::NS::Object *inObj, dynamic_arg_list) \
 { \
       ret reinterpret_cast<class *>(inObj)->func(arg_list); return  ::NS::Dynamic(); \
 }; \
@@ -35,7 +35,7 @@
 
 
 #define HX_DEFINE_DYNAMIC_FUNC_EXTRA(class,N,func,ret,array_list,dynamic_arg_list,arg_list) \
- ::NS::Dynamic __##class##func(hx::NS::Object *inObj, const Array< ::NS::Dynamic> &inArgs) \
+static ::NS::Dynamic __##class##func(hx::NS::Object *inObj, const Array< ::NS::Dynamic> &inArgs) \
 { \
       ret reinterpret_cast<class *>(inObj)->func(array_list); return  ::NS::Dynamic(); \
 }; \
@@ -74,7 +74,7 @@
 
 
 #define STATIC_HX_DEFINE_DYNAMIC_FUNC0(class,func,ret) \
- ::NS::Dynamic __##class##func() \
+static ::NS::Dynamic __##class##func() \
 { \
       ret class::func(); return  ::NS::Dynamic(); \
 }; \
@@ -85,7 +85,7 @@
 
 
 #define STATIC_HX_DEFINE_DYNAMIC_FUNC(class,N,func,ret,array_list,dynamic_arg_list,arg_list) \
- ::NS::Dynamic __##class##func(dynamic_arg_list) \
+static ::NS::Dynamic __##class##func(dynamic_arg_list) \
 { \
       ret class::func(arg_list); return  ::NS::Dynamic(); \
 }; \
@@ -96,7 +96,7 @@
 
 
 #define STATIC_HX_DEFINE_DYNAMIC_FUNC_EXTRA(class,N,func,ret,array_list,dynamic_arg_list,arg_list) \
- ::NS::Dynamic __##class##func(const Array< ::NS::Dynamic> &inArgs) \
+static ::NS::Dynamic __##class##func(const Array< ::NS::Dynamic> &inArgs) \
 { \
       ret class::func(array_list); return  ::NS::Dynamic(); \
 }; \
@@ -128,6 +128,7 @@
 #define HX_BEGIN_DEFAULT_FUNC(name,t0) \
 	namespace { \
    struct name : public hx::Object { int __GetType() const { return vtFunction; } \
+   HX_IS_INSTANCE_OF enum { _hx_ClassId = hx::clsIdClosure }; \
    hx::ObjectPtr<t0> __this; \
    name(hx::ObjectPtr<t0> __0 = null()) : __this(__0) {} \
    void __Mark(hx::MarkContext *__inCtx) { HX_MARK_MEMBER(__this); } \
@@ -141,6 +142,7 @@
 
 #define HX_BEGIN_LOCAL_FUNC_S0(SUPER,name) \
    struct name : public SUPER { \
+   HX_IS_INSTANCE_OF enum { _hx_ClassId = hx::clsIdClosure }; \
    void __Mark(hx::MarkContext *__inCtx) { DoMarkThis(__inCtx); } \
    void __Visit(hx::VisitContext *__inCtx) { DoVisitThis(__inCtx); } \
    name() {}
@@ -148,6 +150,7 @@
 ::foreach LOCALS::
 #define HX_BEGIN_LOCAL_FUNC_S::ARG::(SUPER,name,::TYPE_ARGS::) \
    struct name : public SUPER { \
+   HX_IS_INSTANCE_OF enum { _hx_ClassId = hx::clsIdClosure }; \
    ::TYPE_DECL::; \
    void __Mark(hx::MarkContext *__inCtx) { DoMarkThis(__inCtx); ::MARKS:: } \
    void __Visit(hx::VisitContext *__inCtx) { DoVisitThis(__inCtx); ::VISITS:: } \

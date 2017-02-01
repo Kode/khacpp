@@ -51,12 +51,13 @@ public:
 
 
 
-class HXCPP_EXTERN_CLASS_ATTRIBUTES VirtualArray_obj : public hx::Object
+class HXCPP_EXTERN_CLASS_ATTRIBUTES VirtualArray_obj : public hx::ArrayCommon
 {
    typedef hx::ArrayStore ArrayStore;
    typedef hx::ArrayBase ArrayBase;
 
 public:
+   HX_IS_INSTANCE_OF enum { _hx_ClassId = hx::clsIdVirtualArray };
 
    typedef hx::Object super;
    ArrayStore  store;
@@ -64,11 +65,13 @@ public:
 
    VirtualArray_obj(ArrayBase *inBase=0, bool inFixed=false) : base(inBase)
    {
+      mArrayConvertId = hx::aciVirtualArray;
       store = inFixed && inBase ? hx::arrayFixed : base ? base->getStoreType() : hx::arrayEmpty;
    }
 
    VirtualArray_obj(ArrayStore inStore)
    {
+      mArrayConvertId = hx::aciVirtualArray;
       store = inStore;
    }
 
@@ -616,8 +619,15 @@ inline bool VirtualArray::operator==( const Array<SOURCE_> &inRHS )
    return mPtr->castArray< Array<SOURCE_> >() == inRHS;
 }
 
+} // end namespace cpp
+
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_reslove_virtual_array(cpp::VirtualArray inArray);
+
+
+
+namespace hx
+{
 // For type inference when marking
-} namespace hx {
 template<> inline void MarkMember(cpp::VirtualArray &outT,hx::MarkContext *__inCtx)
   { HX_MARK_OBJECT(outT.mPtr); }
 
@@ -628,9 +638,10 @@ template<> inline void VisitMember(cpp::VirtualArray &outT,hx::VisitContext *__i
 }
 #endif
 
-} namespace cpp {
+} // end namespace hx
 
+namespace cpp
+{
 #endif // HX_VARRAY_DEFINED
-
-
 }
+
