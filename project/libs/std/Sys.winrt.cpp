@@ -452,13 +452,13 @@ static value sys_stat( value path ) {
 	alloc_field(o,val_id("uid"),alloc_int(0));
 	ui.LowPart = data.ftLastAccessTime.dwLowDateTime;
 	ui.HighPart = data.ftLastAccessTime.dwHighDateTime;
-	alloc_field(o,val_id("atime"),alloc_int32(((double)ui.QuadPart) / 10000000.0 - EPOCH_DIFF));
+	alloc_field(o,val_id("atime"),alloc_int32((int)(((double)ui.QuadPart) / 10000000.0 - EPOCH_DIFF)));
 	ui.LowPart = data.ftLastWriteTime.dwLowDateTime;
 	ui.HighPart = data.ftLastWriteTime.dwHighDateTime;
-	alloc_field(o,val_id("mtime"),alloc_int32(((double)ui.QuadPart) / 10000000.0 - EPOCH_DIFF));
+	alloc_field(o,val_id("mtime"),alloc_int32((int)(((double)ui.QuadPart) / 10000000.0 - EPOCH_DIFF)));
 	ui.LowPart = data.ftCreationTime.dwLowDateTime;
 	ui.HighPart = data.ftCreationTime.dwHighDateTime;
-	alloc_field(o,val_id("ctime"),alloc_int32(((double)ui.QuadPart) / 10000000.0 - EPOCH_DIFF));
+	alloc_field(o,val_id("ctime"),alloc_int32((int)(((double)ui.QuadPart) / 10000000.0 - EPOCH_DIFF)));
 	alloc_field(o,val_id("dev"),alloc_int(dev));
 	alloc_field(o,val_id("ino"),alloc_int(0));
 	int mode = 0;
@@ -516,7 +516,6 @@ static value sys_file_type( value path ) {
 	#ifdef EPPC
 	return alloc_null();
 	#else
-	struct stat s;
 	val_check(path,string);
 	#ifdef NEKO_WINDOWS
 	const wchar_t* _path = val_wstring(path);
@@ -537,6 +536,7 @@ static value sys_file_type( value path ) {
 		return alloc_string("file");
 	}
 	#else
+	struct stat s;
 	gc_enter_blocking();
 	if( stat(val_string(path),&s) != 0 )
 	{

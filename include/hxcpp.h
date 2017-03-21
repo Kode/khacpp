@@ -1,7 +1,8 @@
 #ifndef HXCPP_H
 #define HXCPP_H
 
-#pragma warning( disable : 4018 4244 )
+#pragma warning(disable : 4018 4101 4146 4244 4305)
+
 #if !defined(SYS_WINDOWS) && !defined(SYS_WINDOWSAPP)
 #pragma clang diagnostic ignored "-Wunused-variable"
 #pragma clang diagnostic ignored "-Wunused-value"

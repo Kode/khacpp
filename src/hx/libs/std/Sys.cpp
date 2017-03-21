@@ -11,7 +11,7 @@
 #include <sys/stat.h>
 #endif
 
-
+#pragma warning(disable : 4996)
 
 #ifdef NEKO_WINDOWS
    #include <windows.h>
