@@ -43,6 +43,10 @@
   #include <cstdlib>
 #endif
 
+#if defined(EMSCRIPTEN)
+  #include <emscripten.h>
+#endif
+
 #ifdef __OBJC__
 #ifdef HXCPP_OBJC
   #import <Foundation/Foundation.h>
@@ -64,6 +68,12 @@
 
 #if defined(EMSCRIPTEN)  || defined(_ARM_) || defined(__arm__)
    #define HXCPP_ALIGN_FLOAT
+#endif
+
+// Must allign allocs to 8 bytes to match floating point requirement?
+// Ints must br read on 4-byte boundary
+#ifdef EMSCRIPTEN
+   #define HXCPP_ALIGN_ALLOC
 #endif
 
 #if defined(__LP64__) || defined(_LP64) || defined(_WIN64)

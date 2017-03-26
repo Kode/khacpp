@@ -70,6 +70,10 @@ static size_t sgMaximumFreeSpace  = 200*1024*1024;
 static size_t sgMaximumFreeSpace  = 1024*1024*1024;
 #endif
 
+#ifdef EMSCRIPTEN
+#define HXCPP_STACK_UP
+#endif
+
 
 // #define HXCPP_GC_DEBUG_LEVEL 4
 
@@ -626,10 +630,20 @@ struct BlockDataInfo
       unsigned char *rowMarked = mPtr->mRowMarked;
 
       int r = IMMIX_HEADER_LINES;
-      while(r<(IMMIX_LINES-4) && *(int *)(rowMarked+r)==0 )
-         r += 4;
-      while(r<(IMMIX_LINES) && rowMarked[r]==0)
+      // Count unused rows ....
+     
+      // start on 4-byte boundary...
+      #ifdef HXCPP_ALIGN_ALLOC
+      while(r<4 && rowMarked[r]==0)
          r++;
+      if (!rowMarked[r])
+      #endif
+      {
+         while(r<(IMMIX_LINES-4) && *(int *)(rowMarked+r)==0 )
+            r += 4;
+         while(r<(IMMIX_LINES) && rowMarked[r]==0)
+            r++;
+      }
 
       if (r==IMMIX_LINES)
       {
@@ -703,14 +717,24 @@ struct BlockDataInfo
             {
                int start = r;
                ranges[hole].start = start;
-               while(r<(IMMIX_LINES-4) && *(int *)(rowMarked+r)==0 )
-                  r += 4;
-               while(r<(IMMIX_LINES) && rowMarked[r]==0)
+
+               #ifdef HXCPP_ALIGN_ALLOC
+               int alignR = (r+3) & ~3;
+               while(r<alignR && rowMarked[r]==0)
                   r++;
+               if (!rowMarked[r])
+               #endif
+               {
+                  while(r<(IMMIX_LINES-4) && *(int *)(rowMarked+r)==0 )
+                     r += 4;
+                  while(r<(IMMIX_LINES) && rowMarked[r]==0)
+                     r++;
+               }
                ranges[hole].length = r-start;
                hole++;
             }
          }
+
 
          int freeLines = 0;
          // Convert hole rows to hole bytes...
@@ -2026,6 +2050,7 @@ struct Finalizable
       base = inBase;
       member = inMember;
       pin = inPin;
+      isMember = true;
    }
 
    Finalizable(void *inBase, _hx_alloc_finalizer inAlloc, bool inPin)
@@ -2033,6 +2058,7 @@ struct Finalizable
       base = inBase;
       alloc = inAlloc;
       pin = inPin;
+      isMember = false;
    }
    void run()
    {
@@ -2467,9 +2493,10 @@ void HxFreeGCBlock(void *p) { HxFree(p); }
 int gVerifyVoidCount = 0;
 void VerifyStackRead(int *inBottom, int *inTop)
 {
-   #ifdef EMSCRIPTEN
-   if (inTop<inBottom)
-      std::swap(inBottom,inTop);
+   #ifdef HXCPP_STACK_UP
+   int *start = inTop-1;
+   inTop = inBottom+1;
+   inBottom = start;
    #endif
 
    int n = inTop - inBottom;
@@ -4081,9 +4108,10 @@ void MarkConservative(int *inBottom, int *inTop,hx::MarkContext *__inCtx)
    GCLOG("Mark conservative %p...%p (%d)\n", inBottom, inTop, (int)(inTop-inBottom) );
    #endif
 
-   #ifdef EMSCRIPTEN
-   if (inTop<inBottom)
-      std::swap(inBottom,inTop);
+   #ifdef HXCPP_STACK_UP
+   int *start = inTop-1;
+   inTop = inBottom+1;
+   inBottom = start;
    #endif
 
    if (sizeof(int)==4 && sizeof(void *)==8)
@@ -4166,14 +4194,12 @@ public:
       #ifdef HX_WINDOWS
       mID = GetCurrentThreadId();
       #endif
-
-      onThreadAttach();
    }
 
    ~LocalAllocator()
    {
-      EnterGCFreeZone();
       onThreadDetach();
+      EnterGCFreeZone();
       sGlobalAlloc->RemoveLocal(this);
       hx::tlsStackContext = 0;
 
@@ -4194,7 +4220,6 @@ public:
       // It is in the free zone - wait for 'SetTopOfStack' to activate
       mGCFreeZone = true;
       mReadyForCollect.Set();
-      onThreadAttach();
    }
 
    void ReturnToPool()
@@ -4257,9 +4282,12 @@ public:
          if (!mTopOfStack)
             mTopOfStack = inTop;
          // EMSCRIPTEN the stack grows upwards
-         #ifndef EMSCRIPTEN
          // It could be that the main routine was called from deep with in the stack,
          //  then some callback was called from a higher location on the stack
+         #ifdef HXCPP_STACK_UP
+         else if (inTop < mTopOfStack)
+            mTopOfStack = inTop;
+         #else
          else if (inTop > mTopOfStack)
             mTopOfStack = inTop;
          #endif
@@ -4332,7 +4360,10 @@ public:
       if (!mTopOfStack)
          mTopOfStack = mBottomOfStack;
       // EMSCRIPTEN the stack grows upwards
-      #ifndef EMSCRIPTEN
+      #ifdef HXCPP_STACK_UP
+      if (mBottomOfStack < mTopOfStack)
+         mTopOfStack = mBottomOfStack;
+      #else
       if (mBottomOfStack > mTopOfStack)
          mTopOfStack = mBottomOfStack;
       #endif
@@ -4707,9 +4738,17 @@ void InitAlloc()
    hx::Object tmp;
    void **stack = *(void ***)(&tmp);
    sgObject_root = stack[0];
+
    //GCLOG("__root pointer %p\n", sgObject_root);
    gMainThreadContext =  new LocalAllocator();
+
    tlsStackContext = gMainThreadContext;
+
+   // Setup main thread ...
+   __hxcpp_thread_current();
+
+   gMainThreadContext->onThreadAttach();
+
    for(int i=0;i<IMMIX_LINE_LEN;i++)
       gImmixStartFlag[i] = 1<<( i>>2 ) ;
 }
@@ -4893,7 +4932,9 @@ void RegisterCurrentThread(void *inTopOfStack)
    {
       local->AttachThread((int *)inTopOfStack);
    }
+
    tlsStackContext = local;
+   local->onThreadAttach();
 }
 
 void UnregisterCurrentThread()

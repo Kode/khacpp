@@ -14,6 +14,7 @@ static const char **__all_files_fullpath = 0;
 static const char **__all_classes = 0;
 
 
+#define HXCPP_DEBUG_HASHES
 
 
 
@@ -30,7 +31,7 @@ extern const char *__hxcpp_all_files[];
 // that within a function call, the value of gShouldCallHandleBreakpoints is
 // not cached in a register and thus not properly checked within the function
 // call.
-volatile bool gShouldCallHandleBreakpoints;
+volatile bool gShouldCallHandleBreakpoints = false;
 
 // This is the event notification handler, as registered by the debugger
 // thread.
@@ -281,27 +282,35 @@ public:
         // This thread cannot stop while making the callback
         mCanStop = false;
 
+        mWaitMutex.Lock();
+        mWaiting = true;
+        mWaitMutex.Unlock();
+
         // Call the handler to announce the status.
         StackFrame *frame = mStackContext->getCurrentStackFrame();
+        // Record this before g_eventNotificationHandler is run, since it might change in there
+        mStackContext->mDebugger->mStepLevel = mStackContext->getDepth();
         g_eventNotificationHandler
-            (mThreadNumber, THREAD_STOPPED, mStackContext->getDepth()-1,
+            (mThreadNumber, THREAD_STOPPED, mStackContext->mDebugger->mStepLevel,
              String(frame->position->className), String(frame->position->functionName),
              String(frame->position->fileName), frame->lineNumber);
 
-        // Wait until the debugger thread sets mWaiting to false and signals
-        // the semaphore
-        mWaitMutex.Lock();
-        mWaiting = true;
+        if (mWaiting)
+        {
+           // Wait until the debugger thread sets mWaiting to false and signals
+           // the semaphore
+           mWaitMutex.Lock();
 
-        while (mWaiting) {
-            mWaitMutex.Unlock();
-            hx::EnterGCFreeZone();
-            mWaitSemaphore.Wait();
-            hx::ExitGCFreeZone();
-            mWaitMutex.Lock();
+           while (mWaiting) {
+               mWaitMutex.Unlock();
+               hx::EnterGCFreeZone();
+               mWaitSemaphore.Wait();
+               hx::ExitGCFreeZone();
+               mWaitMutex.Lock();
+           }
+
+           mWaitMutex.Unlock();
         }
-
-        mWaitMutex.Unlock();
 
         // Save the breakpoint status in the call stack so that queries for
         // thread info will know the current status of the thread
@@ -309,7 +318,9 @@ public:
         mBreakpoint = -1;
 
         // Announce the new status
-        g_eventNotificationHandler(mThreadNumber, THREAD_STARTED);
+        Dynamic handler = hx::g_eventNotificationHandler;
+        if (handler!=null())
+           handler(mThreadNumber, THREAD_STARTED);
 
         // Can stop again
         mCanStop = true;
@@ -411,8 +422,7 @@ public:
 
         int ret = gNextBreakpointNumber++;
         
-        Breakpoints *newBreakpoints = new Breakpoints
-            (gBreakpoints, ret, className, functionName);
+        Breakpoints *newBreakpoints = new Breakpoints(gBreakpoints, ret, className, functionName);
         
         gBreakpoints->RemoveRef();
 
@@ -535,7 +545,7 @@ public:
         while (iter != gList.end()) {
             DebuggerContext *stack = *iter++;
             if (stack->mThreadNumber == threadNumber) {
-                gStepLevel = stack->mStackContext->getDepth() - 1;
+                gStepLevel = stack->mStackContext->mDebugger->mStepLevel;
                 stack->Continue(1);
                 break;
             }
@@ -837,7 +847,10 @@ private:
       for (int i = 0; i < mBreakpointCount; i++)
       {
          Breakpoint &breakpoint = mBreakpoints[i];
-         if (breakpoint.isFileLine && breakpoint.hash==inFrame->position->fileHash &&
+         if (breakpoint.isFileLine &&
+             #ifdef HXCPP_DEBUG_HASHES
+             breakpoint.hash==inFrame->position->fileHash &&
+             #endif
              (breakpoint.lineNumber == inFrame->lineNumber) &&
              !strcmp(breakpoint.fileOrClassName.c_str(),inFrame->position->fileName) )
             return breakpoint.number;
@@ -850,7 +863,10 @@ private:
       for (int i = 0; i < mBreakpointCount; i++)
       {
          Breakpoint &breakpoint = mBreakpoints[i];
-         if (!breakpoint.isFileLine && breakpoint.hash==inFrame->position->classFuncHash &&
+         if (!breakpoint.isFileLine &&
+             #ifdef HXCPP_DEBUG_HASHES
+             breakpoint.hash==inFrame->position->classFuncHash &&
+             #endif
              !strcmp(breakpoint.fileOrClassName.c_str(), inFrame->position->className)  &&
              !strcmp(breakpoint.functionName.c_str(), inFrame->position->functionName) )
             return breakpoint.number;
