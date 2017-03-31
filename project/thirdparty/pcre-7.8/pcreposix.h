@@ -128,11 +128,11 @@ file. */
 #  endif
 #endif
 
-#ifdef SYS_IOS
+#ifdef KORE_IOS
 #define HAS_REGEX
 #endif
 
-#ifdef SYS_OSX
+#ifdef KORE_MACOS
 #define HAS_REGEX
 #endif
 
