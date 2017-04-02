@@ -11,7 +11,7 @@
 #include "hx/HeaderVersion.h"
 #endif
 
-#ifdef SYS_CONSOLE
+#ifdef KORE_CONSOLE
 
 #elif defined(HX_WINRT)
 
@@ -118,7 +118,7 @@ inline int HxAtomicDec(volatile int *ioWhere)
 
 #endif
 
-#if defined(SYS_CONSOLE)
+#ifdef KORE_CONSOLE
 
 struct MyMutex
 {
@@ -253,7 +253,7 @@ struct TAutoLock
 
 typedef TAutoLock<HxMutex> AutoLock;
 
-#if defined(SYS_CONSOLE)
+#ifdef KORE_CONSOLE
 
 struct MySemaphore
 {

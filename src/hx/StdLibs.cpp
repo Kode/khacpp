@@ -2,7 +2,7 @@
 #include <hxMath.h>
 #include <hx/Memory.h>
 
-#ifdef SYS_CONSOLE
+#ifdef KORE_CONSOLE
 
 #elif defined(HX_WINDOWS)
 #include <windows.h>
@@ -210,7 +210,7 @@ int __hxcpp_irand(int inMax)
    return (lo | (mid<<12) | (hi<<24) ) % inMax;
 }
 
-#ifdef SYS_WINDOWS
+#ifdef KORE_WINDOWS
 #define fileno _fileno
 #endif
 
@@ -282,7 +282,7 @@ void __hxcpp_exit(int inExitCode)
 
 double  __time_stamp()
 {
-#if defined(SYS_CONSOLE)
+#if defined(KORE_CONSOLE)
    return 0;
 #elif defined(HX_WINDOWS)
    static __int64 t0=0;
@@ -516,7 +516,7 @@ Array<String> __get_args()
    // TODO: Get from java
    #elif defined(__linux__)
    char buf[80];
-#if defined(SYS_CONSOLE) || defined(SYS_PI)
+#if defined(KORE_CONSOLE) || defined(KORE_PI)
    sprintf(buf, "/proc/%d/cmdline", 0);
 #else
    sprintf(buf, "/proc/%d/cmdline", getpid());

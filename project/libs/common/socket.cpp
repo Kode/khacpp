@@ -27,7 +27,7 @@
 #ifdef OS_WINDOWS
 	static int init_done = 0;
 	static WSADATA init_data;
-#elif defined(SYS_CONSOLE)
+#elif defined(KORE_CONSOLE)
 
 #else
 #	include <sys/types.h>
@@ -51,7 +51,7 @@
 #endif
 
 static SERR block_error() {
-#ifdef SYS_CONSOLE
+#ifdef KORE_CONSOLE
 	return PS_ERROR;
 #else
 #ifdef OS_WINDOWS
@@ -76,7 +76,7 @@ void psock_init() {
 
 PSOCK psock_create() {
    AutoGCBlocking block;
-#ifdef SYS_CONSOLE
+#ifdef KORE_CONSOLE
 	return NULL;
 #else
 	PSOCK s = socket(AF_INET,SOCK_STREAM,0);
@@ -97,7 +97,7 @@ PSOCK psock_create() {
 
 void psock_close( PSOCK s ) {
    AutoGCBlocking block;
-#ifdef SYS_CONSOLE
+#ifdef KORE_CONSOLE
 
 #else
 	POSIX_LABEL(close_again);
@@ -113,7 +113,7 @@ int psock_send( PSOCK s, const char *buf, int size ) {
 }
 
 int psock_send_no_gc( PSOCK s, const char *buf, int size ) {
-#ifdef SYS_CONSOLE
+#ifdef KORE_CONSOLE
 	return 0;
 #else
 	int ret;
@@ -133,7 +133,7 @@ int psock_recv( PSOCK s, char *buf, int size ) {
 }
 
 int psock_recv_no_gc( PSOCK s, char *buf, int size ) {
-#ifdef SYS_CONSOLE
+#ifdef KORE_CONSOLE
 	return 0;
 #else
 	int ret;
@@ -149,7 +149,7 @@ int psock_recv_no_gc( PSOCK s, char *buf, int size ) {
 
 PHOST phost_resolve( const char *host ) {
    AutoGCBlocking block;
-#ifdef SYS_CONSOLE
+#ifdef KORE_CONSOLE
 	return 0;
 #else
 	PHOST ip = inet_addr(host);
@@ -173,7 +173,7 @@ PHOST phost_resolve( const char *host ) {
 
 SERR psock_connect( PSOCK s, PHOST host, int port ) {
    AutoGCBlocking block;
-#ifdef SYS_CONSOLE
+#ifdef KORE_CONSOLE
 	return PS_OK;
 #else
 	struct sockaddr_in addr;
@@ -188,7 +188,7 @@ SERR psock_connect( PSOCK s, PHOST host, int port ) {
 }
 
 SERR psock_set_timeout( PSOCK s, double t ) {
-#ifdef SYS_CONSOLE
+#ifdef KORE_CONSOLE
 	return PS_OK;
 #else
 #ifdef OS_WINDOWS
@@ -208,7 +208,7 @@ SERR psock_set_timeout( PSOCK s, double t ) {
 
 
 SERR psock_set_blocking( PSOCK s, int block ) {
-#ifdef SYS_CONSOLE
+#ifdef KORE_CONSOLE
 	return PS_OK;
 #else
 #ifdef OS_WINDOWS
@@ -235,7 +235,7 @@ SERR psock_set_blocking( PSOCK s, int block ) {
 }
 
 SERR psock_set_fastsend( PSOCK s, int fast ) {
-#ifdef SYS_CONSOLE
+#ifdef KORE_CONSOLE
 	return PS_OK;
 #else
 	if( setsockopt(s,IPPROTO_TCP,TCP_NODELAY,(char*)&fast,sizeof(fast)) )
@@ -246,7 +246,7 @@ SERR psock_set_fastsend( PSOCK s, int fast ) {
 
 void psock_wait( PSOCK s ) {
    AutoGCBlocking block;
-#ifdef SYS_CONSOLE
+#ifdef KORE_CONSOLE
 
 #else
 #	ifdef OS_WINDOWS

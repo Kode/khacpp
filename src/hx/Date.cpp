@@ -310,7 +310,7 @@ int __hxcpp_get_utc_day(double inSeconds)
  */
 double __hxcpp_date_now()
 {
-   #ifdef SYS_CONSOLE
+   #ifdef KORE_CONSOLE
    return 0;
    #elif defined(HX_WINDOWS)
    typedef unsigned __int64 uint64_t;

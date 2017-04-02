@@ -39,7 +39,7 @@
 
 #include "bignum.h"
 
-#ifdef SYS_ANDROID
+#ifdef KORE_ANDROID
 #undef MBEDTLS_HAVE_ASM
 #endif
 

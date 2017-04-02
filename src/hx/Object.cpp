@@ -6,7 +6,7 @@
 #include <cpp/CppInt32__.h>
 #include <map>
 
-#ifdef SYS_CONSOLE
+#ifdef KORE_CONSOLE
 
 #elif defined(_WIN32)
 

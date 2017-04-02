@@ -265,7 +265,7 @@ THREAD_FUNC_TYPE hxThreadFunc( void *inInfo )
 	THREAD_FUNC_RET
 }
 
-#ifdef SYS_CONSOLE
+#ifdef KORE_CONSOLE
 Dynamic __hxcpp_thread_create(Dynamic inStart)
 {
 	return hx::Throw(HX_CSTRING("Threads are not yet supported on consoles"));
@@ -492,7 +492,7 @@ public:
 
 	hx::InternalFinalizer *mFinalizer;
 
-	#if defined(HX_WINDOWS) || defined(__SNC__) || defined(SYS_CONSOLE)
+	#if defined(HX_WINDOWS) || defined(__SNC__) || defined(KORE_CONSOLE)
 	double Now()
 	{
 		return 0;

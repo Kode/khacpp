@@ -368,7 +368,7 @@ static value file_contents( value name ) {
 		FileReader file;
 		if (file.open(fname)) {
 			len = static_cast<int>(file.size());
-			#ifdef SYS_WIIU
+			#ifdef KORE_WIIU
 			void* data = file.readAll();
 			Array_obj<unsigned char>* b = new Array_obj<unsigned char>(len, len);
 			memcpy(b->GetBase(), data, len);

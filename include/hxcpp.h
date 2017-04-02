@@ -3,7 +3,7 @@
 
 #pragma warning(disable : 4018 4101 4146 4244 4305)
 
-#if !defined(SYS_WINDOWS) && !defined(SYS_WINDOWSAPP)
+#if !defined(KORE_WINDOWS) && !defined(KORE_WINDOWSAPP)
 #pragma clang diagnostic ignored "-Wunused-variable"
 #pragma clang diagnostic ignored "-Wunused-value"
 #pragma clang diagnostic ignored "-Wunreachable-code"

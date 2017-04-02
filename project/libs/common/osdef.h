@@ -42,7 +42,7 @@
 #	define OS_POSIX
 #endif
 
-#if defined(SYS_PPC)
+#if defined(KORE_PPC)
 #	define LITTLE_ENDIAN 1
 #	define BIG_ENDIAN 2
 #	define BYTE_ORDER BIG_ENDIAN
