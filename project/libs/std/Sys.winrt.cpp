@@ -432,7 +432,7 @@ static value sys_stat( value path ) {
 	value o;
 	val_check(path,string);
 	
-	#ifdef NEKO_WINDOWS
+	#if defined(NEKO_WINDOWS) && !defined(KORE_WINDOWSAPP)
 	const wchar_t* _path = val_wstring(path);
 	gc_enter_blocking();
 	WIN32_FILE_ATTRIBUTE_DATA data;

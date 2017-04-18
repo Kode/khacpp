@@ -435,7 +435,7 @@ void _hx_ssl_conf_set_servername_callback( Dynamic hconf, Dynamic cb ){
 }
 
 Dynamic _hx_ssl_cert_load_defaults(){
-#if defined(NEKO_WINDOWS)
+#if defined(NEKO_WINDOWS) && !defined(KORE_WINDOWSAPP)
 	HCERTSTORE store;
 	PCCERT_CONTEXT cert;
 	sslcert *chain = NULL;

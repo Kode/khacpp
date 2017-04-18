@@ -39,7 +39,7 @@
 #endif
 
 #if !defined(MBEDTLS_NO_PLATFORM_ENTROPY)
-#if defined(_WIN32) && !defined(EFIX64) && !defined(EFI32)
+#if defined(_WIN32) && !defined(EFIX64) && !defined(EFI32) && !defined(KORE_WINDOWSAPP)
 
 #if !defined(_WIN32_WINNT)
 #define _WIN32_WINNT 0x0400
