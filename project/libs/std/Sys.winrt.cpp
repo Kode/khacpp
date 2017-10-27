@@ -284,7 +284,7 @@ static value sys_is64() {
 	<doc>Run the shell command and return exit code</doc>
 **/
 static value sys_command( value cmd ) {
-   #if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(APPLETV)
+   #if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(APPLETV) || defined(IPHONE)
 	return alloc_int( -1 );
    #else
 	val_check(cmd,string);
