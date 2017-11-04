@@ -103,16 +103,17 @@ Dynamic _hx_regexp_new_options(String s, String opt)
    return pdata;
 }
 
-bool _hx_regexp_match(Dynamic handle, String string, int pp, int ll)
+bool _hx_regexp_match(Dynamic handle, String string, int pos, int len)
 {
-   if( pp < 0 || ll < 0 || pp > string.length || pp + ll > string.length )
+   if( pos < 0 || len < 0 || pos > string.length || pos + len > string.length )
       return false;
 
    pcredata *d = PCRE(handle);
 
-   if( pcre_exec(d->r,NULL,string.__s,ll+pp,pp,0,d->matchs,d->nmatchs * 3) >= 0 )
+   if( pcre_exec(d->r,NULL,string.__s,pos+len,pos,0,d->matchs,d->nmatchs * 3) >= 0 )
    {
       d->string = string;
+      HX_OBJ_WB_GET(d, d->string.__s);
       return true;
    }
    else

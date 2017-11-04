@@ -7,7 +7,6 @@
 #include "sljit_src/sljitLir.c"
 
 
-
 namespace hx
 {
 
@@ -199,6 +198,8 @@ JitVal sJitCtxPointer = sJitCtx.star(jtPointer, offsetof(CppiaCtx,pointer));
 
 static double sZero = 0.0;
 
+
+
 class CppiaJitCompiler : public CppiaCompiler
 {
 public:
@@ -208,6 +209,9 @@ public:
    QuickVec<JumpId> uncaught;
    LabelId continuePos;
    ThrowList *catching;
+   OnReturnFunc onReturn;
+   int onReturnStackSize;
+   int lineOffset;
 
    bool usesCtx;
    bool usesThis;
@@ -238,6 +242,9 @@ public:
       makesNativeCalls = false;
       continuePos = 0;
       catching = 0;
+      onReturn = 0;
+      onReturnStackSize = 0;
+      lineOffset = 0;
       maxFrameSize = frameSize = baseFrameSize = sizeof(void *) + inFrameSize;
    }
 
@@ -250,6 +257,22 @@ public:
          compiler = 0;
       }
    }
+
+   int  getBaseSize()
+   {
+      return baseFrameSize;
+   }
+
+   void setLineOffset( int inOffset )
+   {
+      lineOffset = inOffset;
+   }
+   int  getLineOffset( )
+   {
+      return lineOffset;
+   }
+
+
 
    int getCurrentFrameSize()
    {
@@ -311,6 +334,10 @@ public:
       for(int i=0;i<uncaught.size();i++)
          comeFrom(uncaught[i]);
       uncaught.setSize(0);
+
+      if (onReturn)
+         onReturn(this, onReturnStackSize);
+
       sljit_emit_return(compiler, SLJIT_UNUSED, SLJIT_UNUSED, 0);
       CppiaFunc func = (CppiaFunc)sljit_generate_code(compiler);
       sljit_free_compiler(compiler);
@@ -344,7 +371,6 @@ public:
       freeTempSize( getJitTypeSize(inType) );
    }
 
-   
    LabelId setContinuePos(LabelId inNewPos)
    {
       LabelId oldPos = continuePos;
@@ -361,6 +387,12 @@ public:
    {
       allBreaks.push( jump(0) );
    }
+
+   void swapBreakList(QuickVec<JumpId> &ioBreakList)
+   {
+      allBreaks.swap(ioBreakList);
+   }
+   
    void setBreakTarget()
    {
       for(int i=0;i<allBreaks.size();i++)
@@ -377,9 +409,18 @@ public:
    {
    }
 
+   void setOnReturn( OnReturnFunc inFunc, int inStackSize )
+   {
+      onReturn = inFunc;
+      onReturnStackSize = inStackSize;
+   }
+
    // Scriptable?
    void addReturn()
    {
+      if (onReturn)
+         onReturn(this, onReturnStackSize);
+
       if (compiler)
          sljit_emit_return(compiler, SLJIT_UNUSED, SLJIT_UNUSED, 0);
    }
@@ -493,8 +534,7 @@ public:
             callNative( (void *)strNotEqual, v0, v1 );
             break;
          default:
-            printf("Unknown string compare\n");
-            *(int *)0=0;
+            setError("Unknown string compare");
       }
       return compare(cmpI_NOT_EQUAL, sJitReturnReg.as(jtInt), (int)0, andJump);
    }
@@ -566,7 +606,7 @@ public:
 
    void setError(const char *inError)
    {
-      printf("Error: %s\n", inError);
+      throw inError;
    }
 
    void crash()
@@ -633,7 +673,6 @@ public:
 
          case jposDontCare:
             setError("No position specification");
-            *(int *)0=0;
             break;
 
          default:
@@ -734,19 +773,17 @@ public:
             if (!isMemoryVal(inDest) || !isMemoryVal(inSrc))
             {
                setError("Bad string move");
-               *(int *)0=0;
             }
             else
             {
                emit_op1(SLJIT_MOV_SI, inDest.as(jtInt), inSrc.as(jtInt));
-               emit_op1(SLJIT_MOV_P, inDest.as(jtPointer) + 4, inSrc.as(jtPointer) + 4);
+               emit_op1(SLJIT_MOV_P, inDest.as(jtPointer) + offsetof(String,__s), inSrc.as(jtPointer) + offsetof(String,__s));
             }
             break;
 
          case jtVoid:
          case jtUnknown:
             setError("Bad move target");
-            *(int *)0=0;
       }
    }
 
@@ -833,16 +870,16 @@ public:
                {
                   JumpId isFalse = compare( cmpI_ZERO, inSrc.as(jtInt), 0, 0);
                   move(inTarget.as(jtInt), 4);
-                  move(inTarget.as(jtPointer)+4, (void *)String(true).__s );
+                  move(inTarget.as(jtPointer)+offsetof(String,__s), (void *)String(true).__s );
                   JumpId done = jump();
                   comeFrom(isFalse);
                   move(inTarget.as(jtInt), 5);
-                  move(inTarget.as(jtPointer)+4, (void *)String(false).__s );
+                  move(inTarget.as(jtPointer)+offsetof(String,__s), (void *)String(false).__s );
                   comeFrom(done);
                }
                else
                {
-                  if (inSrc==sJitTemp1)
+                  if (inSrc.uses(SLJIT_R1))
                   {
                      move(sJitArg0, inSrc);
                      add( sJitTemp1, inTarget.getReg(), inTarget.offset );
@@ -860,7 +897,7 @@ public:
                callNative( (void *)floatToStr, inSrc.as(jtFloat), sJitTemp1 );
                break;
             case etObject:
-               if (inSrc==sJitTemp1)
+               if (inSrc.uses(SLJIT_R1))
                {
                   move(sJitArg0, inSrc);
                   add( sJitTemp1, inTarget.getReg(), inTarget.offset );
@@ -915,8 +952,7 @@ public:
                break;
 
             default:
-               printf("TODO - other to float (%d)\n", inSrcType);
-               *(int *)0=0;
+               setError("Bad float convert");
          }
       }
       else if (inToType==etInt)
@@ -933,13 +969,12 @@ public:
                break;
 
             default:
-               printf("TODO - other to int\n");
+               setError("Bad int convert");
          }
       }
       else
       {
-         printf("unknown convert %d\n", inToType);
-         *(int *)0=0;
+         setError("Convert not implemented");
       }
    }
 
@@ -978,7 +1013,7 @@ public:
 
             comeFrom(isString);
             move( inDest.as(jtInt), sJitTemp0.star(jtInt, inOffset + (int)offsetof(cpp::Variant,valStringLen) ) );
-            move( inDest.as(jtPointer) + sizeof(int), sJitTemp0.star(jtPointer, inOffset + (int)offsetof(cpp::Variant,valStringPtr) ) );
+            move( inDest.as(jtPointer) + offsetof(String,__s), sJitTemp0.star(jtPointer, inOffset + (int)offsetof(cpp::Variant,valStringPtr) ) );
             }
             break;
 
@@ -1054,7 +1089,7 @@ public:
          case etString:
             {
             move(inTarget.as(jtInt), (int)0);
-            move(inTarget.as(jtPointer) + 4, (void *)0);
+            move(inTarget.as(jtPointer) + offsetof(String,__s), (void *)0);
             }
             break;
          case etInt:
@@ -1136,9 +1171,12 @@ public:
          if (compiler)
             sljit_get_local_base(compiler, tDest, getData(inDest), v1.offset );
       }
+      else if (v0.type==jtPointer)
+      {
+         emit_op2(SLJIT_ADD, inDest, v0, v1);
+      }
       else
       {
-         // SLJIT_ADD ?
          emit_op2(SLJIT_IADD, inDest, v0, v1);
       }
    }
@@ -1154,7 +1192,7 @@ public:
       switch(inOp)
       {
          case bitOpAnd:
-            emit_op2(SLJIT_AND, inDest, v0, v1);
+            emit_op2(SLJIT_IAND, inDest, v0, v1);
             break;
          case bitOpOr:
             emit_op2(SLJIT_IOR, inDest, v0, v1);
@@ -1163,13 +1201,13 @@ public:
             emit_op2(SLJIT_IXOR, inDest, v0, v1);
             break;
          case bitOpUSR:
-            emit_op2(SLJIT_LSHR, inDest, v0, v1);
+            emit_op2(SLJIT_ILSHR, inDest, v0, v1);
             break;
          case bitOpShiftL:
             emit_op2(SLJIT_ISHL, inDest, v0, v1);
             break;
          case bitOpShiftR:
-            emit_op2(SLJIT_ASHR, inDest, v0, v1);
+            emit_op2(SLJIT_IASHR, inDest, v0, v1);
             break;
       }
    }
@@ -1190,7 +1228,7 @@ public:
          }
          else
          {
-            emit_op2(SLJIT_MUL, sJitTemp0, v0.as(jtInt), v1.as(jtInt) );
+            emit_op2(SLJIT_IMUL, sJitTemp0, v0.as(jtInt), v1.as(jtInt) );
             convert( sJitTemp0, etInt, inDest, etFloat );
          }
       }
@@ -1201,7 +1239,7 @@ public:
             emit_fop2(SLJIT_DMUL, inDest, v0, v1 );
          }
          else
-            emit_op2(SLJIT_MUL, inDest, v0, v1 );
+            emit_op2(SLJIT_IMUL, inDest, v0, v1 );
       }
    }
 
@@ -1221,7 +1259,7 @@ public:
          }
          else
          {
-            emit_op2(SLJIT_SUB, sJitTemp0, v0.as(jtInt), v1.as(jtInt) );
+            emit_op2(SLJIT_ISUB, sJitTemp0, v0.as(jtInt), v1.as(jtInt) );
             convert( sJitTemp0, etInt, inDest, etFloat );
          }
       }
@@ -1230,7 +1268,7 @@ public:
          if (isFloat)
             emit_fop2(SLJIT_DSUB, inDest, v0, v1 );
          else
-            emit_op2(SLJIT_SUB, inDest, v0, v1 );
+            emit_op2(SLJIT_ISUB, inDest, v0.as(jtInt), v1.as(jtInt) );
       }
 
    }
@@ -1309,8 +1347,7 @@ public:
          {
             if (inArg0.type==jtString)
             {
-               printf("Passing string value in register error.\n");
-               *(int *)0=0;
+               setError("Passing string value in register error");
             }
  
             restoreLocal = localSize;
@@ -1327,13 +1364,14 @@ public:
       if (inArg1.type==jtFloat || inArg1.type==jtString)
       {
          if (isMemoryVal(inArg1))
+	 {
             add( sJitArg1, inArg1.getReg().as(jtPointer), inArg1.offset);
+	 }
          else
          {
             if (inArg1.type==jtString)
             {
-               printf("Passing string value in register error.\n");
-               *(int *)0=0;
+               setError("Passing string value in register error");
             }
             restoreLocal = localSize;
             JitLocalPos temp(allocTemp(jtFloat),jtFloat);
@@ -1369,8 +1407,7 @@ public:
          {
             if (inArg0.type==jtString)
             {
-               printf("Passing string value in register error.\n");
-               *(int *)0=0;
+               setError("Passing string value in register error");
             }
  
             restoreLocal = localSize;
@@ -1392,8 +1429,7 @@ public:
          {
             if (inArg1.type==jtString)
             {
-               printf("Passing string value in register error.\n");
-               *(int *)0=0;
+               setError("Passing string value in register error");
             }
             restoreLocal = localSize;
             JitLocalPos temp(allocTemp(jtFloat),jtFloat);
@@ -1414,8 +1450,7 @@ public:
          {
             if (inArg2.type==jtString)
             {
-               printf("Passing string value in register error.\n");
-               *(int *)0=0;
+               setError("Passing string value in register error");
             }
             restoreLocal = localSize;
             JitLocalPos temp(allocTemp(jtFloat),jtFloat);

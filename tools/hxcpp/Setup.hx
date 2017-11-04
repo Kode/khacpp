@@ -37,16 +37,16 @@ class Setup
                }
             }
          }
-      
+
       Log.info("", "Found NDK " + result);
 
       if (result=="")
       {
          if (inBaseVersion!=0)
-            Log.error('ANDROID_NDK_DIR "$inDir" does not contain requested NDK $inBaseVersion'); 
+            Log.error('ANDROID_NDK_DIR "$inDir" does not contain requested NDK $inBaseVersion');
          else
-            Log.error('ANDROID_NDK_DIR "$inDir" does not contain a matching NDK'); 
-         //throw 'ANDROID_NDK_DIR "$inDir" does not contain matching ndk downloads.'; 
+            Log.error('ANDROID_NDK_DIR "$inDir" does not contain a matching NDK');
+         //throw 'ANDROID_NDK_DIR "$inDir" does not contain matching ndk downloads.';
       }
 
       return result;
@@ -82,7 +82,7 @@ class Setup
                   var result = Std.parseInt(split2[0]);
                   if(result!=null && result>=8)
                   {
-                     Log.v('Deduced NDK version '+result+' from "$inDirName"/source.properties'); 
+                     Log.v('Deduced NDK version '+result+' from "$inDirName"/source.properties');
                      fin.close();
                      return result;
                   }
@@ -99,7 +99,7 @@ class Setup
       Log.v('Could not deduce NDK version from "$inDirName" - assuming 8');
       return 8;
    }
-   
+
    public static function initHXCPPConfig(ioDefines:Hash<String>)
    {
       var env = Sys.environment();
@@ -118,7 +118,7 @@ class Setup
          //Sys.println("Warning: No 'HOME' variable set - .hxcpp_config.xml might be missing.");
          return;
       }
- 
+
       ioDefines.set("HXCPP_HOME", home);
 
       var  config = toPath(home+"/.hxcpp_config.xml");
@@ -148,7 +148,7 @@ class Setup
       // Setup MINGW_ROOT or fail
       if (!ioDefines.exists("MINGW_ROOT"))
       {
-       
+
          var haxelib = PathManager.getHaxelib("minimingw","",false);
          if (haxelib!=null && haxelib!="")
          {
@@ -171,7 +171,7 @@ class Setup
          if (ioDefines.exists("mingw"))
          {
             //when mingw is explicitly indicated but not properly configured, this log will be shown
-            Log.error('Could not guess MINGW_ROOT (tried $guesses) - please set explicitly');          
+            Log.error('Could not guess MINGW_ROOT (tried $guesses) - please set explicitly');
          }
          else
          {
@@ -231,6 +231,9 @@ class Setup
          // Run it in hxcpp directory so it does not lock the build directory after build finishes
          Sys.setCwd(BuildTool.HXCPP);
          var proc = new Process("mspdbsrv.exe",["-start"]);
+         Tools.addOnExitHook(function(_) {
+           proc.kill();
+         });
       }
       catch(e:Dynamic)
       {
@@ -247,6 +250,7 @@ class Setup
       if (ioDefines.exists("HXCPP_CLEAN_ONLY"))
          return;
 
+      Profile.push("setup " + inWhat);
       if (inWhat=="androidNdk")
       {
          setupAndroidNdk(ioDefines);
@@ -271,17 +275,22 @@ class Setup
       {
          setupEmscripten(ioDefines);
       }
+      else if (inWhat=="nvcc")
+      {
+         BuildTool.setupNvcc();
+      }
       else
       {
          Log.error('Unknown setup feature "$inWhat"');
          //throw 'Unknown setup feature $inWhat';
       }
+      Profile.pop();
    }
 
    static public function setupAndroidNdk(defines:Map<String,String>)
    {
       var root:String = null;
-      
+
       if (Log.verbose) Log.println("");
 
       var found = false;
@@ -317,7 +326,7 @@ class Setup
          root = defines.get("ANDROID_NDK_ROOT");
          Log.info("", "\x1b[33;1mUsing Android NDK root: " + root + "\x1b[0m");
       }
-      
+
       if (!found)
       {
          var version = Setup.getNdkVersion( defines.get("ANDROID_NDK_ROOT") );
@@ -370,7 +379,7 @@ class Setup
          var prebuilt =  root+"/toolchains/"+arm_type+"-" + defines.get("TOOLCHAIN_VERSION") + "/prebuilt";
          var files = FileSystem.readDirectory(prebuilt);
          for (file in files)
-         {  
+         {
             if (!FileSystem.isDirectory (prebuilt + "/" + file))
             {
                files.remove (file);
@@ -448,7 +457,7 @@ class Setup
       {
           Log.error("Could not find BLACKBERRY_NDK_ROOT variable");
       }
-      
+
       var fileName = ioDefines.get ("BLACKBERRY_NDK_ROOT");
       if (BuildTool.isWindows)
       {
@@ -458,7 +467,7 @@ class Setup
       {
          fileName += "/bbndk-env.sh";
       }
-      
+
       if (FileSystem.exists (fileName))
       {
          var fin = sys.io.File.read(fileName, false);
@@ -508,7 +517,7 @@ class Setup
                }
             }
          }
-         catch( ex:Eof ) 
+         catch( ex:Eof )
          {}
          fin.close();
       }
@@ -605,6 +614,7 @@ class Setup
                       :
                         var value = str.substr(pos+1);
                         ioDefines.set(name,value);
+                        Log.v('  msvs $name=$value');
                         Sys.putEnv(name,value);
                   }
                }
@@ -630,7 +640,7 @@ class Setup
                Log.info("Missing HXCPP_VARS");
                //BuildTool.println("Missing HXCPP_VARS");
             }
-            
+
             Log.error("Could not automatically setup MSVC");
             //throw("Could not automatically setup MSVC");
          }

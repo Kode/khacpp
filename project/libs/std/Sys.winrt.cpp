@@ -35,7 +35,7 @@ int __sys_prims() { return 0; }
 #   define _mkdir mkdir
 #ifndef ANDROID
 #	include <locale.h>
-#if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0)
+#if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0) && !defined(__GLIBC__)
 #	include <xlocale.h>
 #endif
 #endif
@@ -284,7 +284,7 @@ static value sys_is64() {
 	<doc>Run the shell command and return exit code</doc>
 **/
 static value sys_command( value cmd ) {
-   #if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(APPLETV)
+   #if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(IPHONE) || defined(APPLETV) || defined(HX_APPLEWATCH)
 	return alloc_int( -1 );
    #else
 	val_check(cmd,string);

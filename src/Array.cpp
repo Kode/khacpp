@@ -23,6 +23,7 @@ ArrayBase::ArrayBase(int inSize,int inReserve,int inElementSize,bool inAtomic)
    if (alloc)
    {
       mBase = (char *)hx::InternalNew(alloc * inElementSize,false);
+      HX_OBJ_WB_GET(this,mBase);
 #ifdef HXCPP_TELEMETRY
       __hxt_new_array(mBase, alloc * inElementSize);
 #endif
@@ -61,7 +62,9 @@ void ArrayBase::reserve(int inSize) const
          __hxt_new_array(mBase, bytes);
          #endif
       }
+
       mAlloc = inSize;
+      HX_OBJ_WB_GET(const_cast<ArrayBase *>(this),mBase);
    }
 }
 
@@ -69,8 +72,55 @@ void ArrayBase::reserve(int inSize) const
 void ArrayBase::Realloc(int inSize) const
 {
    // Try to detect "push" case vs resizing to big array size explicitly by looking at gap
-   int newAlloc = inSize<=mAlloc + 64 ? inSize*3/2 + 10 : inSize;
-   reserve(newAlloc);
+   bool pushCase = (inSize<=mAlloc + 16);
+   if (!pushCase)
+   {
+      reserve(inSize);
+   }
+   else if (pushCase)
+   {
+      int newAlloc = inSize;
+      unsigned int elemSize = GetElementSize();
+      unsigned int minBytes = inSize*elemSize + 8;
+      unsigned int roundup = 64;
+      while(roundup<minBytes)
+         roundup<<=1;
+
+      if (roundup>64)
+      {
+         int half = 3*(roundup>>2);
+         if (minBytes<half)
+            roundup = half;
+      }
+      unsigned int bytes = roundup-8;
+
+      if (mBase)
+      {
+         bool wasUnamanaged = mAlloc<0;
+         if (wasUnamanaged)
+         {
+            char *base=(char *)hx::InternalNew(bytes,false);
+            memcpy(base,mBase,length*GetElementSize());
+            mBase = base;
+         }
+         else
+         {
+            mBase = (char *)hx::InternalRealloc(mBase, bytes, true);
+            int o = bytes;
+            bytes = hx::ObjectSizeSafe(mBase);
+         }
+      }
+      else
+      {
+         mBase = (char *)hx::InternalNew(bytes,false);
+         #ifdef HXCPP_TELEMETRY
+         __hxt_new_array(mBase, bytes);
+         #endif
+      }
+
+      mAlloc = bytes/elemSize;
+      HX_OBJ_WB_GET(const_cast<ArrayBase *>(this),mBase);
+   }
 }
 
 // Set numeric values to 0, pointers to null, bools to false
@@ -128,6 +178,8 @@ void ArrayBase::Blit(int inDestElement, ArrayBase *inSourceArray, int inSourceEl
       memcpy(dest,src,len);
    else
       memmove(dest,src,len);
+
+   HX_OBJ_WB_PESSIMISTIC_GET(this);
 }
 
 
@@ -206,6 +258,7 @@ void ArrayBase::__SetSizeExact(int inSize)
 #endif
       }
       mAlloc = length = inSize;
+      HX_OBJ_WB_GET(this,mBase);
    }
 }
 
@@ -257,6 +310,8 @@ void ArrayBase::Splice(ArrayBase *outResult,int inPos,int inLen)
    {
       outResult->__SetSize(inLen);
       memcpy(outResult->mBase, mBase+inPos*s, s*inLen);
+      // todo - only needed if we have dirty pointer elements
+      HX_OBJ_WB_PESSIMISTIC_GET(outResult);
    }
    memmove(mBase+inPos*s, mBase + (inPos+inLen)*s, (length-(inPos+inLen))*s);
    __SetSize(length-inLen);
@@ -282,6 +337,8 @@ void ArrayBase::Slice(ArrayBase *outResult,int inPos,int inEnd)
       outResult->__SetSize(n);
       int s = GetElementSize();
       memcpy(outResult->mBase, mBase+inPos*s, n*s);
+      // todo - only needed if we have dirty pointer elements
+      HX_OBJ_WB_PESSIMISTIC_GET(outResult);
    }
 }
 
@@ -303,7 +360,7 @@ void ArrayBase::Concat(ArrayBase *outResult,const char *inSecond,int inLen)
    memcpy(ptr,mBase,n);
    ptr += n;
    memcpy(ptr,inSecond,inLen*GetElementSize());
-
+   HX_OBJ_WB_PESSIMISTIC_GET(this);
 }
 
 
@@ -636,7 +693,9 @@ struct VirtualArray_##func : public hx::Object \
    HX_IS_INSTANCE_OF enum { _hx_ClassId = hx::clsIdClosure }; \
    bool __IsFunction() const { return true; } \
    VirtualArray mThis; \
-   VirtualArray_##func(VirtualArray inThis) : mThis(inThis) { } \
+   VirtualArray_##func(VirtualArray inThis) : mThis(inThis) { \
+      HX_OBJ_WB_NEW_MARKED_OBJECT(this); \
+   } \
    String toString() const{ return HX_CSTRING(#func) ; } \
    String __ToString() const{ return HX_CSTRING(#func) ; } \
    int __GetType() const { return vtFunction; } \
@@ -831,6 +890,7 @@ void VirtualArray_obj::MakeIntArray()
       base = result.mPtr;
    }
    store = arrayInt;
+   HX_OBJ_WB_GET(this,base);
 }
 
 
@@ -841,11 +901,15 @@ void VirtualArray_obj::MakeObjectArray()
       // Actually, ok already.
    }
    else if (!base)
+   {
       base = new Array_obj<Dynamic>(0,0);
+      HX_OBJ_WB_GET(this,base);
+   }
    else
    {
       Array<Dynamic> result = Dynamic(base);
       base = result.mPtr;
+      HX_OBJ_WB_GET(this,base);
    }
    store = arrayObject;
 }
@@ -866,6 +930,7 @@ void VirtualArray_obj::MakeStringArray()
       base = result.mPtr;
    }
    store = arrayString;
+   HX_OBJ_WB_GET(this,base);
 }
 
 
@@ -884,6 +949,7 @@ void VirtualArray_obj::MakeBoolArray()
       base = result.mPtr;
    }
    store = arrayBool;
+   HX_OBJ_WB_GET(this,base);
 }
 
 
@@ -902,11 +968,13 @@ void VirtualArray_obj::MakeFloatArray()
       base = result.mPtr;
    }
    store = arrayFloat;
+   HX_OBJ_WB_GET(this,base);
 }
 
 void VirtualArray_obj::CreateEmptyArray(int inLen)
 {
    base = new Array_obj<Dynamic>(inLen,inLen);
+   HX_OBJ_WB_GET(this,base);
 }
 
 void VirtualArray_obj::EnsureBase()
@@ -915,6 +983,7 @@ void VirtualArray_obj::EnsureBase()
    {
       base = new Array_obj<unsigned char>(0,0);
       store = arrayInt;
+      HX_OBJ_WB_GET(this,base);
    }
 }
 

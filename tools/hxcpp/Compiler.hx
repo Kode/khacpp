@@ -13,7 +13,8 @@ private class FlagInfo
    }
    public function add(args:Array<String>, inFilter:Array<String>)
    {
-      if (tag=="" || inFilter.indexOf(tag)>=0)
+      var allowSpace = inFilter.indexOf("nvcc")<0;
+      if ((tag==""&&allowSpace) || inFilter.indexOf(tag)>=0)
          args.push(flag);
    }
    public function toString():String
@@ -29,6 +30,7 @@ class Compiler
 {
    private var mFlags:Array<FlagInfo>;
    public var mCFlags:Array<String>;
+   public var mNvccFlags:Array<String>;
    public var mMMFlags:Array<String>;
    public var mCPPFlags:Array<String>;
    public var mOBJCFlags:Array<String>;
@@ -60,6 +62,7 @@ class Compiler
    {
       mFlags = [];
       mCFlags = [];
+      mNvccFlags = [];
       mCPPFlags = [];
       mOBJCFlags = [];
       mMMFlags = [];
@@ -161,18 +164,27 @@ class Compiler
 
    function getArgs(inFile:File)
    {
-      var args = inFile.mCompilerFlags.concat(inFile.mGroup.mCompilerFlags);
+      var nvcc = inFile.isNvcc();
+      var args = nvcc ? inFile.mGroup.mCompilerFlags.concat( BuildTool.getNvccFlags() ) :
+                       inFile.mCompilerFlags.concat(inFile.mGroup.mCompilerFlags);
       var tagFilter = inFile.getTags().split(",");
       addOptimTags(tagFilter);
       for(flag in mFlags)
          flag.add(args,tagFilter);
-
       var ext = mExt.toLowerCase();
-      var ext = new Path(inFile.mName).ext.toLowerCase();
+      var ext = new Path(inFile.mName).ext;
+      if (ext!=null)
+         ext = ext.toLowerCase();
+      else
+         Log.error("Unkown extension for " + inFile.mName);
+
+
       addIdentity(ext,args);
 
       var allowPch = false;
-      if (ext=="c")
+      if (nvcc)
+         args = args.concat(mNvccFlags);
+      else if (ext=="c")
          args = args.concat(mCFlags);
       else if (ext=="m")
          args = args.concat(mOBJCFlags);
@@ -206,6 +218,8 @@ class Compiler
    {
       var obj_name = getObjName(inFile);
       var args = getArgs(inFile);
+      var nvcc = inFile.isNvcc();
+      var exe = nvcc ? BuildTool.getNvcc() : mExe;
 
       var found = false;
       var cacheName:String = null;
@@ -242,7 +256,7 @@ class Compiler
             headerFunc();
          args.push( (new Path( inFile.mDir + inFile.mName)).toString() );
 
-         var out = mOutFlag;
+         var out = nvcc ? "-o " : mOutFlag;
          if (out.substr(-1)==" ")
          {
             args.push(out.substr(0,out.length-1));
@@ -252,7 +266,7 @@ class Compiler
          args.push(out + obj_name);
 
          var tagInfo = inFile.mTags==null ? "" : " " + inFile.mTags.split(",");
-         
+
          var fileName = inFile.mName;
          var split = fileName.split ("/");
          if (split.length > 1)
@@ -264,7 +278,8 @@ class Compiler
             fileName = " \x1b[2m-\x1b[0m \x1b[33;1m" + fileName + "\x1b[0m";
          }
          fileName += " \x1b[3m" + tagInfo + "\x1b[0m";
-         
+
+
          if (inTid >= 0)
          {
             if (BuildTool.threadExitCode == 0)
@@ -273,7 +288,7 @@ class Compiler
                {
                   Log.info(fileName);
                }
-               var err = ProcessManager.runProcessThreaded(mExe, args, null);
+               var err = ProcessManager.runProcessThreaded(exe, args, null);
                if (err!=0)
                   BuildTool.setThreadError(err);
             }
@@ -284,12 +299,12 @@ class Compiler
             {
                Log.info(fileName);
             }
-            var result = ProcessManager.runProcessThreaded(mExe, args, null);
+            var result = ProcessManager.runProcessThreaded(exe, args, null);
             if (result!=0)
             {
                if (FileSystem.exists(obj_name))
                   FileSystem.deleteFile(obj_name);
-               Sys.exit (result);
+               Tools.exit (result);
                //throw "Error : " + result + " - build cancelled";
             }
          }
@@ -339,7 +354,7 @@ class Compiler
       var path = new Path(inFile.mName);
       var dirId = Md5.encode(BuildTool.targetKey + path.dir + inFile.mGroup.mId).substr(0,8) + "_";
 
-      return PathManager.combine(mObjDir, dirId + path.file + mExt);
+      return PathManager.combine(mObjDir, inFile.mGroup.mObjPrefix + dirId + path.file + mExt);
    }
 
    function getHashedName(inFile:File, args:Array<String>)

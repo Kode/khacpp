@@ -24,6 +24,17 @@
 #define HX_DECLARE_CLASS7(ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) namespace ns7 { HX_DECLARE_CLASS6(ns6,ns5,ns4,ns3,ns2,ns1,klass) }
 #define HX_DECLARE_CLASS8(ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) namespace ns8 { HX_DECLARE_CLASS7(ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) }
 #define HX_DECLARE_CLASS9(ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) namespace ns9 { HX_DECLARE_CLASS8(ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) }
+#define HX_DECLARE_CLASS10(ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) namespace ns10 { HX_DECLARE_CLASS9(ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) }
+#define HX_DECLARE_CLASS11(ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) namespace ns11 { HX_DECLARE_CLASS10(ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) }
+#define HX_DECLARE_CLASS12(ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) namespace ns12 { HX_DECLARE_CLASS11(ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) }
+#define HX_DECLARE_CLASS13(ns13,ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) namespace ns13 { HX_DECLARE_CLASS12(ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) }
+#define HX_DECLARE_CLASS14(ns14,ns13,ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) namespace ns14 { HX_DECLARE_CLASS13(ns13,ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) }
+#define HX_DECLARE_CLASS15(ns15,ns14,ns13,ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) namespace ns15 { HX_DECLARE_CLASS14(ns14,ns13,ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) }
+#define HX_DECLARE_CLASS16(ns16,ns15,ns14,ns13,ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) namespace ns16 { HX_DECLARE_CLASS15(ns15,ns14,ns13,ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) }
+#define HX_DECLARE_CLASS17(ns17,ns16,ns15,ns14,ns13,ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) namespace ns17 { HX_DECLARE_CLASS16(ns16,ns15,ns14,ns13,ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) }
+#define HX_DECLARE_CLASS18(ns18,ns17,ns16,ns15,ns14,ns13,ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) namespace ns18 { HX_DECLARE_CLASS17(ns17,ns16,ns15,ns14,ns13,ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) }
+#define HX_DECLARE_CLASS19(ns19,ns18,ns17,ns16,ns15,ns14,ns13,ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) namespace ns19 { HX_DECLARE_CLASS18(ns18,ns17,ns16,ns15,ns14,ns13,ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) }
+#define HX_DECLARE_CLASS20(ns20,ns19,ns18,ns17,ns16,ns15,ns14,ns13,ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) namespace ns20 { HX_DECLARE_CLASS19(ns19,ns18,ns17,ns16,ns15,ns14,ns13,ns12,ns11,ns10,ns9,ns8,ns7,ns6,ns5,ns4,ns3,ns2,ns1,klass) }
 
 // ---- Enum ----------------------
 
@@ -134,7 +145,11 @@ static  ::Dynamic Create##enum_obj(::String inName,hx::DynamicArray inArgs) \
 #define HX_CHECK_DYNAMIC_GET_INT_FIELD(inID) \
    {  ::Dynamic d;  if (hx::FieldMapGet(&__mDynamicFields,inID,d)) return d; }
 
+#ifdef HXCPP_GC_GENERATIONAL
+#define HX_DYNAMIC_SET_FIELD(inName,inValue) hx::FieldMapSet(this,&__mDynamicFields,inName,inValue) 
+#else
 #define HX_DYNAMIC_SET_FIELD(inName,inValue) hx::FieldMapSet(&__mDynamicFields,inName,inValue) 
+#endif
 
 #define HX_APPEND_DYNAMIC_FIELDS(outFields) hx::FieldMapAppendFields(&__mDynamicFields,outFields)
 

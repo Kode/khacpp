@@ -1,6 +1,7 @@
 #include <hxcpp.h>
 #include <hxMath.h>
 #include <hx/Memory.h>
+#include <hx/Thread.h>
 
 #ifdef KORE_CONSOLE
 
@@ -666,7 +667,9 @@ struct VarArgFunc : public hx::Object
 {
    HX_IS_INSTANCE_OF enum { _hx_ClassId = hx::clsIdClosure };
 
-   VarArgFunc(Dynamic &inFunc) : mRealFunc(inFunc) { }
+   VarArgFunc(Dynamic &inFunc) : mRealFunc(inFunc) {
+     HX_OBJ_WB_NEW_MARKED_OBJECT(this)
+   }
 
    int __GetType() const { return vtFunction; }
    ::String __ToString() const { return mRealFunc->__ToString() ; }
@@ -700,6 +703,7 @@ Dynamic __hxcpp_create_var_args(Dynamic &inArrayFunc)
 
 
 
+static HxMutex sgFieldMapMutex;
 
 typedef std::map<std::string,int> StringToField;
 
@@ -723,6 +727,8 @@ const String &__hxcpp_field_from_id( int f )
 
 int  __hxcpp_field_to_id( const char *inFieldName )
 {
+   AutoLock lock(sgFieldMapMutex);
+
    if (!sgFieldToStringAlloc)
    {
       sgFieldToStringAlloc = 100;
@@ -745,8 +751,14 @@ int  __hxcpp_field_to_id( const char *inFieldName )
 
    if (sgFieldToStringAlloc<=sgFieldToStringSize+1)
    {
+      int oldAlloc = sgFieldToStringAlloc;
+      String *oldData = sgFieldToString;
       sgFieldToStringAlloc *= 2;
-      sgFieldToString = (String *)realloc(sgFieldToString, sgFieldToStringAlloc*sizeof(String));
+      String *newData = (String *)malloc(sgFieldToStringAlloc*sizeof(String));
+      if (oldAlloc)
+         memcpy(newData, oldData, oldAlloc*sizeof(String));
+      // Let oldData dangle to keep it thread safe, rather than require mutex on id read.
+      sgFieldToString = newData;
    }
    sgFieldToString[sgFieldToStringSize++] = str;
    return result;

@@ -8,15 +8,11 @@
 <set name="USE_PRECOMPILED_HEADERS" value="msvc" unless="NO_PRECOMPILED_HEADERS" />
 
 <section if="winrt">
+   <set name="ABI" value="-ZW" unless="ABI" />
    <set name="C_ABI" value="-MD" />
-   <set name="ABI" value="-ZW" unless="ABI || static_link"/>
-   <!-- Note: Default winrt static_link uses native libs. -->
-   <!--       Use -DABI=-ZW for "main", or to force UWP libs (e.g. targeting XBOXONE UWP) -->
-   <set name="ABI" value="-MD" if="static_link" unless="ABI"/>
 </section>
-
 <section unless="winrt">
-   <set name="ABI" value="-MT" unless="ABI"/>
+   <set name="ABI" value="-MT" unless="ABI" />
    <set name="C_ABI" value="${ABI}" />
 </section>
 <set name="CPP_ABI" value="${ABI}" />
@@ -44,6 +40,8 @@
 
 <!-- Seem vc does not know how to start its own pdbserver in 64 bit mode -->
 <setup name="pdbserver" if="HXCPP_DEBUG_LINK HXCPP_HACK_PDBSRV HXCPP_FORCE_PDB_SERVER" />
+
+<set name="MSVC_ARCH" value="SSE2" unless="HXCPP_M64" />
 
 <compiler id="MSVC" exe="cl.exe" if="windows">
   <flag value="-nologo"/>
@@ -88,7 +86,7 @@
   <flag value="-EHs" unless="winrt"/>
   <flag value="-EHsc" if="winrt"/>
   <flag value="-GS-"/>
-  <flag value="-arch:SSE" unless="HXCPP_M64" />
+  <flag value="-arch:${MSVC_ARCH}" if="MSVC_ARCH" />
   <flag value="-I${HXCPP}/include"/>
   <include name="toolchain/common-defines.xml" />
   <flag value="-D_CRT_SECURE_NO_DEPRECATE"/>
@@ -145,7 +143,7 @@
   <flag value="-MANIFEST:NO" />
   <flag value="-WINMD" />
   <flag value="-APPCONTAINER" />
-  <flag value="-WINMDFILE:obj/msvc${MSVC_VER}-rt${OBJEXT}/app.winmd" />
+  <flag value="-WINMDFILE:${MSVC_OBJ_DIR}/app.winmd" />
   <flag value="-DYNAMICBASE" />
   <flag value="-NXCOMPAT" />
   <flag value="-libpath:lib"/>
@@ -159,6 +157,7 @@
   <flag value="-LTCG" if="HXCPP_OPTIMIZE_LINK" unless="debug"/>
   <fromfile value="@"/>
   <flag value="-nologo"/>
+  <flag value="-IGNORE:4264" if="winrt" />
   <ext value="${LIBEXT}"/>
   <outflag value="-out:"/>
 </linker>

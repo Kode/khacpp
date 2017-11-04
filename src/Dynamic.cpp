@@ -40,7 +40,6 @@ hx::Class &GetVoidClass() { return __VoidClass; }
 
 Dynamic DynTrue;
 Dynamic DynFalse;
-Dynamic DynEmptyString;
 
 class IntData : public hx::Object
 {
@@ -253,6 +252,7 @@ public:
    {
       mLength= inLength;
       mValue = InternalNew(inLength,false);
+      HX_OBJ_WB_GET(this, mValue);
       memcpy(mValue, inValue, inLength);
       mHandler = inHandler;
    }
@@ -404,7 +404,8 @@ Dynamic::Dynamic(double inVal)
       if (!mPtr)
          mPtr = sConstDynamicInts[idx].mPtr = new (hx::NewObjConst)IntData(inVal);
    }
-   mPtr = (hx::Object *)new DoubleData(inVal);
+   else
+      mPtr = (hx::Object *)new DoubleData(inVal);
 }
 
 
@@ -417,7 +418,8 @@ Dynamic::Dynamic(cpp::Int64 inVal)
       if (!mPtr)
          mPtr = sConstDynamicInts[idx].mPtr = new (hx::NewObjConst)IntData(inVal);
    }
-   mPtr = (hx::Object *)new Int64Data(inVal);
+   else
+      mPtr = (hx::Object *)new Int64Data(inVal);
 }
 
 
@@ -430,7 +432,8 @@ Dynamic::Dynamic(cpp::UInt64 inVal)
       if (!mPtr)
          mPtr = sConstDynamicInts[idx].mPtr = new (hx::NewObjConst)IntData(inVal);
    }
-   mPtr = (hx::Object *)new Int64Data(inVal);
+   else
+      mPtr = (hx::Object *)new Int64Data(inVal);
 }
 
 
@@ -446,7 +449,7 @@ Dynamic::Dynamic(const cpp::CppInt32__ &inVal) :
   super(  Dynamic(inVal.mValue).mPtr ) { }
 
 Dynamic::Dynamic(const String &inVal) :
-  super( inVal.__s ? (inVal.length==0 ? DynEmptyString.mPtr : inVal.__ToObject() ) : 0 ) { }
+  super( inVal.__s ? inVal.__ToObject() : 0 ) { }
 
 Dynamic::Dynamic(const HX_CHAR *inVal) :
   super( inVal ? String(inVal).__ToObject() : 0 ) { }
@@ -577,50 +580,6 @@ static bool IsInt(hx::Object *inPtr)
    return ((int)val == val);
 }
 
-
-static void sMarkStatics(HX_MARK_PARAMS) {
-	HX_MARK_MEMBER(__VoidClass);
-	HX_MARK_MEMBER(__BoolClass);
-	HX_MARK_MEMBER(__IntClass);
-	HX_MARK_MEMBER(__FloatClass);
-	HX_MARK_MEMBER(__Int64Class);
-	HX_MARK_MEMBER(__PointerClass);
-	HX_MARK_MEMBER(__StringClass);
-	HX_MARK_MEMBER(Object__mClass);
-	HX_MARK_MEMBER(ArrayBase::__mClass);
-	HX_MARK_MEMBER(Math_obj::__mClass);
-	HX_MARK_MEMBER(Anon_obj::__mClass);
-	HX_MARK_MEMBER(hx::hxEnumBase_obj__mClass);
-	HX_MARK_MEMBER(hx::DynEmptyString);
-#ifdef HXCPP_OBJC
-	HX_MARK_MEMBER(__ObjcClass);
-#endif
-};
-
-
-
-#ifdef HXCPP_VISIT_ALLOCS
-static void sVisitStatics(HX_VISIT_PARAMS) {
-	HX_VISIT_MEMBER(__VoidClass);
-	HX_VISIT_MEMBER(__BoolClass);
-	HX_VISIT_MEMBER(__IntClass);
-	HX_VISIT_MEMBER(__FloatClass);
-	HX_VISIT_MEMBER(__Int64Class);
-	HX_VISIT_MEMBER(__PointerClass);
-	HX_VISIT_MEMBER(__StringClass);
-	HX_VISIT_MEMBER(Object__mClass);
-	HX_VISIT_MEMBER(ArrayBase::__mClass);
-	HX_VISIT_MEMBER(Math_obj::__mClass);
-	HX_VISIT_MEMBER(Anon_obj::__mClass);
-	HX_VISIT_MEMBER(hx::hxEnumBase_obj__mClass);
-	HX_VISIT_MEMBER(hx::DynEmptyString);
-#ifdef HXCPP_OBJC
-	HX_VISIT_MEMBER(__ObjcClass);
-#endif
-};
-
-#endif
-
 static Dynamic createEmptyInt64()
 {
    return new Int64Data();
@@ -633,9 +592,9 @@ static Dynamic createInt64(hx::DynamicArray inArgs)
 
 void Dynamic::__boot()
 {
-   Static(__VoidClass) = hx::_hx_RegisterClass(HX_CSTRING("Void"),NoCast,sNone,sNone,0,0,0, 0, sMarkStatics
+   Static(__VoidClass) = hx::_hx_RegisterClass(HX_CSTRING("Void"),NoCast,sNone,sNone,0,0,0, 0, 0
       #ifdef HXCPP_VISIT_ALLOCS
-      ,sVisitStatics
+      ,0
       #endif
    );
    Static(__BoolClass) = hx::_hx_RegisterClass(HX_CSTRING("Bool"),TCanCast<BoolData>,sNone,sNone, 0,0, 0);
@@ -648,7 +607,6 @@ void Dynamic::__boot()
    Static(__PointerClass) = hx::_hx_RegisterClass(HX_CSTRING("cpp::Pointer"),IsPointer,sNone,sNone, 0,0,&__PointerClass );
    DynTrue = Dynamic( new (hx::NewObjConst) hx::BoolData(true) );
    DynFalse = Dynamic( new (hx::NewObjConst) hx::BoolData(false) );
-   DynEmptyString = Dynamic(HX_CSTRING("").__ToObject());
 #ifdef HXCPP_OBJC
    Static(__ObjcClass) = hx::_hx_RegisterClass(HX_CSTRING("objc::BoxedType"),IsPointer,sNone,sNone, 0,0,&__ObjcClass );
 #endif

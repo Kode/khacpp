@@ -157,6 +157,7 @@ public:
       mBase = (char *)inData;
       length = inElements;
       mAlloc = inElements;
+      HX_OBJ_WB_PESSIMISTIC_GET(this);
    }
 
    void setUnmanagedData(void *inData, int inElements)
@@ -193,6 +194,7 @@ public:
       mBase = (char *)inString.__s;
       length = inString.length / GetElementSize();
       mAlloc = length;
+      HX_OBJ_WB_PESSIMISTIC_GET(this);
    }
 
    
@@ -387,12 +389,18 @@ template<> inline bool TypeContainsPointers(bool *) { return false; }
 template<> inline bool TypeContainsPointers(int *) { return false; }
 template<> inline bool TypeContainsPointers(double *) { return false; }
 template<> inline bool TypeContainsPointers(float *) { return false; }
+template<> inline bool TypeContainsPointers(short *) { return false; }
 template<> inline bool TypeContainsPointers(unsigned char *) { return false; }
 
 template<typename TYPE> inline bool ContainsPointers()
 {
    return TypeContainsPointers( (TYPE *)0 );
 }
+
+inline const void *PointerOf(Dynamic &d) { return d.mPtr; }
+inline const void *PointerOf(String &s) { return s.__s; }
+inline const void *PointerOf(...) { return 0; }
+
 
 
 // For returning "null" when out of bounds ...
@@ -439,6 +447,7 @@ public:
 
    // Defined later so we can use "Array"
    static Array<ELEM_> __new(int inSize=0,int inReserve=0);
+   static Array<ELEM_> __newConstWrapper(ELEM_ *inData,int inSize);
    static Array<ELEM_> fromData(const ELEM_ *inData,int inCount);
 
 
@@ -473,8 +482,9 @@ public:
    inline ELEM_ &__unsafe_get(int inIndex) { return * (ELEM_ *)(mBase + inIndex*sizeof(ELEM_)); }
 
 
-   inline ELEM_ & __unsafe_set(int inIndex, const ELEM_ &inValue)
+   inline ELEM_ & __unsafe_set(int inIndex, ELEM_ inValue)
    {
+      if (hx::ContainsPointers<ELEM_>()) { HX_OBJ_WB_GET(this, hx::PointerOf(inValue)); }
       return * (ELEM_ *)(mBase + inIndex*sizeof(ELEM_)) = inValue;
    }
 
@@ -490,6 +500,10 @@ public:
       EnsureSize(inStart+inElements);
       int s = GetElementSize();
       ::memcpy(mBase + s*inStart, inData, s*inElements);
+      if (hx::ContainsPointers<ELEM_>())
+      {
+         HX_OBJ_WB_PESSIMISTIC_GET(this);
+      }
    }
 
 
@@ -537,17 +551,37 @@ public:
    }
 
    Array_obj<ELEM_> *Add(const ELEM_ &inItem) { push(inItem); return this; }
-   Array<ELEM_> init(int inIndex, const ELEM_ &inValue)
+
+   Array<ELEM_> init(int inIndex, ELEM_ inValue)
    {
       * (ELEM_ *)(mBase + inIndex*sizeof(ELEM_)) = inValue;
+      #ifdef HXCPP_GC_GENERATIONAL
+      if (hx::ContainsPointers<ELEM_>())
+         { HX_OBJ_WB_GET(this, hx::PointerOf(inValue)); }
+      #endif
       return this;
    }
 
+
+   #ifdef HXCPP_GC_GENERATIONAL
+   inline int pushCtx(hx::StackContext *_hx_ctx, ELEM_ inVal )
+   {
+      int l = length;
+      EnsureSize((int)l+1);
+      * (ELEM_ *)(mBase + l*sizeof(ELEM_)) = inVal;
+      if (hx::ContainsPointers<ELEM_>()) { HX_ARRAY_WB(this,inIdx, hx::PointerOf(inVal) ); }
+      return length;
+   }
+   #endif
 
 
    // Haxe API
    inline int push( ELEM_ inVal )
    {
+      #ifdef HXCPP_GC_GENERATIONAL
+      if (hx::ContainsPointers<ELEM_>())
+         return pushCtx(HX_CTX_GET,inVal);
+      #endif
       int l = length;
       EnsureSize((int)l+1);
       * (ELEM_ *)(mBase + l*sizeof(ELEM_)) = inVal;
@@ -669,6 +703,10 @@ public:
 			inPos = length;
 		hx::ArrayBase::Insert(inPos);
       Item(inPos) = inValue;
+      #ifdef HXCPP_GC_GENERATIONAL
+      if (hx::ContainsPointers<ELEM_>())
+         { HX_OBJ_WB_GET(this,hx::PointerOf(inValue)); }
+      #endif
    }
 
    void unshift(ELEM_ inValue)
@@ -746,10 +784,10 @@ public:
       return (hx::ArrayStore) hx::ArrayTraits<ELEM_>::StoreType;
    }
 
-   inline ELEM_ &setCtx(hx::Ctx *_hx_ctx, int inIdx, ELEM_ inValue)
+   inline ELEM_ &setCtx(hx::StackContext *_hx_ctx, int inIdx, ELEM_ inValue)
    {
       ELEM_ &elem = Item(inIdx);
-      HX_ARRAY_WB(this,inIdx,inValue);
+      HX_ARRAY_WB(this,inIdx, hx::PointerOf(inValue) );
       return elem = inValue;
    }
 
@@ -810,7 +848,11 @@ public:
    virtual void __qsort(Dynamic inCompare) { this->qsort(inCompare); };
 
    virtual void set(int inIndex, const cpp::Variant &inValue) { Item(inIndex) = ELEM_(inValue); }
-   virtual void setUnsafe(int inIndex, const cpp::Variant &inValue) { *(ELEM_ *)(mBase + inIndex*sizeof(ELEM_)) = ELEM_(inValue); }
+   virtual void setUnsafe(int inIndex, const cpp::Variant &inValue) {
+      ELEM_ &elem = *(ELEM_ *)(mBase + inIndex*sizeof(ELEM_)) = ELEM_(inValue);
+      elem = ELEM_(inValue);
+      if (hx::ContainsPointers<ELEM_>()) { HX_OBJ_WB_GET(this,hx::PointerOf(elem)); }
+   }
 
 
    #endif
@@ -1005,6 +1047,17 @@ public:
 template<typename ELEM_>
 Array<ELEM_> Array_obj<ELEM_>::__new(int inSize,int inReserve)
  { return  Array<ELEM_>(new Array_obj(inSize,inReserve)); }
+
+
+template<typename ELEM_>
+Array<ELEM_> Array_obj<ELEM_>::__newConstWrapper(ELEM_ *inData,int inSize)
+{
+   Array_obj<ELEM_> temp(0,0);
+   Array_obj<ELEM_> *result = (Array_obj<ELEM_> *)hx::InternalCreateConstBuffer(&temp,sizeof(temp));
+   result->setUnmanagedData(inData, inSize);
+   return result;
+}
+
 
 template<typename ELEM_>
 Array<ELEM_> Array_obj<ELEM_>::fromData(const ELEM_ *inData,int inCount)

@@ -36,12 +36,6 @@ struct Deque : public Array_obj<Dynamic>
 		mSemaphore.Clean();
 	}
 
-	void __Mark(hx::MarkContext *__inCtx)
-	{
-		Array_obj<Dynamic>::__Mark(__inCtx);
-		mFinalizer->Mark();
-	}
-
    #ifdef HXCPP_VISIT_ALLOCS
   	void __Visit(hx::VisitContext *__inCtx)
 	{
@@ -175,20 +169,18 @@ public:
 	{
 		mSemaphore = new HxSemaphore;
 		mDeque = Deque::Create();
+      HX_OBJ_WB_NEW_MARKED_OBJECT(this);
 	}
 	hxThreadInfo()
 	{
 		mSemaphore = 0;
 		mDeque = Deque::Create();
+      HX_OBJ_WB_NEW_MARKED_OBJECT(this);
 	}
     int GetThreadNumber() const
     {
         return mThreadNumber;
     }
-	void Clean()
-	{
-		mDeque->Clean();
-	}
 	void CleanSemaphore()
 	{
 		delete mSemaphore;
@@ -202,7 +194,9 @@ public:
 	{
 		return mDeque->PopFront(inBlocked);
 	}
-	void SetTLS(int inID,Dynamic inVal) { mTLS[inID] = inVal; }
+	void SetTLS(int inID,Dynamic inVal) {
+      mTLS->__SetItem(inID,inVal);
+   }
 	Dynamic GetTLS(int inID) { return mTLS[inID]; }
 
 	void __Mark(hx::MarkContext *__inCtx)
@@ -405,8 +399,6 @@ public:
 
    HX_IS_INSTANCE_OF enum { _hx_ClassId = hx::clsIdMutex };
 
-	void __Mark(hx::MarkContext *__inCtx) { mFinalizer->Mark(); }
-
    #ifdef HXCPP_VISIT_ALLOCS
 	void __Visit(hx::VisitContext *__inCtx) { mFinalizer->Visit(__inCtx); }
    #endif
@@ -483,8 +475,6 @@ public:
 	}
 
    HX_IS_INSTANCE_OF enum { _hx_ClassId = hx::clsIdLock };
-
-	void __Mark(hx::MarkContext *__inCtx) { mFinalizer->Mark(); }
 
    #ifdef HXCPP_VISIT_ALLOCS
 	void __Visit(hx::VisitContext *__inCtx) { mFinalizer->Visit(__inCtx); }

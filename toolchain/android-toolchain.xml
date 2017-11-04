@@ -78,6 +78,7 @@
   <flag value="-funwind-tables"/>
   <flag value="-fstack-protector"/>
   <flag value="-fno-short-enums"/>
+  <flag value="-Wno-overflow" />
   <cppflag value="-Wno-invalid-offsetof" />
   <cppflag value="-frtti"/>
   <flag value="-D_LINUX_STDDEF_H "/> <!-- Avoid compiler including 2 version of file -->
@@ -87,12 +88,17 @@
 
   <section unless="HXCPP_X86">
 
+    <section if="HXCPP_ARM64">
+       <flag value="-DHXCPP_ARM64"  />
+    </section>
     <section if="HXCPP_ARMV7">
+       <flag value="-DHXCPP_ARMV7"  />
        <flag value="-march=armv7-a"  />
        <flag value="-mfpu=vfpv3-d16"  />
        <flag value="-mfloat-abi=softfp" />
     </section>
     <section unless="HXCPP_ARMV7 || HXCPP_ARM64">
+       <flag value="-DHXCPP_ARMV5" />
        <flag value="-D__ARM_ARCH_5__"/>
        <flag value="-D__ARM_ARCH_5T__"/>
        <flag value="-D__ARM_ARCH_5E__"/>

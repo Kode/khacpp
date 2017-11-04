@@ -106,6 +106,38 @@ enum VarLocation
    locAbsolute,
 };
 
+enum ArrayFunc
+{
+   afConcat,
+   afCopy,
+   afInsert,
+   afIterator,
+   afJoin,
+   afPop,
+   afPush,
+   afRemove,
+   afReverse,
+   afShift,
+   afSlice,
+   afSplice,
+   afSort,
+   afToString,
+   afUnshift,
+   afMap,
+   afFilter,
+   afIndexOf,
+   afLastIndexOf,
+   af__get,
+   af__set,
+   af__crement,
+   af__SetSizeExact,
+   afBlit,
+};
+
+
+extern const char *gArrayFuncNames[];
+extern int gArrayArgCount[];
+
 typedef std::map<int,CppiaStackVar *> CppiaStackVarMap;
 
 extern String sInvalidArgCount;
@@ -182,6 +214,22 @@ struct CppiaDynamicExpr : public CppiaExpr
    hx::Object *runObject(CppiaCtx *ctx) = 0;
 };
 
+
+struct ArrayBuiltinBase : public CppiaExpr
+{
+   CppiaExpr *thisExpr;
+   Expressions args;
+
+   ArrayBuiltinBase(CppiaExpr *inSrc, CppiaExpr *inThisExpr, Expressions &ioExpressions);
+   const char *getName();
+   CppiaExpr *link(CppiaModule &inData);
+};
+
+CppiaExpr *createArrayAnyBuiltin(CppiaExpr *src,
+                              CppiaExpr *inThisExpr, String field,
+                              Expressions &ioExpressions );
+
+
 struct CppiaConst
 {
    enum Type { cInt, cFloat, cString, cBool, cNull, cThis, cSuper };
@@ -226,7 +274,9 @@ struct ScriptCallable : public CppiaDynamicExpr
 
    ScriptCallable(CppiaStream &stream);
    ScriptCallable(CppiaExpr *inBody);
+   ScriptCallable(CppiaModule &inModule,ScriptNamedFunction *inFunction);
    ~ScriptCallable();
+
    CppiaExpr *link(CppiaModule &inModule);
 
    #ifdef HXCPP_STACK_SCRIPTABLE
@@ -266,7 +316,6 @@ struct ScriptCallable : public CppiaDynamicExpr
    bool pushDefault(CppiaCtx *ctx,int arg);
    void addExtraDefaults(CppiaCtx *ctx,int inHave);
 };
-
 
 
 
@@ -357,19 +406,6 @@ struct StackLayout
    CppiaStackVar *findVar(int inId);
 };
 
-struct ScriptStackFrame
-{
-   ScriptStackFrame(ScriptCallable *inCallable, unsigned char *inFrame)
-      : callable(inCallable),
-        frame(inFrame)
-   {
-   }
-
-   ScriptCallable *callable;
-   unsigned char  *frame;
-};
-
-
 
 struct ArgInfo
 {
@@ -401,6 +437,7 @@ struct CppiaFunction
    void link( );
    void compile();
 };
+
 
 
 struct CppiaStackVar
@@ -467,11 +504,12 @@ struct CppiaVar
    ExprType         exprType;
 
    CppiaExpr        *init;
+
    Dynamic          objVal;
-   bool             boolVal;
    int              intVal;
    Float            floatVal;
    String           stringVal;
+
    void             *valPointer;
    
 
@@ -492,6 +530,7 @@ struct CppiaVar
    void link(CppiaModule &inModule);
    static Access getAccess(CppiaStream &stream);
    void runInit(CppiaCtx *ctx);
+   bool hasPointer();
 
    inline void mark(hx::Object *inThis,hx::MarkContext *__inCtx)
    {
@@ -593,12 +632,14 @@ public:
    TypeData *superType;
    int       classSize;
    int       extraData;
+   bool      containsPointers;
    int       dynamicMapOffset;
    int       interfaceSlotSize;
    void      **vtable;
    std::string name;
    #if (HXCPP_API_LEVEL>=330)
    std::map<int, void *> interfaceScriptTables;
+   std::vector<ScriptNamedFunction *> nativeInterfaceFunctions;
    #else
    std::map<std::string, void **> interfaceVTables;
    #endif
@@ -731,13 +772,27 @@ public:
    #define CPPIA_STACK_LINE(expr)
 #endif
 
-#ifdef HXCPP_STACK_SCRIPTABLE
-   #define CPPIA_STACK_FRAME(expr) \
-      ScriptStackFrame scriptFrame(expr,ctx->frame); \
-      hx::StackFrame stackframe(&expr->position, &scriptFrame);
+#ifdef HXCPP_STACK_TRACE
+   struct CppiaStackFrame
+   {
+      hx::StackContext *ctx;
+      hx::StackFrame *frame;
+      CppiaStackFrame(hx::StackContext *inCtx, hx::StackPosition *inPosition)
+      {
+         ctx = inCtx;
+         frame = (hx::StackFrame *)ctx->stackAlloc(sizeof(hx::StackFrame));
+         frame->position = inPosition;
+         inCtx->pushFrame(frame);
+      }
+      ~CppiaStackFrame()
+      {
+         ctx->popFrame(frame);
+      }
+   };
+
+   #define CPPIA_STACK_FRAME(expr) hx::CppiaStackFrame __frame(ctx,&expr->position);
 #else
-   #define CPPIA_STACK_FRAME(expr) \
-      HX_STACKFRAME(&expr->position);
+   #define CPPIA_STACK_FRAME(expr)
 #endif
 
 
@@ -1008,7 +1063,7 @@ struct AssignAdd
    void apply( T &ioVal, const String &val) { AssignString( ioVal, ValToString(ioVal) + val ); }
 
    template<typename T> static
-   void apply( T &ioVal, const Dynamic &val) { ioVal = Dynamic(ioVal) + val; }
+   void apply( T &ioVal, Dynamic &val) { ioVal = Dynamic(ioVal) + val; }
 };
 
 

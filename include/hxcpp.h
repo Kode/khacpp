@@ -288,6 +288,7 @@ namespace hx
 {
 class MarkContext;
 
+
 class VisitContext
 {
 public:
@@ -301,7 +302,11 @@ typedef ::cpp::Variant Val;
 typedef ::Dynamic Val;
 #endif
 
-//#define HXCPP_GC_NURSERY
+#ifdef HXCPP_GC_GENERATIONAL
+  #define HXCPP_GC_NURSERY
+#endif
+
+
 //#define HXCPP_COMBINE_STRINGS
 
 #if (HXCPP_API_LEVEL >= 313)

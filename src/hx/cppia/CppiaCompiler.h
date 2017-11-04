@@ -1,8 +1,12 @@
 #ifndef HX_CPPIA_COMPILER_H_INCLUDED
 #define HX_CPPIA_COMPILER_H_INCLUDED
 
-#ifdef HX_ARM // TODO v7, 64
+#if HXCPP_ARMV5
   #define SLJIT_CONFIG_ARM_V5 1
+#elif HXCPP_ARMV7
+  #define SLJIT_CONFIG_ARM_V7 1
+#elif HXCPP_ARM64
+  #define SLJIT_CONFIG_ARM_64 1
 #else
    #ifdef HXCPP_M64
       #define SLJIT_CONFIG_X86_64 1
@@ -60,6 +64,22 @@ enum JitType
 JitType getJitType(ExprType inType);
 int getJitTypeSize(JitType inType);
 
+
+struct JitStringMultiArg
+{
+   int length;
+   const HX_CHAR *__s;
+};
+
+// double-aligned
+union JitMultiArg
+{
+   int        ival;
+   double     dval;
+   hx::Object *obj;
+   JitStringMultiArg sval;
+};
+
 struct JitVal
 {
    JitPosition    position;
@@ -77,11 +97,11 @@ struct JitVal
      int    iVal;
    };
 
-   JitVal(JitType inType=jtVoid, int inOffset=0, JitPosition inPosition=jposDontCare,int inReg0=0, int inReg1=0)
+   JitVal(JitType inType=jtVoid, size_t inOffset=0, JitPosition inPosition=jposDontCare,int inReg0=0, int inReg1=0)
    { 
       position = inPosition;
       type = inType;
-      offset = inOffset;
+      offset = (int)inOffset;
       reg0 = inReg0;
       reg1 = inReg1;
    }
@@ -115,7 +135,13 @@ struct JitVal
       pVal = inValue;
    }
 
-   JitVal operator +(int inDiff) const { return JitVal(type, offset+inDiff, position, reg0, reg1); }
+   bool uses(int reg) const
+   {
+      return ( (position==jposRegister || position==jposStar || position==jposStar || position==jposStarReg) && reg==reg0 ) ||
+             ( position==jposStarReg && reg==reg1 );
+   }
+
+   JitVal operator +(size_t inDiff) const { return JitVal(type, offset+inDiff, position, reg0, reg1); }
    JitVal as(JitType type) const { return JitVal(type, offset, position, reg0, reg1); }
    bool valid() const { return type!=jtVoid; }
 
@@ -267,8 +293,10 @@ typedef sljit_label *LabelId;
 typedef sljit_jump  *JumpId;
 
 typedef void (SLJIT_CALL *CppiaFunc)(CppiaCtx *inCtx);
+typedef void (*OnReturnFunc)(class CppiaCompiler *inCompiler, int stackSize);
 
 typedef std::vector<JumpId> ThrowList;
+
 
 class CppiaCompiler
 {
@@ -307,6 +335,7 @@ public:
 
    virtual LabelId setContinuePos(LabelId inNewPos) = 0;
    virtual void  addContinue() = 0;
+   virtual void  swapBreakList(QuickVec<JumpId> &ioBreakList) = 0;
    virtual void  addBreak() = 0;
    virtual void  setBreakTarget() = 0;
 
@@ -332,7 +361,10 @@ public:
 
    virtual void setMaxPointer() = 0;
 
-   // Scriptable?
+   virtual int  getBaseSize() = 0;
+   virtual void setLineOffset( int inOffset ) = 0;
+   virtual int  getLineOffset( ) = 0;
+   virtual void setOnReturn( OnReturnFunc inFunc, int inStackSize ) = 0;
    virtual void addReturn() = 0;
 
    virtual void trace(const char *inValue) = 0;
@@ -402,8 +434,20 @@ struct JitTemp : public JitVal
       compiler->freeTempSize(size);
    }
 
-   JitVal star(JitType inType=jtPointer, int inOffset=0) { return JitVal(inType, offset+inOffset, jposStar, sLocalReg, 0); }
-   JitVal star(ExprType inType, int inOffset=0) { return JitVal(getJitType(inType), offset+inOffset, jposStar, sLocalReg, 0); }
+   JitVal star(JitType inType=jtPointer, size_t inOffset=0) { return JitVal(inType, offset+(int)inOffset, jposStar, sLocalReg, 0); }
+   JitVal star(ExprType inType, size_t inOffset=0) { return JitVal(getJitType(inType), offset+(int)inOffset, jposStar, sLocalReg, 0); }
+
+};
+
+struct JitMultiArgs : public JitTemp
+{
+   // Float, so address is passed to native function
+   JitMultiArgs(CppiaCompiler *inCompiler, int inN) : JitTemp(inCompiler, etFloat, inN*sizeof(JitMultiArg) )
+   {
+   }
+
+   JitVal arg(int inIndex,JitType inType=jtPointer) { return (*this + inIndex*sizeof(JitMultiArg)).as(inType); }
+   JitVal arg(int inIndex,ExprType inType) { return arg(inIndex,getJitType(inType)); }
 
 };
 
@@ -424,6 +468,7 @@ struct JitSave
 };
 
 
+
 struct AutoFramePos
 {
    CppiaCompiler *compiler;
@@ -440,6 +485,10 @@ struct AutoFramePos
       compiler->restoreFrameSize(framePos);
    }
 };
+
+
+// objVal - should not be sJitTemp1
+void genWriteBarrier(CppiaCompiler *compiler, JitReg objVal, JitVal valuePtr);
 
 
 }

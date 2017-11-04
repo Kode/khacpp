@@ -73,6 +73,7 @@ void __hxcpp_set_float_format(String inFormat)
 hx::Class __StringClass;
 
 String  sEmptyString = HX_CSTRING("");
+Dynamic sConstEmptyString;
 String  sConstStrings[256];
 Dynamic sConstDynamicStrings[256];
 typedef std::set<String> ConstStringSet;
@@ -1217,7 +1218,9 @@ struct __String_##func : public hx::Object \
    bool __IsFunction() const { return true; } \
    HX_IS_INSTANCE_OF enum { _hx_ClassId = hx::clsIdClosure }; \
    String mThis; \
-   __String_##func(const String &inThis) : mThis(inThis) { } \
+   __String_##func(const String &inThis) : mThis(inThis) { \
+      HX_OBJ_WB_NEW_MARKED_OBJECT(this); \
+   } \
    String toString() const{ return HX_CSTRING(#func); } \
    String __ToString() const{ return HX_CSTRING(#func); } \
    int __GetType() const { return vtFunction; } \
@@ -1351,7 +1354,9 @@ public:
       { return hx::Object::operator new(inSize,inAlloc); }
 
 
-   StringData(String inValue) : mValue(inValue) {};
+   StringData(String inValue) : mValue(inValue) {
+      HX_OBJ_WB_GET(this,mValue.__s);
+   };
 
    hx::Class __GetClass() const { return __StringClass; }
    #if (HXCPP_API_LEVEL<331)
@@ -1422,7 +1427,13 @@ hx::Object *String::__ToObject() const
    if (!__s)
       return 0;
 
-   if (length==1)
+   if (length==0)
+   {
+      if (!sConstEmptyString.mPtr)
+         sConstEmptyString.mPtr = new (hx::NewObjConst)StringData(sEmptyString);
+      return sConstEmptyString.mPtr;
+   }
+   else if (length==1)
    {
       int idx = ((unsigned char *)__s)[0];
       if (sConstDynamicStrings[idx].mPtr)

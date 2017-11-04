@@ -2,6 +2,7 @@
 #define HX_QUICKVEC_INCLUDED
 
 #include <stdlib.h>
+#include <algorithm>
 
 namespace hx
 {
@@ -27,7 +28,14 @@ struct QuickVec
          mAlloc = 10 + (mSize*3/2);
          mPtr = (T *)realloc(mPtr,sizeof(T)*mAlloc);
       }
-      mPtr[mSize++]=inT;
+      mPtr[mSize]=inT;
+      mSize++;
+   }
+   void swap(QuickVec<T> &inOther)
+   {
+      std::swap(mAlloc, inOther.mAlloc);
+      std::swap(mSize, inOther.mSize);
+      std::swap(mPtr, inOther.mPtr);
    }
    void setSize(int inSize)
    {
@@ -38,6 +46,12 @@ struct QuickVec
       }
       mSize = inSize;
    }
+   // Can push this many without realloc
+   bool hasExtraCapacity(int inN)
+   {
+      return mSize+inN<=mAlloc;
+   }
+
    bool safeReserveExtra(int inN)
    {
       int want = mSize + inN;
@@ -78,15 +92,16 @@ struct QuickVec
    }
    void zero() { memset(mPtr,0,mSize*sizeof(T) ); }
 
-   inline void qerase_val(T inVal)
+   inline bool qerase_val(T inVal)
    {
       for(int i=0;i<mSize;i++)
          if (mPtr[i]==inVal)
          {
             --mSize;
             mPtr[i] = mPtr[mSize];
-            return;
+            return true;
          }
+      return false;
    }
 
    inline bool some_left() { return mSize; }

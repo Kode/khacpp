@@ -30,7 +30,7 @@
    #include <limits.h>
    #ifndef ANDROID
       #include <locale.h>
-      #if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0)
+      #if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0) && !defined(__GLIBC__)
          #include <xlocale.h>
       #endif
    #endif
@@ -261,7 +261,7 @@ bool _hx_std_sys_is64()
 **/
 int _hx_std_sys_command( String cmd )
 {
-   #if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(APPLETV) || defined(HX_APPLEWATCH)
+   #if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(IPHONE) || defined(APPLETV) || defined(HX_APPLEWATCH)
    return -1;
    #else
    if( !cmd.__s || !cmd.length )
