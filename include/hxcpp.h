@@ -1,9 +1,9 @@
 #ifndef HXCPP_H
 #define HXCPP_H
 
-#pragma warning(disable : 4018 4101 4146 4244 4305)
+#pragma warning(disable : 4018 4101 4146 4244 4305 4127 4100 4267 4389 4201)
 
-#if !defined(KORE_WINDOWS) && !defined(KORE_WINDOWSAPP)
+#if !defined(KORE_WINDOWS) && !defined(KORE_WINDOWSAPP) && !defined(KORE_XBOX_ONE)
 #pragma clang diagnostic ignored "-Wunused-variable"
 #pragma clang diagnostic ignored "-Wunused-value"
 #pragma clang diagnostic ignored "-Wunreachable-code"

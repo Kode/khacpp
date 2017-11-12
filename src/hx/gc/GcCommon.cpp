@@ -44,7 +44,7 @@ int sgTargetFreeSpacePercentage  = 100;
 // Called internally before and GC operations
 void CommonInitAlloc()
 {
-   #if !defined(HX_WINRT) && !defined(__SNC__) && !defined(__ORBIS__)
+   #if !defined(HX_WINRT) && !defined(__SNC__) && !defined(__ORBIS__) && !defined(KORE_CONSOLE)
    const char *minimumWorking = getenv("HXCPP_MINIMUM_WORKING_MEMORY");
    if (minimumWorking)
    {

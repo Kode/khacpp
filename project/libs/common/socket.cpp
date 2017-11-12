@@ -66,7 +66,7 @@ static SERR block_error() {
 }
 
 void psock_init() {
-#ifdef OS_WINDOWS
+#if defined(OS_WINDOWS) && !defined(KORE_CONSOLE)
 	if( !init_done ) {
 		WSAStartup(MAKEWORD(2,0),&init_data);
 		init_done = 1;

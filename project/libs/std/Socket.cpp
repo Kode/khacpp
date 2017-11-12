@@ -1,4 +1,4 @@
-#if !defined(HX_WINRT) && !defined(EPPC)
+#if !defined(HX_WINRT) && !defined(EPPC) && !defined(KORE_CONSOLE)
 
 #include <string.h>
 #include <hx/CFFI.h>

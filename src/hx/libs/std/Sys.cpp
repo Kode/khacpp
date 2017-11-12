@@ -78,7 +78,7 @@
 String _hx_std_get_env( String v )
 {
    const char *s = 0;
-   #ifndef HX_WINRT
+   #if !defined(HX_WINRT) && !defined(KORE_CONSOLE)
    s = getenv(v.__s);
    #endif
    return String(s);
@@ -90,7 +90,7 @@ String _hx_std_get_env( String v )
 **/
 void _hx_std_put_env( String e, String v )
 {
-#ifdef HX_WINRT
+#if defined(HX_WINRT) || defined(KORE_CONSOLE)
    // Do nothing
 #elif defined(NEKO_WINDOWS)
    String set = e + HX_CSTRING("=") + v;
@@ -169,7 +169,7 @@ bool _hx_std_set_time_locale( String l )
 **/
 String _hx_std_get_cwd()
 {
-   #ifdef HX_WINRT
+   #if defined(HX_WINRT) || defined(KORE_CONSOLE)
    return String(HX_CSTRING("ms-appdata:///local/"));
    #elif defined(EPPC)
    return String();
@@ -193,7 +193,7 @@ String _hx_std_get_cwd()
 **/
 bool _hx_std_set_cwd( String d )
 {
-   #if !defined(HX_WINRT) && !defined(EPPC)
+   #if !defined(HX_WINRT) && !defined(EPPC) && !defined(KORE_CONSOLE)
    return chdir(d.__s) == 0;
    #else
    return false;
@@ -261,7 +261,7 @@ bool _hx_std_sys_is64()
 **/
 int _hx_std_sys_command( String cmd )
 {
-   #if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(IPHONE) || defined(APPLETV) || defined(HX_APPLEWATCH)
+   #if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(IPHONE) || defined(APPLETV) || defined(HX_APPLEWATCH) || defined(KORE_CONSOLE)
    return -1;
    #else
    if( !cmd.__s || !cmd.length )
@@ -312,7 +312,7 @@ bool _hx_std_sys_exists( String path )
 **/
 void _hx_std_file_delete( String path )
 {
-   #ifndef EPPC
+   #if !defined(EPPC) && !defined(KORE_CONSOLE)
    hx::EnterGCFreeZone();
    bool err = unlink(path.__s);
    hx::ExitGCFreeZone();
@@ -437,7 +437,7 @@ String _hx_std_sys_file_type( String path )
 **/
 bool _hx_std_sys_create_dir( String path, int mode )
 {
-   #ifdef EPPC
+   #if defined(EPPC) || defined(KORE_CONSOLE)
    return true;
    #else
 
@@ -459,8 +459,8 @@ bool _hx_std_sys_create_dir( String path, int mode )
 **/
 void _hx_std_sys_remove_dir( String path )
 {
-   #ifdef EPPC
-   return true;
+   #if defined(EPPC) || defined(KORE_CONSOLE)
+   
    #else
    hx::EnterGCFreeZone();
    bool ok = rmdir(path.__s) == 0;
@@ -688,7 +688,7 @@ extern char **environ;
 Array<String> _hx_std_sys_env()
 {
    Array<String> result = Array_obj<String>::__new();
-   #ifndef HX_WINRT
+   #if !defined(HX_WINRT) && !defined(KORE_CONSOLE)
    char **e = environ;
    while( *e )
    {
@@ -729,7 +729,7 @@ Array<String> _hx_std_sys_env()
 **/
 int _hx_std_sys_getch( bool b )
 {
-#if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC)
+#if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(KORE_CONSOLE)
    return 0;
 #elif defined(NEKO_WINDOWS)
    hx::EnterGCFreeZone();

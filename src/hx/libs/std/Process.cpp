@@ -134,7 +134,7 @@ vprocess *getProcess(Dynamic handle)
 **/
 Dynamic _hx_std_process_run( String cmd, Array<String> vargs, int inShowParam )
 {
-   #if defined(APPLETV) || defined(HX_APPLEWATCH)
+   #if defined(APPLETV) || defined(HX_APPLEWATCH) || defined(KORE_CONSOLE)
    return null();
 
    #else

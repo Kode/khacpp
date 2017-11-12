@@ -151,6 +151,8 @@ void Math_obj::__boot()
    struct timeval tv;
    gettimeofday(&tv,0);
    unsigned int t = tv.tv_sec * 1000000 + tv.tv_usec;
+#elif defined(KORE_CONSOLE)
+   unsigned int t = 0;
 #endif
 
 #if defined(HX_WINDOWS)

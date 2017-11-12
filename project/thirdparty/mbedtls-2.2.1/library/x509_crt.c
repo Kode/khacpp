@@ -1100,7 +1100,7 @@ size_t lstrlenW(const wchar_t* string) {
 int mbedtls_x509_crt_parse_path( mbedtls_x509_crt *chain, const char *path )
 {
     int ret = 0;
-#if defined(_WIN32) && !defined(EFIX64) && !defined(EFI32)
+#if defined(_WIN32) && !defined(EFIX64) && !defined(EFI32) && !defined(KORE_CONSOLE)
     int w_ret;
     WCHAR szDir[MAX_PATH];
     char filename[MAX_PATH];
@@ -1156,7 +1156,7 @@ int mbedtls_x509_crt_parse_path( mbedtls_x509_crt *chain, const char *path )
         ret = MBEDTLS_ERR_X509_FILE_IO_ERROR;
 
     FindClose( hFind );
-#else /* _WIN32 */
+#elif !defined(KORE_CONSOLE) /* _WIN32 */
     int t_ret;
     struct stat sb;
     struct dirent *entry;

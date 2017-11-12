@@ -84,7 +84,7 @@ static void free_process( value vp ) {
    </doc>
 **/
 static value process_run( value cmd, value vargs ) {
-   #ifdef APPLETV
+   #if defined(APPLETV) || defined(KORE_CONSOLE)
    return alloc_null();
    #else
    int i;

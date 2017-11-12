@@ -147,10 +147,10 @@ inline bool HxAtomicExchangeIfCastPtr(void *inTest, void *inNewVal,void *ioWhere
 
 #ifdef KORE_CONSOLE
 
-struct MyMutex
+struct HxMutex
 {
-   MyMutex() { }
-   ~MyMutex() { }
+	HxMutex() { }
+   ~HxMutex() { }
    void Lock() { }
    void Unlock() { }
    bool TryLock() { return true; }
@@ -282,10 +282,10 @@ typedef TAutoLock<HxMutex> AutoLock;
 
 #ifdef KORE_CONSOLE
 
-struct MySemaphore
+struct HxSemaphore
 {
-   MySemaphore() { }
-   ~MySemaphore() { }
+   HxSemaphore() { }
+   ~HxSemaphore() { }
    void Set() { }
    void Wait() { }
     // Returns true on success, false on timeout
@@ -454,7 +454,14 @@ struct HxSemaphore
 #endif
 
 
-#if defined HX_WINRT
+#if defined(KORE_CONSOLE)
+
+inline void HxSleep(unsigned int ms)
+{
+	
+}
+
+#elif defined HX_WINRT
 
 inline void HxSleep(unsigned int ms)
 {

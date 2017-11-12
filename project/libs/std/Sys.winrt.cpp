@@ -11,7 +11,7 @@
 
 int __sys_prims() { return 0; }
 
-#ifdef NEKO_WINDOWS
+#if defined(NEKO_WINDOWS) && !defined(KORE_CONSOLE)
 #	include <windows.h>
 #	include <direct.h>
 #	include <conio.h>
@@ -20,7 +20,7 @@ int __sys_prims() { return 0; }
 #pragma comment(lib, "Shlwapi.lib")
 #else
 #	include <errno.h>
-#ifndef EPPC
+#if !defined(EPPC) && !defined(KORE_CONSOLE)
 #	include <unistd.h>
 #	include <dirent.h>
 #	include <termios.h>
@@ -35,7 +35,7 @@ int __sys_prims() { return 0; }
 #   define _mkdir mkdir
 #ifndef ANDROID
 #	include <locale.h>
-#if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0) && !defined(__GLIBC__)
+#if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0) && !defined(__GLIBC__) && !defined(KORE_CONSOLE)
 #	include <xlocale.h>
 #endif
 #endif
@@ -77,7 +77,7 @@ int __sys_prims() { return 0; }
 static value get_env( value v ) {
 	char *s = 0;
 	val_check(v,string);
-   #ifndef HX_WINRT
+   #if !defined(HX_WINRT) && !defined(KORE_CONSOLE)
 	s = getenv(val_string(v));
    #endif
 	if( s == NULL )
@@ -90,7 +90,7 @@ static value get_env( value v ) {
 	<doc>Set some environment variable value</doc>
 **/
 static value put_env( value e, value v ) {
-#ifdef HX_WINRT
+#if defined(HX_WINRT) || defined(KORE_CONSOLE)
    // Do nothing
 	return alloc_null();
 #elif defined(NEKO_WINDOWS)
@@ -119,9 +119,9 @@ static value put_env( value e, value v ) {
 static value sys_sleep( value f ) {
 	val_check(f,number);
 	gc_enter_blocking();
-#if defined(NEKO_WINDOWS)
+#if defined(NEKO_WINDOWS) && !defined(KORE_CONSOLE)
 	Sleep((DWORD)(val_number(f) * 1000));
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(KORE_CONSOLE)
 //TODO: Implement sys_sleep for EPPC
 #else
 	{
@@ -147,7 +147,7 @@ static value sys_sleep( value f ) {
 	<doc>Set the locale for LC_TIME, returns true on success</doc>
 **/
 static value set_time_locale( value l ) {
-#if defined(ANDROID) || defined(GCW0)
+#if defined(ANDROID) || defined(GCW0) || defined(KORE_CONSOLE)
         return alloc_null();
 #else
 
@@ -179,7 +179,7 @@ static value set_time_locale( value l ) {
 static value get_cwd() {
    #ifdef HX_WINRT
    return alloc_string("ms-appdata:///local/");
-   #elif defined(EPPC)
+   #elif defined(EPPC) || defined(KORE_CONSOLE)
    return alloc_null();
    #else
 	#ifdef NEKO_WINDOWS
@@ -213,7 +213,7 @@ static value get_cwd() {
 	<doc>Set current working directory</doc>
 **/
 static value set_cwd( value d ) {
-   #if !defined(HX_WINRT) && !defined(EPPC)
+   #if !defined(HX_WINRT) && !defined(EPPC) && !defined(KORE_CONSOLE)
 	val_check(d,string);
 	#ifdef NEKO_WINDOWS
 	if( SetCurrentDirectoryW(val_wstring(d)) )
@@ -284,7 +284,7 @@ static value sys_is64() {
 	<doc>Run the shell command and return exit code</doc>
 **/
 static value sys_command( value cmd ) {
-   #if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(IPHONE) || defined(APPLETV) || defined(HX_APPLEWATCH)
+   #if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(IPHONE) || defined(APPLETV) || defined(HX_APPLEWATCH) || defined(KORE_CONSOLE)
 	return alloc_int( -1 );
    #else
 	val_check(cmd,string);
@@ -322,7 +322,7 @@ static value sys_exit( value ecode ) {
 	<doc>Returns true if the file or directory exists.</doc>
 **/
 static value sys_exists( value path ) {
-	#ifdef EPPC
+	#if defined(EPPC) || defined(KORE_CONSOLE)
 	return alloc_bool(true);
 	#else
 	val_check(path,string);
@@ -356,7 +356,7 @@ static value file_exists( value path ) {
 	<doc>Delete the file. Exception on error.</doc>
 **/
 static value file_delete( value path ) {
-	#ifdef EPPC
+	#if defined(EPPC) || defined(KORE_CONSOLE)
 	return alloc_bool(true);
 	#else
 	val_check(path,string);
@@ -385,7 +385,7 @@ static value sys_rename( value path, value newname ) {
 	val_check(path,string);
 	val_check(newname,string);
 	
-	#ifdef NEKO_WINDOWS
+	#if defined(NEKO_WINDOWS) && !defined(KORE_CONSOLE)
 	const wchar_t* _path = val_wstring(path);
 	const wchar_t* _newname = val_wstring(newname);
 	gc_enter_blocking();
@@ -426,7 +426,7 @@ static value sys_rename( value path, value newname ) {
 	<doc>Run the [stat] command on the given file or directory.</doc>
 **/
 static value sys_stat( value path ) {
-	#ifdef EPPC
+	#if defined(EPPC) || defined(KORE_CONSOLE)
 	return alloc_null();
 	#else
 	value o;
@@ -513,7 +513,7 @@ static value sys_stat( value path ) {
 	</doc>
 **/
 static value sys_file_type( value path ) {
-	#ifdef EPPC
+	#if defined(EPPC) || defined(KORE_CONSOLE)
 	return alloc_null();
 	#else
 	val_check(path,string);
@@ -570,7 +570,7 @@ static value sys_file_type( value path ) {
 	<doc>Create a directory with the specified rights</doc>
 **/
 static value sys_create_dir( value path, value mode ) {
-	#ifdef EPPC
+	#if defined(EPPC) || defined(KORE_CONSOLE)
 	return alloc_bool(true);
 	#else
 	val_check(path,string);
@@ -602,7 +602,7 @@ static value sys_create_dir( value path, value mode ) {
 	<doc>Remove a directory. Exception on error</doc>
 **/
 static value sys_remove_dir( value path ) {
-	#ifdef EPPC
+	#if defined(EPPC) || defined(KORE_CONSOLE)
 	return alloc_bool(true);
 	#else
 	val_check(path,string);
@@ -625,7 +625,7 @@ static value sys_remove_dir( value path ) {
 	<doc>Return an accurate local time stamp in seconds since Jan 1 1970</doc>
 **/
 static value sys_time() {
-#ifdef NEKO_WINDOWS
+#if defined(NEKO_WINDOWS) && !defined(KORE_CONSOLE)
 #define EPOCH_DIFF	(134774*24*60*60.0)
 	SYSTEMTIME t;
 	FILETIME ft;
@@ -636,7 +636,7 @@ static value sys_time() {
     ui.LowPart = ft.dwLowDateTime;
     ui.HighPart = ft.dwHighDateTime;
 	return alloc_float( ((double)ui.QuadPart) / 10000000.0 - EPOCH_DIFF );
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(KORE_CONSOLE)
 	time_t tod;
 	time(&tod);
 	return alloc_float ((double)tod);
@@ -655,14 +655,14 @@ static value sys_time() {
 static value sys_cpu_time() {
 #if defined(HX_WINRT) && !defined(_XBOX_ONE)
     return alloc_float ((double)GetTickCount64()/1000.0);
-#elif defined(NEKO_WINDOWS)
+#elif defined(NEKO_WINDOWS) && !defined(KORE_CONSOLE)
 	FILETIME unused;
 	FILETIME stime;
 	FILETIME utime;
 	if( !GetProcessTimes(GetCurrentProcess(),&unused,&unused,&stime,&utime) )
 		return alloc_null();
 	return alloc_float( ((double)(utime.dwHighDateTime+stime.dwHighDateTime)) * 65.536 * 6.5536 + (((double)utime.dwLowDateTime + (double)stime.dwLowDateTime) / 10000000) );
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(KORE_CONSOLE)
     return alloc_float ((double)clock()/(double)CLOCKS_PER_SEC);
 #else
 	struct tms t;
@@ -684,7 +684,7 @@ static value sys_read_dir( value p) {
    auto results = folder->GetFilesAsync(Windows::Storage::Search::CommonFileQuery::DefaultQuery)->GetResults();
    for(int i=0;i<results->Size;i++)
       val_array_push(result,alloc_wstring(results->GetAt(i)->Path->Data()));
-#elif defined(NEKO_WINDOWS)
+#elif defined(NEKO_WINDOWS) && !defined(KORE_CONSOLE)
 	const wchar_t *path = val_wstring(p);
 	size_t len = wcslen(path);
    if (len>MAX_PATH)
@@ -730,7 +730,7 @@ static value sys_read_dir( value p) {
 			break;
 	}
 	FindClose(handle);
-#elif !defined(EPPC)
+#elif !defined(EPPC) && !defined(KORE_CONSOLE)
 	DIR *d;
 	struct dirent *e;
    const char *name = val_string(p);
@@ -763,7 +763,7 @@ static value sys_read_dir( value p) {
 	<doc>Return an absolute path from a relative one. The file or directory must exists</doc>
 **/
 static value file_full_path( value path ) {
-#if defined(HX_WINRT)
+#if defined(HX_WINRT) || defined(KORE_CONSOLE)
 	return path;
 #elif defined(NEKO_WINDOWS)
 	wchar_t buf[MAX_PATH+1];
@@ -791,7 +791,7 @@ static value sys_exe_path() {
    Windows::ApplicationModel::Package^ package = Windows::ApplicationModel::Package::Current;
    Windows::Storage::StorageFolder^ installedLocation = package->InstalledLocation;
    return(alloc_wstring(installedLocation->Path->Data()));
-#elif defined(NEKO_WINDOWS)
+#elif defined(NEKO_WINDOWS) && !defined(KORE_CONSOLE)
 	wchar_t path[MAX_PATH+1];
 	if( GetModuleFileNameW(NULL,path,MAX_PATH+1) == 0 )
 		return alloc_null();
@@ -802,7 +802,7 @@ static value sys_exe_path() {
 	if( _NSGetExecutablePath(path, &path_len) )
 		return alloc_null();
 	return alloc_string(path);
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(KORE_CONSOLE)
 	return alloc_string("");
 #else
 	const char *p = getenv("_");
@@ -836,7 +836,7 @@ extern char **environ;
 **/
 static value sys_env() {
    value result = alloc_array(0);
-   #ifndef HX_WINRT
+   #if !defined(HX_WINRT) && !defined(KORE_CONSOLE)
 	char **e = environ;
 	while( *e ) {
 		char *x = strchr(*e,'=');
@@ -874,7 +874,7 @@ static value sys_env() {
 	<doc>Read a character from stdin with or without echo</doc>
 **/
 static value sys_getch( value b ) {
-#if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC)
+#if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(KORE_CONSOLE)
    return alloc_null();
 #elif defined(NEKO_WINDOWS)
 	val_check(b,bool);
@@ -907,9 +907,9 @@ static value sys_getch( value b ) {
 	<doc>Returns the current process identifier</doc>
 **/
 static value sys_get_pid() {
-#	ifdef NEKO_WINDOWS
+#if defined(NEKO_WINDOWS) && !defined(KORE_CONSOLE)
 	return alloc_int(GetCurrentProcessId());
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(KORE_CONSOLE)
 	return alloc_int(1);
 #	else
 	return alloc_int(getpid());

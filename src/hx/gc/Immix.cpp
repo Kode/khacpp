@@ -537,7 +537,7 @@ typedef HxMutex ThreadPoolLock;
 static ThreadPoolLock sThreadPoolLock;
 
 #if !defined(HX_WINDOWS) && !defined(EMSCRIPTEN) && \
-   !defined(__SNC__) && !defined(__ORBIS__)
+   !defined(__SNC__) && !defined(__ORBIS__) && !defined(KORE_CONSOLE)
 #define HX_GC_PTHREADS
 typedef pthread_cond_t ThreadPoolSignal;
 inline void WaitThreadLocked(ThreadPoolSignal &ioSignal)
@@ -4329,7 +4329,7 @@ public:
          pthread_t result = 0;
          int created = pthread_create(&result,0,SThreadLoop,info);
          bool ok = created==0;
-      #elif defined(EMSCRIPTEN)
+      #elif defined(EMSCRIPTEN) || defined(KORE_CONSOLE)
          // Only one thread
       #else
          bool ok = HxCreateDetachedThread(SThreadLoop, info);

@@ -1,5 +1,7 @@
 #include <string.h>
 
+#ifndef KORE_CONSOLE
+
 #ifdef HX_WINDOWS
 #   include <winsock2.h>
 #   include <wincrypt.h>
@@ -796,3 +798,7 @@ void _hx_ssl_init() {
 	mbedtls_ctr_drbg_init( &ctr_drbg );
 	mbedtls_ctr_drbg_seed( &ctr_drbg, mbedtls_entropy_func, &entropy, NULL, 0 );
 }
+
+#else
+
+#endif

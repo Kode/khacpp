@@ -362,7 +362,7 @@ double __hxcpp_timezone_offset(double inSeconds)
    struct tm localTime;
    __internal_localtime( inSeconds, &localTime);
 
-   #if defined(HX_WINDOWS) || defined(__SNC__) || defined(__ORBIS__)
+   #if defined(HX_WINDOWS) || defined(__SNC__) || defined(__ORBIS__) || defined(KORE_CONSOLE)
    struct tm gmTime;
    __internal_gmtime(inSeconds, &gmTime );
 

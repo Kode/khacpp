@@ -34,8 +34,11 @@ static void threading_mutex_init_pthread( mbedtls_threading_mutex_t *mutex )
 {
     if( mutex == NULL )
         return;
-
+#ifdef KORE_CONSOLE
+	mutex->is_valid = 1;
+#else
     mutex->is_valid = pthread_mutex_init( &mutex->mutex, NULL ) == 0;
+#endif
 }
 
 static void threading_mutex_free_pthread( mbedtls_threading_mutex_t *mutex )
@@ -43,7 +46,9 @@ static void threading_mutex_free_pthread( mbedtls_threading_mutex_t *mutex )
     if( mutex == NULL )
         return;
 
+#ifndef KORE_CONSOLE
     (void) pthread_mutex_destroy( &mutex->mutex );
+#endif
 }
 
 static int threading_mutex_lock_pthread( mbedtls_threading_mutex_t *mutex )
@@ -51,10 +56,12 @@ static int threading_mutex_lock_pthread( mbedtls_threading_mutex_t *mutex )
     if( mutex == NULL || ! mutex->is_valid )
         return( MBEDTLS_ERR_THREADING_BAD_INPUT_DATA );
 
+#ifndef KORE_CONSOLE
     if( pthread_mutex_lock( &mutex->mutex ) != 0 )
         return( MBEDTLS_ERR_THREADING_MUTEX_ERROR );
+#endif
 
-    return( 0 );
+	return( 0 );
 }
 
 static int threading_mutex_unlock_pthread( mbedtls_threading_mutex_t *mutex )
@@ -62,8 +69,10 @@ static int threading_mutex_unlock_pthread( mbedtls_threading_mutex_t *mutex )
     if( mutex == NULL || ! mutex->is_valid )
         return( MBEDTLS_ERR_THREADING_BAD_INPUT_DATA );
 
+#ifndef KORE_CONSOLE
     if( pthread_mutex_unlock( &mutex->mutex ) != 0 )
         return( MBEDTLS_ERR_THREADING_MUTEX_ERROR );
+#endif
 
     return( 0 );
 }
@@ -76,7 +85,11 @@ int (*mbedtls_mutex_unlock)( mbedtls_threading_mutex_t * ) = threading_mutex_unl
 /*
  * With phtreads we can statically initialize mutexes
  */
+#ifdef KORE_CONSOLE
+#define MUTEX_INIT  = { 0, 1 }
+#else
 #define MUTEX_INIT  = { PTHREAD_MUTEX_INITIALIZER, 1 }
+#endif
 
 #endif /* MBEDTLS_THREADING_PTHREAD */
 

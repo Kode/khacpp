@@ -7,9 +7,9 @@
 #ifndef HX_TLS_INCLUDED
 #define HX_TLS_INCLUDED
 
-#ifdef HX_WINDOWS
+#if defined(HX_WINDOWS) || defined(KORE_CONSOLE)
 
-  #ifdef HX_WINRT
+  #if defined(HX_WINRT) || defined(KORE_CONSOLE)
     // Nothing
   #else
 
@@ -135,7 +135,7 @@ struct TLSData
 
 
 
-#ifdef HX_WINRT
+#if defined(HX_WINRT) || defined(KORE_CONSOLE)
 
 #define DECLARE_TLS_DATA(TYPE,NAME) \
    __declspec(thread) TYPE * NAME = nullptr;
