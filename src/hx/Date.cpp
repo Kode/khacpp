@@ -74,12 +74,12 @@ double __hxcpp_time_stamp()
 #else
    #if defined(IPHONE) || defined(APPLETV)
       double t = CACurrentMediaTime();
-   #elif defined(USE_GETTIMEOFDAY)
+   #elif defined(USE_GETTIMEOFDAY) && !defined(KORE_CONSOLE)
       struct timeval tv;
       if( gettimeofday(&tv,NULL) )
          return 0;
       double t =  ( tv.tv_sec + ((double)tv.tv_usec) / 1000000.0 );
-   #elif defined(USE_CLOCK_GETTIME)
+   #elif defined(USE_CLOCK_GETTIME) && !defined(KORE_CONSOLE)
       struct timespec ts;
       clock_gettime(CLOCK_MONOTONIC, &ts);
       double t =  ( ts.tv_sec + ((double)ts.tv_nsec)*1e-9  );

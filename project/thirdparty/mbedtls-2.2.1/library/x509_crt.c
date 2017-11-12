@@ -71,7 +71,9 @@
 #if !defined(_WIN32) || defined(EFIX64) || defined(EFI32)
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifndef KORE_CONSOLE
 #include <dirent.h>
+#endif
 #endif /* !_WIN32 || EFIX64 || EFI32 */
 #endif
 

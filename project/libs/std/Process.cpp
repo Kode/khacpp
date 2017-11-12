@@ -11,7 +11,7 @@
 #   include <errno.h>
 #   if defined(ANDROID) || defined(BLACKBERRY) || defined(EMSCRIPTEN)
 #      include <sys/wait.h>
-#   elif !defined(NEKO_MAC)
+#   elif !defined(NEKO_MAC) && !defined(KORE_CONSOLE)
 #      include <wait.h>
 #   endif
 #endif
@@ -48,11 +48,13 @@ DEFINE_KIND(k_process);
 **/
 #ifndef NEKO_WINDOWS
 static int do_close( int fd ) {
+#ifndef KORE_CONSOLE
    POSIX_LABEL(close_again);
    if( close(fd) != 0 ) {
       HANDLE_EINTR(close_again);
       return 1;
    }
+#endif
    return 0;
 }
 #endif
@@ -285,7 +287,7 @@ static value process_stdout_read( value vp, value str, value pos, value len ) {
       gc_exit_blocking();
       return alloc_int(nbytes);
    }
-#   else
+#   elif !defined(KORE_CONSOLE)
    int nbytes = read(p->oread,buffer_data(buf) + val_int(pos),val_int(len));
    if( nbytes <= 0 )
    {
@@ -294,6 +296,8 @@ static value process_stdout_read( value vp, value str, value pos, value len ) {
    }
    gc_exit_blocking();
    return alloc_int(nbytes);
+#else
+   return alloc_null();
 #   endif
 }
 
@@ -312,16 +316,20 @@ static value process_stderr_read( value vp, value str, value pos, value len ) {
 #   ifdef NEKO_WINDOWS
    DWORD nbytes;
    if( !ReadFile(p->eread,buffer_data(buf)+val_int(pos),val_int(len),&nbytes,NULL) )
-#   else
+#   elif !defined(KORE_CONSOLE)
    int nbytes = read(p->eread,buffer_data(buf)+val_int(pos),val_int(len));
    if( nbytes <= 0 )
+#else
+   if (true)
 #   endif
    {
       gc_exit_blocking();
       return alloc_null();
    }
+#ifndef KORE_CONSOLE
    gc_exit_blocking();
    return alloc_int(nbytes);
+#endif
 }
 
 /**
@@ -338,16 +346,20 @@ static value process_stdin_write( value vp, value str, value pos, value len ) {
 #   ifdef NEKO_WINDOWS
    DWORD nbytes;
    if( !WriteFile(p->iwrite,buffer_data(buf)+val_int(pos),val_int(len),&nbytes,NULL) )
-#   else
+#   elif !defined(KORE_CONSOLE)
    int nbytes = write(p->iwrite,buffer_data(buf)+val_int(pos),val_int(len));
    if( nbytes == -1 )
+#else
+   if (true)
 #   endif
    {
       gc_exit_blocking();
       return alloc_null();
    }
+#ifndef KORE_CONSOLE
    gc_exit_blocking();
    return alloc_int(nbytes);
+#endif
 }
 
 /**
@@ -391,7 +403,7 @@ static value process_exit( value vp ) {
          return alloc_null();
       return alloc_int(rval);
    }
-#   else
+#   elif !defined(KORE_CONSOLE)
    int rval;
    while( waitpid(p->pid,&rval,0) != p->pid ) {
       if( errno == EINTR )
@@ -403,6 +415,8 @@ static value process_exit( value vp ) {
    if( !WIFEXITED(rval) )
       return alloc_null();
    return alloc_int(WEXITSTATUS(rval));
+#else
+   return alloc_null();
 #   endif
 }
 

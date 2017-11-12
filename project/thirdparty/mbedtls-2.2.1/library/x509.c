@@ -70,7 +70,9 @@
 #if !defined(_WIN32)
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifndef KORE_CONSOLE
 #include <dirent.h>
+#endif
 #endif
 #endif
 

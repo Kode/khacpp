@@ -20,7 +20,7 @@
    #include <locale.h>
 #else
    #include <errno.h>
-   #ifndef EPPC
+   #if !defined(EPPC) && !defined(KORE_CONSOLE)
       #include <unistd.h>
       #include <dirent.h>
       #include <termios.h>
@@ -30,7 +30,7 @@
    #include <limits.h>
    #ifndef ANDROID
       #include <locale.h>
-      #if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0) && !defined(__GLIBC__)
+      #if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0) && !defined(__GLIBC__) && !defined(KORE_CONSOLE)
          #include <xlocale.h>
       #endif
    #endif
@@ -110,7 +110,7 @@ void _hx_std_sys_sleep( double f )
    hx::EnterGCFreeZone();
 #if defined(NEKO_WINDOWS)
    Sleep((DWORD)(f * 1000));
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(KORE_CONSOLE)
 //TODO: Implement sys_sleep for EPPC
 #else
    {
@@ -142,7 +142,7 @@ bool _hx_std_set_time_locale( String l )
     return false;
 #else
 
-#ifdef NEKO_POSIX
+#if defined(NEKO_POSIX) && !defined(KORE_CONSOLE)
    locale_t lc, old;
    lc = newlocale(LC_TIME_MASK,l.__s,NULL);
    if( !lc )
@@ -295,7 +295,7 @@ void _hx_std_sys_exit( int code )
 **/
 bool _hx_std_sys_exists( String path )
 {
-   #ifdef EPPC
+   #if defined(EPPC) || defined(KORE_CONSOLE)
    return true;
    #else
    struct stat st;
@@ -328,10 +328,13 @@ void _hx_std_file_delete( String path )
 **/
 void  _hx_std_sys_rename( String path, String newname )
 {
+#ifdef KORE_CONSOLE
+	bool err = true;
+#else
    hx::EnterGCFreeZone();
    bool err = rename(path.__s,newname.__s);
    hx::ExitGCFreeZone();
-
+#endif
    if (err)
       hx::Throw(HX_CSTRING("Could not rename"));
 }
@@ -356,8 +359,8 @@ void  _hx_std_sys_rename( String path, String newname )
 **/
 Dynamic _hx_std_sys_stat( String path )
 {
-   #ifdef EPPC
-   return alloc_null();
+   #if defined(EPPC) || defined(KORE_CONSOLE)
+   return null();
    #else
    hx::EnterGCFreeZone();
    struct stat s;
@@ -401,7 +404,7 @@ Dynamic _hx_std_sys_stat( String path )
 **/
 String _hx_std_sys_file_type( String path )
 {
-   #ifdef EPPC
+   #if defined(EPPC) || defined(KORE_CONSOLE)
    return String();
    #else
    struct stat s;
@@ -487,7 +490,7 @@ double _hx_std_sys_time()
     ui.LowPart = ft.dwLowDateTime;
     ui.HighPart = ft.dwHighDateTime;
    return ( ((double)ui.QuadPart) / 10000000.0 - EPOCH_DIFF );
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(KORE_CONSOLE)
    time_t tod;
    time(&tod);
    return ((double)tod);
@@ -514,7 +517,7 @@ double _hx_std_sys_cpu_time()
    if( !GetProcessTimes(GetCurrentProcess(),&unused,&unused,&stime,&utime) )
       return 0;
    return ( ((double)(utime.dwHighDateTime+stime.dwHighDateTime)) * 65.536 * 6.5536 + (((double)utime.dwLowDateTime + (double)stime.dwLowDateTime) / 10000000) );
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(KORE_CONSOLE)
     return ((double)clock()/(double)CLOCKS_PER_SEC);
 #else
    struct tms t;
@@ -579,7 +582,7 @@ Array<String> _hx_std_sys_read_dir( String p )
          break;
    }
    FindClose(handle);
-#elif !defined(EPPC)
+#elif !defined(EPPC) && !defined(KORE_CONSOLE)
    const char *name = p.__s;
    hx::EnterGCFreeZone();
    DIR *d = opendir(name);
@@ -620,7 +623,7 @@ String _hx_std_file_full_path( String path )
    if( GetFullPathNameA(path.__s,MAX_PATH+1,buf,NULL) == 0 )
       return null();
    return String(buf);
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(KORE_CONSOLE)
    return path;
 #else
    char buf[PATH_MAX];
@@ -651,7 +654,7 @@ String _hx_std_sys_exe_path()
    if( _NSGetExecutablePath(path, &path_len) )
       return null();
    return String(path);
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(KORE_CONSOLE)
    return HX_CSTRING("");
 #else
    {
@@ -764,7 +767,7 @@ int _hx_std_sys_get_pid()
 {
 #   ifdef NEKO_WINDOWS
    return (int)(GetCurrentProcessId());
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(KORE_CONSOLE)
    return (1);
 #   else
    return (getpid());

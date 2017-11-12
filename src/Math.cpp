@@ -147,7 +147,7 @@ void Math_obj::__boot()
 
 #if defined(HX_WINDOWS) || defined(__SNC__)
    unsigned int t = clock();
-#elif defined(__unix__) || defined(__APPLE__)
+#elif (defined(__unix__) || defined(__APPLE__)) && !defined(KORE_CONSOLE)
    struct timeval tv;
    gettimeofday(&tv,0);
    unsigned int t = tv.tv_sec * 1000000 + tv.tv_usec;
@@ -165,10 +165,10 @@ void Math_obj::__boot()
   #else
    int pid = _getpid();
   #endif
-#elif defined(__unix__) || defined(__APPLE__)
+#elif (defined(__unix__) || defined(__APPLE__)) && !defined(KORE_CONSOLE)
    int pid = getpid();
 #else
-   int pid = (int)&t; // As a last resort, rely on ASLR.
+   int pid = (int)(intptr_t)&t; // As a last resort, rely on ASLR.
 #endif  
 
   srand(t ^ (pid | (pid << 16)));

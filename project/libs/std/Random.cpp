@@ -4,7 +4,7 @@
 #ifdef NEKO_WINDOWS
 #	include <windows.h>
 #	include <process.h>
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(KORE_CONSOLE)
 #	include <time.h>
 #else
 #	include <sys/time.h>
@@ -68,7 +68,7 @@ static rnd *rnd_init( void *data ) {
   #else
 	int pid = GetCurrentProcessId();
   #endif
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(KORE_CONSOLE)
 	int pid = 1;
 #else
 	int pid = _getpid();
@@ -79,7 +79,7 @@ static rnd *rnd_init( void *data ) {
 	t = (unsigned int)GetTickCount64();
 #elif defined(NEKO_WINDOWS)
 	t = GetTickCount();
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(KORE_CONSOLE)
 	time_t tod;
 	time(&tod);
 	t = (double)tod;

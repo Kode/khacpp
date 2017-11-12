@@ -394,7 +394,7 @@ static value sys_rename( value path, value newname ) {
 		gc_exit_blocking();
 		return alloc_null();
 	}
-	#else
+	#elif (!defined(KORE_CONSOLE))
 	gc_enter_blocking();
 	if( rename(val_string(path),val_string(newname)) != 0 )
 	{

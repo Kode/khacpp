@@ -57,7 +57,9 @@ struct _hr_time
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#ifndef KORE_CONSOLE
 #include <signal.h>
+#endif
 #include <time.h>
 
 struct _hr_time
@@ -280,6 +282,9 @@ void mbedtls_set_alarm( int seconds )
 
 unsigned long mbedtls_timing_get_timer( struct mbedtls_timing_hr_time *val, int reset )
 {
+#ifdef KORE_CONSOLE
+	return 0;
+#else
     unsigned long delta;
     struct timeval offset;
     struct _hr_time *t = (struct _hr_time *) val;
@@ -297,6 +302,7 @@ unsigned long mbedtls_timing_get_timer( struct mbedtls_timing_hr_time *val, int 
           + ( offset.tv_usec - t->start.tv_usec ) / 1000;
 
     return( delta );
+#endif
 }
 
 static void sighandler( int signum )
@@ -308,8 +314,10 @@ static void sighandler( int signum )
 void mbedtls_set_alarm( int seconds )
 {
     mbedtls_timing_alarmed = 0;
+#ifndef KORE_CONSOLE
     signal( SIGALRM, sighandler );
     alarm( seconds );
+#endif
 }
 
 #endif /* _WIN32 && !EFIX64 && !EFI32 */

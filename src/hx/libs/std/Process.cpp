@@ -12,7 +12,7 @@
 #   include <errno.h>
 #   if defined(ANDROID) || defined(BLACKBERRY) || defined(EMSCRIPTEN)
 #      include <sys/wait.h>
-#   elif !defined(NEKO_MAC)
+#   elif !defined(NEKO_MAC) && !defined(KORE_CONSOLE)
 #      include <wait.h>
 #   endif
 #endif
@@ -28,11 +28,13 @@ namespace
 #ifndef NEKO_WINDOWS
 static int do_close( int fd )
 {
+#ifndef KORE_CONSOLE
    POSIX_LABEL(close_again);
    if( close(fd) != 0 ) {
       HANDLE_EINTR(close_again);
       return 1;
    }
+#endif
    return 0;
 }
 #endif
@@ -342,14 +344,18 @@ int _hx_std_process_stdout_read( Dynamic handle, Array<unsigned char> buf, int p
    DWORD nbytes = 0;
    if( !ReadFile(p->oread,dest+pos,len,&nbytes,0) )
       nbytes = 0;
-   #else
+   #elif !defined(KORE_CONSOLE)
    int nbytes = read(p->oread,dest + pos,len);
    if( nbytes <= 0 )
       nbytes = 0;
    #endif
 
    hx::ExitGCFreeZone();
+#ifdef KORE_CONSOLE
+   return 0;
+#else
    return nbytes;
+#endif
 }
 
 
@@ -373,14 +379,18 @@ int _hx_std_process_stderr_read( Dynamic handle, Array<unsigned char> buf, int p
    DWORD nbytes = 0;
    if( !ReadFile(p->eread,dest+pos,len,&nbytes,0) )
       nbytes = 0;
-   #else
+   #elif !defined(KORE_CONSOLE)
    int nbytes = read(p->eread,dest + pos,len);
    if( nbytes <= 0 )
       nbytes = 0;
    #endif
 
    hx::ExitGCFreeZone();
+#ifdef KORE_CONSOLE
+   return 0;
+#else
    return nbytes;
+#endif
 }
 
 /**
@@ -405,14 +415,18 @@ int _hx_std_process_stdin_write( Dynamic handle, Array<unsigned char> buf, int p
    DWORD nbytes =0;
    if( !WriteFile(p->iwrite,src+pos,len,&nbytes,0) )
       nbytes = 0;
-   #else
+   #elif !defined(KORE_CONSOLE)
    int nbytes = write(p->iwrite,src+pos,len);
    if( nbytes == -1 )
       nbytes = 0;
    #endif
 
    hx::ExitGCFreeZone();
+#ifdef KORE_CONSOLE
+   return 0;
+#else
    return nbytes;
+#endif
 }
 
 /**
@@ -456,7 +470,7 @@ int _hx_std_process_exit( Dynamic handle )
          return 0;
       return rval;
    }
-   #else
+   #elif !defined(KORE_CONSOLE)
    int rval=0;
    while( waitpid(p->pid,&rval,0) != p->pid )
    {
