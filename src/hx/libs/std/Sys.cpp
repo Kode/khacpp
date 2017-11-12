@@ -215,7 +215,9 @@ bool _hx_std_set_cwd( String d )
 **/
 String _hx_std_sys_string()
 {
-#if defined(HX_WINRT)
+#if defined(KORE_CONSOLE)
+   return HX_CSTRING("Kore Console");
+#elif defined(HX_WINRT)
    return HX_CSTRING("WinRT");
 #elif defined(NEKO_WINDOWS)
    return HX_CSTRING("Windows");

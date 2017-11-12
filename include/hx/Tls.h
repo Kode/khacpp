@@ -135,7 +135,7 @@ struct TLSData
 
 
 
-#if defined(HX_WINRT) || defined(KORE_CONSOLE)
+#if defined(HX_WINRT)
 
 #define DECLARE_TLS_DATA(TYPE,NAME) \
    __declspec(thread) TYPE * NAME = nullptr;
@@ -145,6 +145,17 @@ struct TLSData
    __declspec(thread) extern TYPE * NAME;
 #define EXTERN_FAST_TLS_DATA(TYPE,NAME) \
    __declspec(thread) extern TYPE * NAME;
+
+#elif defined(KORE_CONSOLE)
+
+#define DECLARE_TLS_DATA(TYPE,NAME) \
+   TYPE * NAME = nullptr;
+#define DECLARE_FAST_TLS_DATA(TYPE,NAME) \
+   TYPE * NAME = nullptr;
+#define EXTERN_TLS_DATA(TYPE,NAME) \
+   extern TYPE * NAME;
+#define EXTERN_FAST_TLS_DATA(TYPE,NAME) \
+   extern TYPE * NAME;
 
 #else
 

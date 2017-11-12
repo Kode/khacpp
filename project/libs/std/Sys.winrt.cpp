@@ -240,7 +240,9 @@ static value set_cwd( value d ) {
 	</doc>
 **/
 static value sys_string() {
-#if defined(HX_WINRT)
+#if defined(KORE_CONSOLE)
+	return alloc_string("Kore Console");
+#elif defined(HX_WINRT)
 	return alloc_string("WinRT");
 #elif defined(NEKO_WINDOWS)
 	return alloc_string("Windows");
