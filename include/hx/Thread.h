@@ -147,30 +147,51 @@ inline bool HxAtomicExchangeIfCastPtr(void *inTest, void *inNewVal,void *ioWhere
 
 #ifdef KORE_CONSOLE
 
+#include <Kore/Threads/Mutex.h>
+
 struct HxMutex
 {
-	HxMutex() { }
-   ~HxMutex() { }
-   void Lock() { }
-   void Unlock() { }
-   bool TryLock() { return true; }
+	HxMutex() {
+		mutex.create();
+	}
+
+	~HxMutex() {
+		mutex.free();
+	}
+
+	void Lock() {
+		mutex.lock();
+	}
+
+	void Unlock() {
+		mutex.unlock();
+	}
+
+	bool TryLock() {
+		return mutex.tryLock();
+	}
+
    void Clean() { }
+private:
+	Kore::Mutex mutex;
 };
+
+#include <Kore/Threads/ThreadLocal.h>
 
 template<typename DATA>
 struct TLSData
 {
    TLSData() { }
-   DATA *Get() { return data; }
-   void Set(DATA *inData) { data = inData; }
+   DATA *Get() { return (DATA*)tls.get(); }
+   void Set(DATA *inData) { tls.set(inData); }
    inline DATA *operator=(DATA *inData)
    {
-      data = inData;
+	  tls.set(inData);
       return inData;
    }
-   inline operator DATA *() { return data; }
-
-   DATA* data;
+   inline operator DATA *() { return (DATA*)tls.get(); }
+private:
+   Kore::ThreadLocal tls;
 };
 
 #define THREAD_FUNC_TYPE void *
@@ -282,19 +303,31 @@ typedef TAutoLock<HxMutex> AutoLock;
 
 #ifdef KORE_CONSOLE
 
+#include <Kore/Threads/Semaphore.h>
+
 struct HxSemaphore
 {
-   HxSemaphore() { }
-   ~HxSemaphore() { }
-   void Set() { }
-   void Wait() { }
-    // Returns true on success, false on timeout
-   bool WaitSeconds(double inSeconds)
-   {
-      return true;
-   }
-   void Reset() { }
-   void Clean() { }
+	HxSemaphore() { }
+
+	~HxSemaphore() { }
+
+	void Set() {
+		semaphore.set();
+	}
+
+	void Wait() {
+		semaphore.waitForever();
+	}
+
+	bool WaitSeconds(double inSeconds) {
+		return semaphore.wait(inSeconds);
+	}
+
+	void Reset() { }
+
+	void Clean() { }
+private:
+	Kore::Semaphore semaphore;
 };
 
 #elif defined(HX_WINDOWS)
