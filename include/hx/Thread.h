@@ -149,14 +149,13 @@ inline bool HxAtomicExchangeIfCastPtr(void *inTest, void *inNewVal,void *ioWhere
 
 #include <Kore/Threads/Mutex.h>
 
-struct HxMutex
-{
+struct HxMutex {
 	HxMutex() {
 		mutex.create();
 	}
 
 	~HxMutex() {
-		mutex.free();
+		mutex.destroy();
 	}
 
 	void Lock() {
@@ -168,30 +167,14 @@ struct HxMutex
 	}
 
 	bool TryLock() {
-		return mutex.tryLock();
+		return mutex.tryToLock();
 	}
 
-   void Clean() { }
+	void Clean() {
+		mutex.destroy();
+	}
 private:
 	Kore::Mutex mutex;
-};
-
-#include <Kore/Threads/ThreadLocal.h>
-
-template<typename DATA>
-struct TLSData
-{
-   TLSData() { }
-   DATA *Get() { return (DATA*)tls.get(); }
-   void Set(DATA *inData) { tls.set(inData); }
-   inline DATA *operator=(DATA *inData)
-   {
-	  tls.set(inData);
-      return inData;
-   }
-   inline operator DATA *() { return (DATA*)tls.get(); }
-private:
-   Kore::ThreadLocal tls;
 };
 
 #define THREAD_FUNC_TYPE void *
@@ -305,27 +288,35 @@ typedef TAutoLock<HxMutex> AutoLock;
 
 #include <Kore/Threads/Semaphore.h>
 
-struct HxSemaphore
-{
-	HxSemaphore() { }
+struct HxSemaphore {
+	HxSemaphore() {
+		semaphore.create(0, 1);
+	}
 
-	~HxSemaphore() { }
+	~HxSemaphore() {
+		semaphore.destroy();
+	}
 
 	void Set() {
-		semaphore.set();
+		semaphore.release();
 	}
 
 	void Wait() {
-		semaphore.waitForever();
+		semaphore.acquire();
 	}
 
 	bool WaitSeconds(double inSeconds) {
-		return semaphore.wait(inSeconds);
+		return semaphore.tryToAcquire(inSeconds);
 	}
 
-	void Reset() { }
+	void Reset() {
+		semaphore.destroy();
+		semaphore.create(0, 1);
+	}
 
-	void Clean() { }
+	void Clean() {
+		semaphore.destroy();
+	}
 private:
 	Kore::Semaphore semaphore;
 };

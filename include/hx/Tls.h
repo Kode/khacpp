@@ -9,8 +9,43 @@
 
 #if defined(HX_WINDOWS) || defined(KORE_CONSOLE)
 
-  #if defined(HX_WINRT) || defined(KORE_CONSOLE)
+  #if defined(HX_WINRT)
     // Nothing
+  #elif defined(KORE_CONSOLE)
+
+#include <Kore/Threads/ThreadLocal.h>
+
+namespace hx {
+	template<typename DATA, bool FAST = false> struct TLSData {
+		TLSData() {
+			tls.create();
+		}
+
+		~TLSData() {
+			tls.destroy();
+		}
+
+		DATA *Get() {
+			return (DATA*)tls.get();
+		}
+
+		void Set(DATA *inData) {
+			tls.set(inData);
+		}
+
+		inline DATA *operator=(DATA *inData) {
+			tls.set(inData);
+			return inData;
+		}
+
+		inline operator DATA*() {
+			return (DATA*)tls.get();
+		}
+	private:
+		Kore::ThreadLocal tls;
+	};
+}
+
   #else
 
    #include <intrin.h>
@@ -145,17 +180,6 @@ struct TLSData
    __declspec(thread) extern TYPE * NAME;
 #define EXTERN_FAST_TLS_DATA(TYPE,NAME) \
    __declspec(thread) extern TYPE * NAME;
-
-#elif defined(KORE_CONSOLE)
-
-#define DECLARE_TLS_DATA(TYPE,NAME) \
-   TYPE * NAME = nullptr;
-#define DECLARE_FAST_TLS_DATA(TYPE,NAME) \
-   TYPE * NAME = nullptr;
-#define EXTERN_TLS_DATA(TYPE,NAME) \
-   extern TYPE * NAME;
-#define EXTERN_FAST_TLS_DATA(TYPE,NAME) \
-   extern TYPE * NAME;
 
 #else
 
