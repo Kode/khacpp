@@ -286,39 +286,38 @@ typedef TAutoLock<HxMutex> AutoLock;
 
 #ifdef KORE_CONSOLE
 
-#include <Kore/Threads/Semaphore.h>
+#include <Kore/Threads/Event.h>
 
 struct HxSemaphore {
 	HxSemaphore() {
-		semaphore.create(0, 1);
+		event.create();
 	}
 
 	~HxSemaphore() {
-		semaphore.destroy();
+		event.destroy();
 	}
 
 	void Set() {
-		semaphore.release();
+		event.signal();
 	}
 
 	void Wait() {
-		semaphore.acquire();
+		event.wait();
 	}
 
 	bool WaitSeconds(double inSeconds) {
-		return semaphore.tryToAcquire(inSeconds);
+		return event.tryToWait(inSeconds);
 	}
 
 	void Reset() {
-		semaphore.destroy();
-		semaphore.create(0, 1);
+		event.reset();
 	}
 
 	void Clean() {
-		semaphore.destroy();
+		event.destroy();
 	}
 private:
-	Kore::Semaphore semaphore;
+	Kore::Event event;
 };
 
 #elif defined(HX_WINDOWS)
