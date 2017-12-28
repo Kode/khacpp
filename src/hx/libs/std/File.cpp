@@ -347,7 +347,7 @@ Array<unsigned char> _hx_std_file_contents_bytes( String name )
       char *dest = (char *)&buffer[0];
 
       hx::EnterGCFreeZone();
-      #ifdef KORE_WIIU
+      #ifdef KORE_CONSOLE
       void* data = file.readAll();
       memcpy(dest, data, file.size());
       #else
