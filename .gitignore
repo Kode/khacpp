@@ -19,6 +19,7 @@ test/snippets/messagebox/cpp
 test/haxe/gc/big.txt
 hxcpp.n
 .DS_Store
+include/hxcpp.h.gch
 
 *.swp
 *.exe
