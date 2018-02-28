@@ -4,6 +4,15 @@ struct float32array {
 	float* data;
 	int myLength;
 
+	void alloc(int elements) {
+		myLength = elements;
+		data = new float[myLength];
+	}
+
+	void free() {
+		delete[] data;
+	}
+
 	int length() {
 		return myLength;
 	}
