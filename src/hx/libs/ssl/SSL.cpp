@@ -2,6 +2,10 @@
 
 #ifndef KORE_CONSOLE
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wparentheses"
+#endif
+
 #ifdef HX_WINDOWS
 #   include <winsock2.h>
 #   include <wincrypt.h>

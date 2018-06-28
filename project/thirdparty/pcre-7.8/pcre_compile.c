@@ -37,6 +37,9 @@ POSSIBILITY OF SUCH DAMAGE.
 -----------------------------------------------------------------------------
 */
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#endif
 
 /* This module contains the external function pcre_compile(), along with
 supporting internal functions that are not used by other modules. */

@@ -1,6 +1,10 @@
 #include <hx/CFFI.h>
 #include <string.h>
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#endif
+
 int __string_prims() { return 0; }
 
 /**

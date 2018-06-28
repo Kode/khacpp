@@ -19,6 +19,10 @@
   one thread to use crc32().
  */
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#endif
+
 #ifdef MAKECRCH
 #  include <stdio.h>
 #  ifndef DYNAMIC_CRC_TABLE

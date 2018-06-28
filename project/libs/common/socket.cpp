@@ -23,6 +23,9 @@
 #include <string.h>
 #include <hx/CFFI.h>
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#endif
 
 #ifdef OS_WINDOWS
 	static int init_done = 0;

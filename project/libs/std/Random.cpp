@@ -13,6 +13,9 @@
 #   define _getpid getpid
 #endif
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#endif
 
 int __random_prims() {return 0; }
 /**

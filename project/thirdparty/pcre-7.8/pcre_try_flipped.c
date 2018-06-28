@@ -42,6 +42,9 @@ POSSIBILITY OF SUCH DAMAGE.
 see if it was compiled with the opposite endianness. If so, it uses an
 auxiliary local function to flip the appropriate bytes. */
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#endif
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"

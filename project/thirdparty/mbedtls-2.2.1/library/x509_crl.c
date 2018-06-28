@@ -29,6 +29,10 @@
  *  http://www.itu.int/ITU-T/studygroups/com17/languages/X.690-0207.pdf
  */
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wconditional-uninitialized"
+#endif
+
 #if !defined(MBEDTLS_CONFIG_FILE)
 #include "mbedtls/config.h"
 #else

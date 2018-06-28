@@ -1,5 +1,9 @@
 #include <hx/CFFI.h>
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#endif
+
 #if !defined(HX_WINRT) && !defined(EPPC)
 
 #ifdef NEKO_WINDOWS

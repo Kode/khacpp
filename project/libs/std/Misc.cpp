@@ -79,7 +79,6 @@ static value float_of_bytes( value s, value be ) {
 	if( bytes==0)
 		return alloc_null();
 	f = *(float*)buffer_data(bytes);
-	char *c = (char*)&f;
 	if( is_big_endian() != val_bool(be) ) {
 		char *c = (char*)&f;
 		char tmp;

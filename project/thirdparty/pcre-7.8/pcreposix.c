@@ -41,6 +41,9 @@ POSSIBILITY OF SUCH DAMAGE.
 /* This module is a wrapper that provides a POSIX API to the underlying PCRE
 functions. */
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wunused-const-variable"
+#endif
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"

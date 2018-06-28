@@ -42,6 +42,10 @@ POSSIBILITY OF SUCH DAMAGE.
 pattern matching using an NFA algorithm, trying to mimic Perl as closely as
 possible. There are also some static supporting functions. */
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#endif
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif

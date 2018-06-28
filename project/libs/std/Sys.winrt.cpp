@@ -8,6 +8,9 @@
 #include <sys/stat.h>
 #endif
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#endif
 
 int __sys_prims() { return 0; }
 
@@ -586,7 +589,6 @@ static value sys_create_dir( value path, value mode ) {
 		return alloc_null();
 	}
 	#else
-	const char* _path = val_string(path);
 	gc_enter_blocking();
 	if( _mkdir(val_string(path),val_int(mode)) != 0 )
 	{

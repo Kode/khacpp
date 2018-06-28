@@ -5,6 +5,9 @@
 #include <memory.h>
 #endif
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#endif
 
 #ifdef HXCPP
 #define NULL_VAL null()

@@ -43,6 +43,9 @@ alternative matching function that uses a sort of DFA algorithm (not a true
 FSM). This is NOT Perl- compatible, but it has advantages in certain
 applications. */
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#endif
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"

@@ -35,6 +35,9 @@ typedef socklen_t SocketLen;
 #	define MSG_NOSIGNAL 0
 #endif
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#endif
 
 typedef struct {
 	int max;

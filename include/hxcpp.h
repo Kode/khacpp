@@ -3,10 +3,14 @@
 
 #pragma warning(disable : 4018 4101 4146 4244 4305 4127 4100 4267 4389 4201)
 
-#if !defined(KORE_WINDOWS) && !defined(KORE_WINDOWSAPP) && !defined(KORE_XBOX_ONE)
+#ifdef __clang__
 #pragma clang diagnostic ignored "-Wunused-variable"
 #pragma clang diagnostic ignored "-Wunused-value"
 #pragma clang diagnostic ignored "-Wunreachable-code"
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#pragma clang diagnostic ignored "-Winvalid-offsetof"
+#pragma clang diagnostic ignored "-Wparentheses-equality"
+#pragma clang diagnostic ignored "-Wconditional-uninitialized"
 #endif
 
 // Standard headers ....
