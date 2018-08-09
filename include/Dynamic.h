@@ -38,6 +38,10 @@ public:
    Dynamic(const cpp::Variant &inRHS) : super(inRHS.asDynamic()) { }
    template<typename T>
    Dynamic(const hx::Native<T *> &inInterface):super(inInterface->__GetRealObject() ) { }
+   #if !defined(__GNUC__) || (defined(__WORDSIZE) && (__WORDSIZE != 64))
+   Dynamic(long inVal);
+   Dynamic(unsigned long inVal);
+   #endif
 #ifdef __OBJC__
 #ifdef HXCPP_OBJC
    Dynamic(const id inObjc);

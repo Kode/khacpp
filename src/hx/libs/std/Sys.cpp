@@ -174,6 +174,17 @@ String _hx_std_get_cwd()
    #elif defined(EPPC)
    return String();
    #else
+#ifdef NEKO_WINDOWS
+   wchar_t buf[261];
+   int l;
+   if( GetCurrentDirectoryW(260,buf) == NULL )
+      return String();
+   l = (int)wcslen(buf);
+   if( buf[l-1] != '/' && buf[l-1] != '\\' ) {
+      buf[l] = '/';
+      buf[l+1] = 0;
+   }
+#else
    char buf[1025];
    int l;
    if( getcwd(buf,1024) == NULL )
@@ -183,6 +194,7 @@ String _hx_std_get_cwd()
       buf[l] = '/';
       buf[l+1] = 0;
    }
+#endif
    return String(buf);
    #endif
 }
@@ -194,7 +206,11 @@ String _hx_std_get_cwd()
 bool _hx_std_set_cwd( String d )
 {
    #if !defined(HX_WINRT) && !defined(EPPC) && !defined(KORE_CONSOLE)
+#ifdef NEKO_WINDOWS
+   return SetCurrentDirectoryW(d.__WCStr()) == 0;
+#else
    return chdir(d.__s) == 0;
+#endif
    #else
    return false;
    #endif
@@ -269,8 +285,14 @@ int _hx_std_sys_command( String cmd )
    if( !cmd.__s || !cmd.length )
       return -1;
 
+#ifdef NEKO_WINDOWS
+   const wchar_t * wcmd = cmd.__WCStr();
+   hx::EnterGCFreeZone();
+   int result = _wsystem(wcmd);
+#else
    hx::EnterGCFreeZone();
    int result = system(cmd.__s);
+#endif
    hx::ExitGCFreeZone();
 
    #if !defined(NEKO_WINDOWS)
@@ -300,10 +322,18 @@ bool _hx_std_sys_exists( String path )
    #if defined(EPPC) || defined(KORE_CONSOLE)
    return true;
    #else
+   
+#ifdef NEKO_WINDOWS
+   const wchar_t * wpath = path.__WCStr();
+   hx::EnterGCFreeZone();
+   bool result = GetFileAttributesW(wpath) != INVALID_FILE_ATTRIBUTES;
+#else
    struct stat st;
    hx::EnterGCFreeZone();
-   bool result =  stat(path.__s,&st) == 0;
+   bool result = stat(path.__s,&st) == 0;
+#endif
    hx::ExitGCFreeZone();
+   
    return result;
    #endif
 }
@@ -445,15 +475,15 @@ bool _hx_std_sys_create_dir( String path, int mode )
    #if defined(EPPC) || defined(KORE_CONSOLE)
    return true;
    #else
-
-   hx::EnterGCFreeZone();
 #ifdef NEKO_WINDOWS
-   bool err = mkdir(path.__s);
+   const wchar_t * wpath = path.__WCStr();
+   hx::EnterGCFreeZone();
+   bool err = _wmkdir(wpath);
 #else
+   hx::EnterGCFreeZone();
    bool err = mkdir(path.__s,mode);
 #endif
    hx::ExitGCFreeZone();
-
    return !err;
    #endif
 }

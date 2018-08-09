@@ -34,6 +34,8 @@ typedef Linkers = Hash<Linker>;
 
 class BuildTool
 {
+   public inline static var SupportedVersion = 400;
+
    var mDefines:Hash<String>;
    var mCurrentIncludeFile:String;
    var mIncludePath:Array<String>;
@@ -341,6 +343,9 @@ class BuildTool
 
    public function buildTarget(inTarget:String, inDestination:String)
    {
+      //var dependDebug = function(s:String) Log.error(s);
+      var dependDebug = null;
+
       // Sys.println("Build : " + inTarget );
       if (!mTargets.exists(inTarget))
       {
@@ -440,9 +445,13 @@ class BuildTool
          {
             var obj_name = mCompiler.getCachedObjName(file);
             groupObjs.push(obj_name);
-            var outOfDate = groupIsOutOfDate || file.isOutOfDate(obj_name);
+            var outOfDate = groupIsOutOfDate || file.isOutOfDate(obj_name, dependDebug);
             if (outOfDate)
+            {
+               if (dependDebug!=null)
+                  dependDebug(mCompiler.getCacheString(file));
                to_be_compiled.push(file);
+            }
             inList.push(outOfDate);
          }
          var someCompiled = to_be_compiled.length > 0;
@@ -860,15 +869,23 @@ class BuildTool
             switch(el.name)
             {
                case "file" :
-                  var file = new File(substitute(el.att.name),group);
+                  var name = substitute(el.att.name);
+                  var file = group.find(name);
+                  if (file==null)
+                  {
+                     file = new File(name,group);
+                     group.addFile( file );
+                  }
+
                   if (el.has.tags)
                      file.setTags( substitute(el.att.tags) );
                   if (el.has.filterout)
                      file.mFilterOut = substitute(el.att.filterout);
+                  if (el.has.embedName)
+                     file.mEmbedName = substitute(el.att.embedName);
                   for(f in el.elements)
                      if (valid(f,"") && f.name=="depend")
                         file.mDepends.push( substitute(f.att.name) );
-                  group.mFiles.push( file );
                case "section" : createFileGroup(el,group,inName,inForceRelative,null);
                case "cache" :
                   group.mUseCache = parseBool( substitute(el.att.value) );
@@ -1194,6 +1211,12 @@ class BuildTool
       return instance.mDefines.get("MSVC_VER");
    }
 
+   static public function keepTemp()
+   {
+      return instance.mDefines.exists("HXCPP_KEEP_TEMP");
+   }
+
+
    // Setting HXCPP_COMPILE_THREADS to 2x number or cores can help with hyperthreading
    public static function getNumberOfProcesses():Int
    {
@@ -1377,7 +1400,7 @@ class BuildTool
          var binDir = isWindows ? "Windows" : isMac ? "Mac64" : isLinux ? "Linux64" : null;
          if (binDir==null)
             Log.error("Cppia is not supported on this host.");
-         var binDir = isWindows ? "Windows" : isMac ? "Mac64" : isLinux ? "Linux64" : null;
+         var binDir = isWindows ? "Windows64" : isMac ? "Mac64" : isLinux ? "Linux64" : null;
          var exe = '$HXCPP/bin/$binDir/Cppia' + (isWindows ? ".exe" : "");
          if (!isWindows)
          {
@@ -1386,7 +1409,7 @@ class BuildTool
             {
                var stat = FileSystem.stat(exe);
                if (stat==null)
-                  throw "Could not find exe";
+                  throw "Could not find exe:" + exe;
                var mode = stat.mode;
                var exeFlags = (1<<0) | (1<<3) | (1<<6);
                if ( (mode&exeFlags) != exeFlags )
@@ -2336,6 +2359,17 @@ class BuildTool
             return false;
          }
       }
+
+      if (inEl.has.unlessApi)
+      {
+         var value = substitute(inEl.att.unlessApi);
+         try {
+            var val = Std.parseInt(value);
+            if (val<=SupportedVersion)
+               return false;
+         } catch(e:Dynamic) { }
+      }
+
 
       if (inEl.has.ifExists)
          if (!FileSystem.exists( substitute(inEl.att.ifExists) )) return false;

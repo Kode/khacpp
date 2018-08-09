@@ -48,7 +48,9 @@ namespace hx {
 
   #else
 
+   #ifndef __GNUC__
    #include <intrin.h>
+   #endif
 
    extern "C"
    {

@@ -7,12 +7,14 @@
   brew tap Homebrew/bundle
   brew bundle --file=~/haxe/tests/Brewfile
 
+  brew install neko --HEAD;
+
   export OPAMYES=1
   opam init
   eval `opam config env`
-  opam install camlp4 sedlex ocamlfind camlzip xml-light extlib rope ptmap
-
-  brew install neko --HEAD;
+  opam update
+  opam pin add haxe ~/haxe --no-action
+  opam install haxe --deps-only
 
   # Build haxe
   pushd ~/haxe
