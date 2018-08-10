@@ -16,6 +16,10 @@
 // Note: this does not inherit from "hx::Object", so in some ways it acts more
 // like a standard "int" type than a mode generic class.
 
+#if __cplusplus < 201103L && !defined(_MSC_VER)
+typedef unsigned short char16_t;
+#endif
+
 class HXCPP_EXTERN_CLASS_ATTRIBUTES String
 {
 public:
