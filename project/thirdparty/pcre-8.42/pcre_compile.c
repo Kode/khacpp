@@ -41,6 +41,7 @@ POSSIBILITY OF SUCH DAMAGE.
 /* This module contains the external function pcre_compile(), along with
 supporting internal functions that are not used by other modules. */
 
+#pragma warning(disable : 4703)
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
