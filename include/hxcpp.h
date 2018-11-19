@@ -1,7 +1,7 @@
 #ifndef HXCPP_H
 #define HXCPP_H
 
-#pragma warning(disable : 4018 4101 4146 4244 4305 4127 4100 4267 4389 4201)
+#pragma warning(disable : 4018 4101 4146 4244 4305 4127 4100 4267 4389 4201 4312 4244)
 
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wunused-variable"

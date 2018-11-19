@@ -1,6 +1,8 @@
 #include <hx/CFFI.h>
 #include <string.h>
 
+#pragma warning(disable : 4244)
+
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wshorten-64-to-32"
 #endif
