@@ -12,7 +12,7 @@
 #endif
 
 #ifdef HXCPP
-#define NULL_VAL null()
+#define NULL_VAL alloc_null()
 #else
 #define NULL_VAL NULL
 #endif
