@@ -212,7 +212,8 @@ String  _hx_regexp_matched(Dynamic handle, int m)
    pcredata *d = PCRE(handle);
 
    if( m < 0 || m >= d->nmatchs || !d->string.__s )
-      hx::Throw( HX_CSTRING("regexp_matched - no valid match"));
+	  return null();
+      //hx::Throw( HX_CSTRING("regexp_matched - no valid match"));
 
    int start = d->matchs[m*2];
    int len = d->matchs[m*2+1] - start;
