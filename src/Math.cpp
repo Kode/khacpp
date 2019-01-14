@@ -8,7 +8,7 @@
 #include <windows.h>
 #elif defined(HX_WINDOWS)
 #include <process.h>
-#else
+#elif !defined(KORE_CONSOLE)
 #include <unistd.h>
 #include <sys/time.h>
 #endif
