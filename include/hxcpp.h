@@ -1,8 +1,6 @@
 #ifndef HXCPP_H
 #define HXCPP_H
 
-#pragma warning(disable : 4018 4101 4146 4244 4305 4127 4100 4267 4389 4201 4312 4244)
-
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wunused-variable"
 #pragma clang diagnostic ignored "-Wunused-value"
@@ -11,6 +9,9 @@
 #pragma clang diagnostic ignored "-Winvalid-offsetof"
 #pragma clang diagnostic ignored "-Wparentheses-equality"
 #pragma clang diagnostic ignored "-Wconditional-uninitialized"
+#pragma clang diagnostic ignored "-Wreorder"
+#else
+#pragma warning(disable : 4018 4101 4146 4244 4305 4127 4100 4267 4389 4201 4312 4244)
 #endif
 
 // Standard headers ....
@@ -201,9 +202,10 @@ typedef char HX_CHAR;
 #define HX_QSTR_EQ(name,field) (name.length==field.length && !::memcmp(name.__s, field.__s, field.length))
 
 
-
+#if defined(_MSC_VER)
 #pragma warning(disable:4251)
 #pragma warning(disable:4800)
+#endif
 
 #if defined(_MSC_VER) && _MSC_VER < 1201
 #error MSVC 7.1 does not support template specialization and is not supported by HXCPP
