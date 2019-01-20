@@ -102,17 +102,17 @@ inline int Anon_obj::findFixed(const ::String &inKey, bool inSkip5)
    VariantKey *fixed = getFixed();
    int sought = inKey.hash();
 
-   if (!inSkip5)
-   {
-      if (mFixedFields<5)
-      {
+   //if (!inSkip5)
+   //{
+      //if (mFixedFields<5)
+      //{
          for(int i=0;i<mFixedFields;i++)
             if (fixed[i].hash==sought && (fixed[i].key.__s == inKey.__s ||
                    (fixed[i].key.length == inKey.length && !memcmp(fixed[i].key.__s,inKey.__s, inKey.length))))
                return i;
          return -1;
-      }
-   }
+   //   }
+   //}
 
    // Find node with same hash...
    /* hash example
@@ -123,7 +123,7 @@ inline int Anon_obj::findFixed(const ::String &inKey, bool inSkip5)
       [4] =  4  <- max
    */
 
-   int min = inSkip5 ? 5 : 0;
+   /*int min = inSkip5 ? 5 : 0;
    if (fixed[min].hash>sought)
       return -1;
    if (fixed[min].hash!=sought)
@@ -154,7 +154,7 @@ inline int Anon_obj::findFixed(const ::String &inKey, bool inSkip5)
          return -1;
    }
 
-   return -1;
+   return -1;*/
 }
 
 hx::Val Anon_obj::__Field(const String &inName, hx::PropertyAccess inCallProp)
