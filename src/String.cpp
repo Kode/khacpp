@@ -52,6 +52,10 @@ using namespace std;
 
 #endif
 
+#ifdef HX_SMART_STRINGS
+#include "hx/Unicase.h"
+#endif
+
 namespace hx
 {
 #ifdef HX_UTF8_STRINGS
@@ -737,6 +741,13 @@ String::String(const bool &inRHS)
    }
 }
 
+void String::fromPointer(const void *p)
+{
+   char buf[128];
+   SPRINTF(buf,128,"Native(%p)",p);
+   __s = GCStringDup(buf,-1,&length);
+}
+
 
 unsigned int String::calcHash() const
 {
@@ -837,7 +848,7 @@ String String::toUpperCase() const
    {
       char16_t *result = String::allocChar16Ptr(length);
       for(int i=0;i<length;i++)
-         result[i] = __w[i]<256 ? toupper( __w[i] ) : __w[i];
+         result[i] = unicase_toupper( __w[i] );
       return String(result,length,true);
    }
    #endif
@@ -855,7 +866,7 @@ String String::toLowerCase() const
    {
       char16_t *result = String::allocChar16Ptr(length);
       for(int i=0;i<length;i++)
-         result[i] = __w[i] < 256 ? tolower( __w[i] ) : __w[i];
+         result[i] = unicase_tolower( __w[i] );
       return String(result,length,true);
    }
    #endif
