@@ -248,6 +248,7 @@ typedef hx::Hash< TStringElement<String> >  StringHashString;
 
 void __string_hash_set(HX_MAP_THIS_ARG,String inKey,const Dynamic &value, bool inForceDynamic)
 {
+	inForceDynamic = true;
    StringHashBase *hash = static_cast<StringHashBase *>(ioHash.GetPtr());
    if (!hash)
    {
