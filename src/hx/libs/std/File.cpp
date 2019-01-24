@@ -347,10 +347,10 @@ String _hx_std_file_contents_string( String name )
 **/
 Array<unsigned char> _hx_std_file_contents_bytes( String name )
 {
-
+   const char * utf8name = name.__CStr();
    hx::EnterGCFreeZone();
    Kore::FileReader file;
-   if(!file.open(name.__s))
+   if(!file.open(utf8name))
       file_error("file_contents",name);
    hx::ExitGCFreeZone();
 
