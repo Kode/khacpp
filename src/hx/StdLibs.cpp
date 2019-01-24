@@ -273,7 +273,7 @@ void __trace(Dynamic inObj, Dynamic info)
    String text;
    if (inObj != null())
       text = inObj->toString();
-   const char *message = text.__s ? text.__s : "null";
+   const char *message = text.__CStr();
 
    if (info==null())
    {
