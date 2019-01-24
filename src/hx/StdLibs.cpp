@@ -636,7 +636,7 @@ Dynamic __hxcpp_parse_int(const String &inString)
    if (!inString.__s)
       return null();
    long result;
-   const HX_CHAR *str = inString.__s;
+   const HX_CHAR *str = inString.__CStr();
    bool hex =  (str[0]=='0' && (str[1]=='x' || str[1]=='X'));
    HX_CHAR *end = 0;
 
@@ -658,7 +658,7 @@ Dynamic __hxcpp_parse_int(const String &inString)
 
 double __hxcpp_parse_float(const String &inString)
 {
-   const HX_CHAR *str = inString.__s;
+   const HX_CHAR *str = inString.__CStr();
    HX_CHAR *end = (HX_CHAR *)str;
    #ifdef HX_UTF8_STRINGS
    double result = str ? strtod(str,&end) : 0;
