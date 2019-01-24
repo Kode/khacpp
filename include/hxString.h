@@ -202,6 +202,7 @@ public:
 
    #ifdef HX_SMART_STRINGS
    int compare(const ::String &inRHS) const;
+   int compareToCStr(const char* str) const;
    #else
    inline int compare(const ::String &inRHS) const
    {

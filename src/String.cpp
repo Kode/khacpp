@@ -1407,6 +1407,42 @@ int String::compare(const ::String &inRHS) const
    }
    return cmp ? cmp : length - inRHS.length;
 }
+
+int String::compareToCStr(const char* str) const
+{
+	if (!__s)
+		return str ? -1 : 0;
+	if (!str)
+		return 1;
+
+	int cmp = 0;
+	int strlength = strlen(str);
+	int minLen = length < strlength ? length : strlength;
+
+	if (minLen > 0)
+	{
+		bool s0IsWide = ((unsigned int *)__s)[-1] & HX_GC_STRING_CHAR16_T;
+
+		if (!s0IsWide)
+		{
+			cmp = memcmp(__s, str, minLen);
+		}
+		else
+		{
+			const unsigned char *s = (const unsigned char *)str;
+			const char16_t *w = __w;
+			for (int i = 0; i < minLen; i++)
+				if (s[i] != w[i])
+				{
+					cmp = s[i] < w[i] ? -1 : 1;
+					if (s0IsWide)
+						cmp = -cmp;
+					break;
+				}
+		}
+	}
+	return cmp ? cmp : length - strlength;
+}
 #endif
 
 

@@ -197,10 +197,17 @@ typedef char HX_CHAR;
 #define HX_STRI(s) HX_STRINGI(s,sizeof(s)/sizeof(char)-1)
 #define HX_CSTRING(x) HX_STRI(x)
 #define HX_CSTRING2(wide,len,utf8) HX_STRI(utf8)
+#ifdef HX_SMART_STRINGS
+#define HX_FIELD_EQ(name,field) !name.compareToCStr(field)
+#else
 #define HX_FIELD_EQ(name,field) !::memcmp(name.__s, field, sizeof(field)/sizeof(char))
+#endif
 // No null check is performed....
+#ifdef HX_SMART_STRINGS
+#define HX_QSTR_EQ(name,field) !name.compare(field)
+#else
 #define HX_QSTR_EQ(name,field) (name.length==field.length && !::memcmp(name.__s, field.__s, field.length))
-
+#endif
 
 #if defined(_MSC_VER)
 #pragma warning(disable:4251)
