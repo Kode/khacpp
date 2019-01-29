@@ -178,6 +178,7 @@ int _hx_utf8_decode_advance(char *&ioPtr)
 
 inline int Char16Advance(const char16_t *&ioStr,bool throwOnErr=true)
 {
+	throwOnErr = false;
    int ch = *ioStr++;
    if (ch>=0xd800)
    {
