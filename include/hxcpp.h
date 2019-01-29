@@ -87,6 +87,7 @@
 #endif
 #endif
 
+
 // Some compilers are over-enthusiastic about what they #define ...
 //#ifdef NULL
 //#undef NULL
@@ -197,8 +198,6 @@ typedef char HX_CHAR;
 #define HX_STRI(s) HX_STRINGI(s,sizeof(s)/sizeof(char)-1)
 #define HX_CSTRING(x) HX_STRI(x)
 #define HX_CSTRING2(wide,len,utf8) HX_STRI(utf8)
-
-#endif
 
 #ifdef HX_SMART_STRINGS
   #define HX_FIELD_EQ(name,field) (name.isAsciiEncoded() && !::memcmp(name.__s, field, sizeof(field)/sizeof(char)))
