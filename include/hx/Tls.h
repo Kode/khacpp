@@ -91,10 +91,6 @@ namespace hx {
          return inData;
       }
 
-      static inline DATA* readgsqword(int offset) {
-         return (DATA *)__readgsqword(offset);
-      }
-
       inline operator DATA *()
       {
          #if !defined(HXCPP_M64) && (_MSC_VER >= 1400)
@@ -107,7 +103,7 @@ namespace hx {
          return extra[mFastOffset];
          #elif (_MSC_VER >= 1400) & !defined(HXCPP_DEBUG)// 64 bit version...
          if (mSlot < 64)
-           return readgsqword(mFastOffset);
+           return (DATA *)__readgsqword(mFastOffset);
          else
            return (DATA *)TlsGetValue(mSlot);
          #else
@@ -172,7 +168,7 @@ struct TLSData
 
 
 
-#if defined(HX_WINRT)
+#ifdef HX_WINRT
 
 #define DECLARE_TLS_DATA(TYPE,NAME) \
    __declspec(thread) TYPE * NAME = nullptr;

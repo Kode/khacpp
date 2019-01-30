@@ -9,7 +9,6 @@
 #ifdef HX_WINDOWS
 #   include <winsock2.h>
 #   include <wincrypt.h>
-#   pragma comment(lib, "Crypt32.lib")
 #else
 #   include <sys/socket.h>
 #   include <strings.h>

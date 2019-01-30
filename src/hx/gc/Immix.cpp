@@ -4341,7 +4341,7 @@ public:
          pthread_t result = 0;
          int created = pthread_create(&result,0,SThreadLoop,info);
          bool ok = created==0;
-      #elif defined(EMSCRIPTEN) || defined(KORE_CONSOLE)
+      #elif defined(EMSCRIPTEN)
          // Only one thread
       #else
          bool ok = HxCreateDetachedThread(SThreadLoop, info);

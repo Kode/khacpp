@@ -11,7 +11,7 @@
 #pragma clang diagnostic ignored "-Wconditional-uninitialized"
 #pragma clang diagnostic ignored "-Wreorder"
 #else
-#pragma warning(disable : 4018 4101 4146 4244 4305 4127 4100 4267 4389 4201 4312 4244)
+#pragma warning(disable : 4018 4101 4146 4244 4305 4127 4100 4267 4389 4201 4312 4244 4996)
 #endif
 
 // Standard headers ....
@@ -86,6 +86,7 @@
 #define HXCPP_M64
 #endif
 #endif
+
 
 // Some compilers are over-enthusiastic about what they #define ...
 //#ifdef NULL
@@ -209,6 +210,7 @@ typedef char HX_CHAR;
 #endif
 
 #if defined(_MSC_VER)
+
 
 #pragma warning(disable:4251)
 #pragma warning(disable:4800)

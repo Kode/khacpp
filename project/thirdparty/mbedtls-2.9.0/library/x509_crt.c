@@ -1123,12 +1123,6 @@ int mbedtls_x509_crt_parse_file( mbedtls_x509_crt *chain, const char *path )
     return( ret );
 }
 
-#ifdef KORE_WINDOWSAPP
-size_t lstrlenW(const wchar_t* string) {
-	return wcslen(string);
-}
-#endif
-
 int mbedtls_x509_crt_parse_path( mbedtls_x509_crt *chain, const char *path )
 {
     int ret = 0;

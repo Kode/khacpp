@@ -10,7 +10,6 @@
 #	include <sys/time.h>
 #	include <sys/types.h>
 #	include <unistd.h>
-#   define _getpid getpid
 #endif
 
 #ifdef __clang__
@@ -67,14 +66,14 @@ static rnd *rnd_init( void *data ) {
 	rnd *r = (rnd*)data;
 #if defined(NEKO_WINDOWS)
   #if defined(HX_WINRT) && defined(__cplusplus_winrt)
-	int pid = 1; // Windows::Security::Cryptography::CryptographicBuffer::GenerateRandomNumber();
+	int pid = Windows::Security::Cryptography::CryptographicBuffer::GenerateRandomNumber();
   #else
 	int pid = GetCurrentProcessId();
   #endif
 #elif defined(EPPC) || defined(KORE_CONSOLE)
 	int pid = 1;
 #else
-	int pid = _getpid();
+	int pid = getpid();
 #endif
 
 	unsigned int t;

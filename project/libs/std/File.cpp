@@ -1,8 +1,6 @@
 #include <hx/CFFI.h>
 #include <stdio.h>
 #include <string.h>
-#include <hxcpp.h>
-#include <hx/OS.h>
 #ifdef NEKO_WINDOWS
 #	include <windows.h>
 #endif

@@ -42,14 +42,14 @@
 #	define OS_POSIX
 #endif
 
-#if defined(KORE_PPC)
-#	define LITTLE_ENDIAN 1
-#	define BIG_ENDIAN 2
-#	define BYTE_ORDER BIG_ENDIAN
-#else
+#if defined(OS_WINDOWS) || defined(BLACKBERRY)
 #	define LITTLE_ENDIAN 1
 #	define BIG_ENDIAN 2
 #	define BYTE_ORDER LITTLE_ENDIAN
+#elif defined(OS_MAC) || defined(OS_BSD)
+#	include <machine/endian.h>
+#else
+#	include <endian.h>
 #endif
 
 #ifndef BYTE_ORDER

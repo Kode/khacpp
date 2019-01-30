@@ -300,36 +300,6 @@ Dynamic __hxcpp_thread_create(Dynamic inStart)
 }
 #endif
 
-void __hxcpp_register_current_thread()
-{
-	g_threadInfoMutex.Lock();
-	int threadNumber = g_nextThreadNumber++;
-	g_threadInfoMutex.Unlock();
-
-	hxThreadInfo *inInfo = new hxThreadInfo((void*)NULL, threadNumber);
-
-	hx::GCPrepareMultiThreaded();
-	//hx::EnterGCFreeZone();
-
-	hxThreadInfo *info[2];
-	info[0] = (hxThreadInfo *)inInfo;
-	info[1] = 0;
-
-	hx::RegisterCurrentThread((int *)&info[1]);
-
-	tlsCurrentThread = info[0];
-
-	// Release the creation function
-	info[0]->mSemaphore->Set();
-
-	// Call the debugger function to annouce that a thread has been created
-	__hxcpp_dbg_threadCreatedOrTerminated(info[0]->GetThreadNumber(), true);
-
-	inInfo->mSemaphore->Wait();
-	//hx::ExitGCFreeZone();
-	inInfo->CleanSemaphore();
-}
-
 static hx::Object *sMainThreadInfo = 0;
 
 static hxThreadInfo *GetCurrentInfo(bool createNew = true)

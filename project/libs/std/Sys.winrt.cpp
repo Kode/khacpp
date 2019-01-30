@@ -8,6 +8,8 @@
 #include <sys/stat.h>
 #endif
 
+#pragma warning(disable : 4996)
+
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wshorten-64-to-32"
 #endif
@@ -20,7 +22,6 @@ int __sys_prims() { return 0; }
 #	include <conio.h>
 #	include <locale.h>
 #	include "Shlwapi.h"
-#pragma comment(lib, "Shlwapi.lib")
 #else
 #	include <errno.h>
 #if !defined(EPPC) && !defined(KORE_CONSOLE)
@@ -31,11 +32,6 @@ int __sys_prims() { return 0; }
 #	include <sys/times.h>
 #endif
 #	include <limits.h>
-#   define _getcwd getcwd
-#   define _chdir chdir
-#   define _unlink unlink
-#   define _rmdir rmdir
-#   define _mkdir mkdir
 #ifndef ANDROID
 #	include <locale.h>
 #if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0) && !defined(__GLIBC__) && !defined(KORE_CONSOLE)
@@ -103,7 +99,7 @@ static value put_env( value e, value v ) {
 	val_buffer(b,e);
 	buffer_append_sub(b,"=",1);
 	val_buffer(b,v);
-	if( _putenv(buffer_data(b)) != 0 )
+	if( putenv(buffer_data(b)) != 0 )
 		return alloc_null();
 #else
 	val_check(e,string);
@@ -199,7 +195,7 @@ static value get_cwd() {
 	#else
 	char buf[256];
 	int l;
-	if( _getcwd(buf,256) == NULL )
+	if( getcwd(buf,256) == NULL )
 		return alloc_null();
 	l = (int)strlen(buf);
 	if( buf[l-1] != '/' && buf[l-1] != '\\' ) {
@@ -222,7 +218,7 @@ static value set_cwd( value d ) {
 	if( SetCurrentDirectoryW(val_wstring(d)) )
 		return alloc_null();
 	#else
-	if( _chdir(val_string(d)) )
+	if( chdir(val_string(d)) )
 		return alloc_null();
 	#endif
    #endif
@@ -351,7 +347,7 @@ static value sys_exists( value path ) {
 **/
 static value file_exists( value path ) {
 	gc_enter_blocking();
-	bool result = sys_exists(path) != 0;
+	bool result =  sys_exists(path);
 	gc_exit_blocking();
 	return alloc_bool(result);
 }
@@ -412,7 +408,7 @@ static value sys_rename( value path, value newname ) {
 }
 
 #define STATF(f) alloc_field(o,val_id(#f),alloc_int(s.st_##f))
-#define STATF32(f) alloc_field(o,val_id(#f),alloc_int32((int)s.st_##f))
+#define STATF32(f) alloc_field(o,val_id(#f),alloc_int32(s.st_##f))
 
 /**
 	sys_stat : string -> {
@@ -437,7 +433,7 @@ static value sys_stat( value path ) {
 	value o;
 	val_check(path,string);
 	
-	#if defined(NEKO_WINDOWS) && !defined(KORE_WINDOWSAPP)
+	#ifdef NEKO_WINDOWS
 	const wchar_t* _path = val_wstring(path);
 	gc_enter_blocking();
 	WIN32_FILE_ATTRIBUTE_DATA data;
@@ -589,8 +585,9 @@ static value sys_create_dir( value path, value mode ) {
 		return alloc_null();
 	}
 	#else
+	const char* _path = val_string(path);
 	gc_enter_blocking();
-	if( _mkdir(val_string(path),val_int(mode)) != 0 )
+	if( mkdir(val_string(path),val_int(mode)) != 0 )
 	{
 		gc_exit_blocking();
 		return alloc_null();
@@ -617,7 +614,7 @@ static value sys_remove_dir( value path ) {
 	#else
 	const char* _path = val_string(path);
 	gc_enter_blocking();
-	bool ok = _rmdir(_path) != 0;
+	bool ok = rmdir(_path) != 0;
 	#endif
 	gc_exit_blocking();
 	return alloc_bool(ok);
@@ -883,7 +880,7 @@ static value sys_getch( value b ) {
 #elif defined(NEKO_WINDOWS)
 	val_check(b,bool);
 	gc_enter_blocking();
-	int result = val_bool(b)?_getche():_getch();
+	int result = val_bool(b)?getche():getch();
 	gc_exit_blocking();
 	return alloc_int( result );
 #else

@@ -13,6 +13,7 @@
 
 #pragma warning(disable : 4996)
 
+
 #ifdef NEKO_WINDOWS
    #include <windows.h>
    #include <direct.h>
@@ -392,7 +393,7 @@ void  _hx_std_sys_rename( String path, String newname )
 Dynamic _hx_std_sys_stat( String path )
 {
    #if defined(EPPC) || defined(KORE_CONSOLE)
-   return null();
+   return alloc_null();
    #else
    hx::EnterGCFreeZone();
    struct stat s;

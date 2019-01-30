@@ -229,10 +229,6 @@ int __hxcpp_irand(int inMax)
    return (lo | (mid<<12) | (hi<<24) ) % inMax;
 }
 
-#ifdef KORE_WINDOWS
-#define fileno _fileno
-#endif
-
 void __hxcpp_stdlibs_boot()
 {
    #if defined(_MSC_VER) && !defined(HX_WINRT) && !defined(KORE_CONSOLE)
@@ -263,7 +259,7 @@ void __hxcpp_stdlibs_boot()
    //_setmode(_fileno(stderr), 0x00040000); // _O_U8TEXT
    //_setmode(_fileno(stdin), 0x00040000); // _O_U8TEXT
    #endif
-
+   
    // I think this does more harm than good.
    //  It does not cause fread to return immediately - as perhaps desired.
    //  But it does cause some new-line characters to be lost.

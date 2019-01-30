@@ -5,21 +5,22 @@
 #include <memory.h>
 #endif
 
-#pragma warning(disable : 4244)
+#pragma warning(disable : 4244 4996)
 
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wshorten-64-to-32"
 #endif
 
 #ifdef HXCPP
-#define NULL_VAL alloc_null()
+#define NULL_VAL null()
 #else
 #define NULL_VAL NULL
 #endif
 
 #ifndef NEKO_WINDOWS
 #  include <strings.h>
-#  define _strcmpi(a,b) strcasecmp(a,b)
+#  undef strcmpi
+#  define strcmpi(a,b) strcasecmp(a,b)
 #else
 #	include <string.h>
 #endif
@@ -292,7 +293,7 @@ static void do_parse_xml( const char *xml, const char **lp, int *line, value cal
 					ERROR("Expected node name");
 				{
 					value v = copy_string(start,p - start);
-					if( _strcmpi(parentname,val_string(v)) != 0 ) {
+					if( strcmpi(parentname,val_string(v)) != 0 ) {
 						buffer b = alloc_buffer("Expected </");
 						buffer_append(b,parentname);
 						buffer_append(b,">");

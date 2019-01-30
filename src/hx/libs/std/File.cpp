@@ -340,6 +340,7 @@ String _hx_std_file_contents_string( String name )
 #include <Kore/pch.h>
 #include <Kore/IO/FileReader.h>
 
+
 /**
    file_contents : f:string -> string
    <doc>Read the content of the file [f] and return it.</doc>
