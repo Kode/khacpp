@@ -514,7 +514,7 @@ struct Hash : public HashBase< typename ELEMENT::Key >
       {
          CopyValue(el->value,inValue);
          if (hx::ContainsPointers<Value>())
-            HX_OBJ_WB_GET(this,hx::PointerOf(el->value))
+            HX_OBJ_WB_GET(this,hx::PointerOf(el->value));
          return;
       }
       el = allocElement();
