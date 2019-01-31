@@ -9,6 +9,7 @@
 
 #include <stdlib.h>
 
+#include <Kore/Log.h>
 
 static bool sgIsCollecting = false;
 
@@ -219,11 +220,7 @@ static int sgSpamCollects = 0;
 static int sgAllocsSinceLastSpam = 0;
 #endif
 
-#ifdef ANDROID
-#define GCLOG(...) __android_log_print(ANDROID_LOG_INFO, "gclog", __VA_ARGS__)
-#else
-#define GCLOG printf
-#endif
+#define GCLOG(...) Kore::log(Kore::Info, __VA_ARGS__)
 
 #ifdef PROFILE_COLLECT
    #define STAMP(t) double t = __hxcpp_time_stamp();
