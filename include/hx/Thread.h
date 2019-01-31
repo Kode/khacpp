@@ -147,7 +147,9 @@ inline bool HxAtomicExchangeIfCastPtr(void *inTest, void *inNewVal,void *ioWhere
 
 #ifdef KORE_CONSOLE
 
+#include <Kore/pch.h>
 #include <Kore/Threads/Mutex.h>
+#include <Kore/Threads/Thread.h>
 
 struct HxMutex {
 	HxMutex() {
@@ -177,8 +179,14 @@ private:
 	Kore::Mutex mutex;
 };
 
-#define THREAD_FUNC_TYPE void *
-#define THREAD_FUNC_RET return 0;
+#define THREAD_FUNC_TYPE void
+#define THREAD_FUNC_RET return;
+
+inline bool HxCreateDetachedThread(void (*func)(void *), void *param)
+{
+	Kore::createAndRunThread(func, param);
+	return true;
+}
 
 #elif defined(HX_WINDOWS)
 
