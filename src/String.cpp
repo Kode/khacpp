@@ -184,9 +184,9 @@ inline int Char16Advance(const char16_t *&ioStr,bool throwOnErr=true)
       int peek = *ioStr;
       if (peek<0xdc00)
       {
-         if (throwOnErr)
-            hx::Throw(HX_CSTRING("Invalid UTF16"));
-         else
+         //if (throwOnErr)
+         //   hx::Throw(HX_CSTRING("Invalid UTF16"));
+         //else
             return 0x10000 | ((ch-0xd800)  << 10);
       }
 
