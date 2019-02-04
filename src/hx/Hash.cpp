@@ -1,6 +1,7 @@
 #include <hxcpp.h>
 #include "Hash.h"
 
+#include "../include/hxinc/haxe/ds/StringMap.h"
 
 using namespace hx;
 
@@ -382,6 +383,17 @@ Dynamic  __string_hash_get(Dynamic inHash,String inKey)
    Dynamic result = null();
    hash->query(inKey,result);
    return result;
+}
+
+Dynamic  __string_hash_get2(haxe::ds::StringMap_obj* map, String* inKey)
+{
+	StringHashBase *hash = static_cast<StringHashBase *>(map->h.GetPtr());
+	if (!hash)
+		return null();
+
+	Dynamic result = null();
+	hash->query(*inKey, result);
+	return result;
 }
 
 int  __string_hash_get_int(Dynamic inHash,String inKey)

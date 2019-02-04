@@ -3,6 +3,12 @@
 
 // --- Resource -------------------------------------------------------------
 
+namespace haxe {
+	namespace ds {
+		class HXCPP_CLASS_ATTRIBUTES StringMap_obj;
+	}
+}
+
 namespace hx
 {
 struct Resource
@@ -193,6 +199,7 @@ HXCPP_EXTERN_CLASS_ATTRIBUTES ::String      __string_hash_to_string(Dynamic &has
 HXCPP_EXTERN_CLASS_ATTRIBUTES ::String      __string_hash_to_string_raw(Dynamic &hash);
 
 HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic       __string_hash_get(Dynamic inHash,String inKey);
+HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic       __string_hash_get2(haxe::ds::StringMap_obj* map,String* inKey);
 HXCPP_EXTERN_CLASS_ATTRIBUTES int           __string_hash_get_int(Dynamic inHash,String inKey);
 HXCPP_EXTERN_CLASS_ATTRIBUTES ::String      __string_hash_get_string(Dynamic inHash,String inKey);
 HXCPP_EXTERN_CLASS_ATTRIBUTES Float         __string_hash_get_float(Dynamic inHash,String inKey);
