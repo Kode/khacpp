@@ -11,6 +11,7 @@ struct float32array {
 
 	void free() {
 		delete[] data;
+		data = nullptr;
 	}
 
 	int length() {

@@ -11,6 +11,7 @@ struct int16array {
 
 	void free() {
 		delete[] data;
+		data = nullptr;
 	}
 
 	int length() {
