@@ -215,8 +215,8 @@ public:
    virtual String __ToString() const;
 
    virtual int __ToInt() const { return 0; }
-   virtual double __ToDouble() const { return __ToInt(); }
-   virtual cpp::Int64 __ToInt64() const { return (cpp::Int64)(__ToDouble()); }
+   virtual double __ToDouble() const { return std::numeric_limits<double>::quiet_NaN(); }
+   virtual cpp::Int64 __ToInt64() const { return (cpp::Int64)(0); }
    virtual const char * __CStr() const;
    virtual String toString();
    virtual bool __HasField(const String &inString);
