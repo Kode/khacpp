@@ -292,7 +292,7 @@ inline bool TestLessEq(const T1 &v1, const T2 &v2)
                     ( EQ ? traits1::toString(v1) == traits2::toString(v2) :
                            traits1::toString(v1) != traits2::toString(v2)  );
    }
-   /*else if (traits1::type<=(int)CompareAsDouble || traits2::type<=(int)CompareAsDouble)
+   else if (traits1::type<=(int)CompareAsDouble || traits2::type<=(int)CompareAsDouble)
    {
       // numeric with a object...
 
@@ -300,13 +300,13 @@ inline bool TestLessEq(const T1 &v1, const T2 &v2)
       bool n1 = traits1::isNull(v1);
       bool n2 = traits2::isNull(v2);
       if (n1 || n2)
-         return EQ ? n1==n2 : !LESS && n1!=n2;// false,false = not equal
+         return EQ ? n1==n2 : !LESS && n1!=n2/* false,false = not equal*/;
 
       return LESS ? ( EQ ? traits1::toDouble(v1) <= traits2::toDouble(v2) :
                            traits1::toDouble(v1) <  traits2::toDouble(v2)  ) :
                     ( EQ ? traits1::toDouble(v1) == traits2::toDouble(v2) :
                            traits1::toDouble(v1) != traits2::toDouble(v2)  );
-   }*/
+   }
    else
    {
       // Dynamic compare.
@@ -365,11 +365,10 @@ inline bool TestLessEq(const T1 &v1, const T2 &v2)
       else if (t1<=(int)CompareAsDouble || t2<=(int)CompareAsDouble)
       {
          // numeric with a object...
-         /*return LESS ? ( EQ ? traits1::toDouble(v1) <= traits2::toDouble(v2) :
+         return LESS ? ( EQ ? traits1::toDouble(v1) <= traits2::toDouble(v2) :
                               traits1::toDouble(v1) <  traits2::toDouble(v2)  ) :
                        ( EQ ? traits1::toDouble(v1) == traits2::toDouble(v2) :
-                              traits1::toDouble(v1) != traits2::toDouble(v2)  );*/
-		  return false;
+                              traits1::toDouble(v1) != traits2::toDouble(v2)  );
       }
       else
       {
