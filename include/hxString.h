@@ -10,7 +10,7 @@
 #endif
 
 #if __cplusplus < 201103L
-typedef unsigned short char16_t
+typedef unsigned short char16_t;
 #endif
 
 // --- String --------------------------------------------------------
@@ -240,13 +240,13 @@ public:
    ::String operator+(const bool &inRHS) const { return *this + ::String(inRHS); }
    ::String operator+(const double &inRHS) const { return *this + ::String(inRHS); }
    ::String operator+(const float &inRHS) const { return *this + ::String(inRHS); }
-   ::String operator+(const null &inRHS) const{ return *this + HX_CSTRING("null"); } 
-   //::String operator+(const char *inRHS) const{ return *this + ::String(inRHS); } 
-   ::String operator+(const cpp::CppInt32__ &inRHS) const{ return *this + ::String(inRHS); } 
+   ::String operator+(const null &inRHS) const{ return *this + HX_CSTRING("null"); }
+   //::String operator+(const char *inRHS) const{ return *this + ::String(inRHS); }
+   ::String operator+(const cpp::CppInt32__ &inRHS) const{ return *this + ::String(inRHS); }
    template<typename T>
    inline ::String operator+(const hx::ObjectPtr<T> &inRHS) const
       { return *this + (inRHS.mPtr ? const_cast<hx::ObjectPtr<T>&>(inRHS)->toString() : HX_CSTRING("null") ); }
-   ::String operator+(const cpp::Variant &inRHS) const{ return *this + inRHS.asString(); } 
+   ::String operator+(const cpp::Variant &inRHS) const{ return *this + inRHS.asString(); }
 
 
 
