@@ -9,6 +9,10 @@
 #import <Foundation/Foundation.h>
 #endif
 
+#if __cplusplus < 201103L
+typedef unsigned short char16_t
+#endif
+
 // --- String --------------------------------------------------------
 //
 // Basic String type for hxcpp.
