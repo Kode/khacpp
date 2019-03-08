@@ -210,7 +210,7 @@ String ArrayBase::toString()
    return HX_CSTRING("[") + __join(HX_CSTRING(",")) + HX_CSTRING("]");
 }
 
- 
+
 void ArrayBase::__SetSizeExact(int inSize)
 {
    if (inSize!=length || inSize!=mAlloc)
@@ -248,7 +248,7 @@ void ArrayBase::__SetSizeExact(int inSize)
    }
 }
 
- 
+
 Dynamic ArrayBase::__unsafe_get(const Dynamic &i)
 {
    return __GetItem(i);
@@ -258,7 +258,7 @@ Dynamic ArrayBase::__unsafe_get(const Dynamic &i)
 Dynamic ArrayBase::__unsafe_set(const Dynamic &i, const Dynamic &val)
 {
    return __SetItem(i,val);
-} 
+}
 
 
 
@@ -387,7 +387,9 @@ String ArrayBase::joinArray(Array_obj<String> *inArray, String inSeparator)
          String strI = inArray->__unsafe_get(i);
          if (!strI.__s)
          {
+#if __cplusplus >= 201103L
             memcpy(buf+pos,u"null",8);
+#endif
             pos+=4;
          }
          else if (strI.isUTF16Encoded())
