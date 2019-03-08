@@ -9,7 +9,7 @@
 #import <Foundation/Foundation.h>
 #endif
 
-#if __cplusplus < 201103L
+#if __cplusplus < 201103L && !defined(KORE_MICROSOFT)
 typedef unsigned short char16_t;
 #endif
 

@@ -387,7 +387,7 @@ String ArrayBase::joinArray(Array_obj<String> *inArray, String inSeparator)
          String strI = inArray->__unsafe_get(i);
          if (!strI.__s)
          {
-#if __cplusplus >= 201103L
+#if __cplusplus >= 201103L || defined(KORE_MICROSOFT)
             memcpy(buf+pos,u"null",8);
 #endif
             pos+=4;
