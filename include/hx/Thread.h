@@ -11,7 +11,13 @@
 #include "hx/HeaderVersion.h"
 #endif
 
-#ifdef KORE_CONSOLE
+#if defined(KORE)
+
+#include <Kore/pch.h>
+#include <Kore/Threads/Atomic.h>
+#include <Kore/Threads/Event.h>
+#include <Kore/Threads/Mutex.h>
+#include <Kore/Threads/Thread.h>
 
 #elif defined(HX_WINRT)
 
@@ -38,8 +44,6 @@
 #endif
 
 #if defined(KORE)
-
-#include <Kore/Threads/Atomic.h>
 
 inline bool HxAtomicExchangeIf(int inTest, int inNewVal, volatile int *ioWhere)
 {
@@ -172,10 +176,6 @@ inline bool HxAtomicExchangeIfCastPtr(void *inTest, void *inNewVal,void *ioWhere
 }
 
 #if defined(KORE)
-
-#include <Kore/pch.h>
-#include <Kore/Threads/Mutex.h>
-#include <Kore/Threads/Thread.h>
 
 struct HxMutex {
 	HxMutex() {
@@ -321,8 +321,6 @@ struct TAutoLock
 typedef TAutoLock<HxMutex> AutoLock;
 
 #if defined(KORE)
-
-#include <Kore/Threads/Event.h>
 
 struct HxSemaphore {
 	HxSemaphore() {
