@@ -11,7 +11,9 @@
 
 
 
-
+#if defined(HX_WINDOWS) && !defined(HX_WINRT)
+#include <Windows.h>
+#endif
 
 #ifdef HX_WINRT
 #define DBGLOG WINRT_LOG
