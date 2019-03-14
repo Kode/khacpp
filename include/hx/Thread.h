@@ -37,7 +37,33 @@
 #undef RegisterClass
 #endif
 
-#if defined(ANDROID)
+#if defined(KORE)
+
+#include <Kore/Threads/Atomic.h>
+
+inline bool HxAtomicExchangeIf(int inTest, int inNewVal, volatile int *ioWhere)
+{
+	return KORE_ATOMIC_COMPARE_EXCHANGE(ioWhere, inTest, inNewVal);
+}
+
+inline bool HxAtomicExchangeIfPtr(void *inTest, void *inNewVal, void *volatile *ioWhere)
+{
+	return KORE_ATOMIC_COMPARE_EXCHANGE_POINTER(ioWhere, inTest, inNewVal);
+}
+
+inline int HxAtomicInc(volatile int *ioWhere)
+{
+	return KORE_ATOMIC_INCREMENT(ioWhere);
+}
+
+inline int HxAtomicDec(volatile int *ioWhere)
+{
+	return KORE_ATOMIC_DECREMENT(ioWhere);
+}
+
+#define HX_HAS_ATOMIC 1
+
+#elif defined(ANDROID)
 
 #if (HXCPP_ANDROID_PLATFORM>=21)
 // Nice one, google, no one was using that.
