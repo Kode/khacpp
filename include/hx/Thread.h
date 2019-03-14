@@ -171,7 +171,7 @@ inline bool HxAtomicExchangeIfCastPtr(void *inTest, void *inNewVal,void *ioWhere
    return HxAtomicExchangeIfPtr(inTest, inNewVal, (void *volatile *)ioWhere);
 }
 
-#ifdef KORE_CONSOLE
+#if defined(KORE)
 
 #include <Kore/pch.h>
 #include <Kore/Threads/Mutex.h>
@@ -320,7 +320,7 @@ struct TAutoLock
 
 typedef TAutoLock<HxMutex> AutoLock;
 
-#ifdef KORE_CONSOLE
+#if defined(KORE)
 
 #include <Kore/Threads/Event.h>
 
@@ -513,11 +513,13 @@ struct HxSemaphore
 #endif
 
 
-#if defined(KORE_CONSOLE)
+#if defined(KORE)
+
+#include <Kore/Threads/Thread.h>
 
 inline void HxSleep(unsigned int ms)
 {
-	
+	Kore::threadSleep(ms);
 }
 
 #elif defined HX_WINRT
