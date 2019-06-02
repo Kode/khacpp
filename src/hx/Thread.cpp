@@ -2,6 +2,7 @@
 
 #include <hx/Thread.h>
 #include <time.h>
+#include <sys/time.h>
 
 DECLARE_TLS_DATA(class hxThreadInfo, tlsCurrentThread);
 

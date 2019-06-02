@@ -534,7 +534,7 @@ typedef HxMutex ThreadPoolLock;
 static ThreadPoolLock sThreadPoolLock;
 
 #if !defined(HX_WINDOWS) && !defined(EMSCRIPTEN) && \
-   !defined(__SNC__) && !defined(__ORBIS__) && !defined(KORE_CONSOLE)
+   !defined(__SNC__) && !defined(__ORBIS__) && !defined(KORE_CONSOLE) && false
 #define HX_GC_PTHREADS
 typedef pthread_cond_t ThreadPoolSignal;
 inline void WaitThreadLocked(ThreadPoolSignal &ioSignal)
