@@ -11,7 +11,7 @@
 
 
 
-#if defined(HX_WINDOWS) && !defined(HX_WINRT)
+#if defined(HX_WINDOWS) || defined(HX_WINRT)
 #include <Windows.h>
 #endif
 
