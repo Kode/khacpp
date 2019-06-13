@@ -955,7 +955,7 @@ value query_root(gcroot) { return 0; }
 void destroy_root(gcroot) { }
 
 
-String alloc_hxs_wchar(const wchar_t *ptr,int size)
+/*String alloc_hxs_wchar(const wchar_t *ptr,int size)
 {
    return String::create(ptr,size);
 }
@@ -968,7 +968,7 @@ String alloc_hxs_utf16(const char16_t *ptr,int size)
 String alloc_hxs_utf8(const char *ptr,int size)
 {
    return String::create(ptr,size);
-}
+}*/
 
 const char * hxs_utf8(const String &string,hx::IStringAlloc *alloc)
 {

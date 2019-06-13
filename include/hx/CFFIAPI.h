@@ -49,9 +49,9 @@ DEFFUNC_1(char *,val_dup_string,value)
 DEFFUNC_2(char *,alloc_string_data,const char *,int)
 
 #ifdef HXCPP_PRIME
-DEFFUNC_2(HxString,alloc_hxs_wchar,const wchar_t *,int)
+/*DEFFUNC_2(HxString,alloc_hxs_wchar,const wchar_t *,int)
 DEFFUNC_2(HxString,alloc_hxs_utf16,const char16_t *,int)
-DEFFUNC_2(HxString,alloc_hxs_utf8,const char *,int)
+DEFFUNC_2(HxString,alloc_hxs_utf8,const char *,int)*/
 
 DEFFUNC_2(const char *,hxs_utf8,const HxString &,hx::IStringAlloc *)
 DEFFUNC_2(const wchar_t *,hxs_wchar,const HxString &,hx::IStringAlloc *)
