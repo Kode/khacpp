@@ -25,3 +25,5 @@ include/hxcpp.h.gch
 *.exe
 *.pdb
 *.ilk
+
+.vscode
