@@ -95,7 +95,9 @@ template <> struct CompareTraits<signed char> : public CompareTraits<int> { };
 template <> struct CompareTraits<unsigned char> : public CompareTraits<int> { };
 template <> struct CompareTraits<char> : public CompareTraits<int> { };
 template <> struct CompareTraits<wchar_t> : public CompareTraits<int> { };
+#if __cplusplus >= 201103L || defined(KORE_MICROSOFT)
 template <> struct CompareTraits<char16_t> : public CompareTraits<int> { };
+#endif
 
 
 template <> 
