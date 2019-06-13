@@ -353,9 +353,8 @@ Array<unsigned char> _hx_std_file_contents_bytes( String name )
 
    hx::EnterGCFreeZone();
 
-   FILE *file = fopen(name.utf8_str(&buf), "rb");
    Kore::FileReader file;
-#endif
+
    if(!file.open(name.utf8_str(&buf)))
       file_error("file_contents",name);
    hx::ExitGCFreeZone();

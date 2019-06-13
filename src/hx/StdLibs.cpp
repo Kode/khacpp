@@ -43,7 +43,7 @@ typedef int64_t __int64;
 #endif
 
 #ifdef KORE
-#define PRINTF(fmt, ...) Kore::Log(Kore::Info, fmt, __VA_ARGS__);
+#define PRINTF(fmt, ...) Kore::log(Kore::Info, fmt, __VA_ARGS__);
 #elif HX_WINRT
 #define PRINTF WINRT_PRINTF
 #elif defined(TIZEN)
@@ -296,9 +296,6 @@ void __trace(Dynamic inObj, Dynamic info)
    if (info==null())
    {
       PRINTF("?? %s\n", text.raw_ptr() ? text.out_str(&convertBuf) : "null");
-        Kore::log(Kore::Info, "%s", message);
-
-
    }
    else
    {
