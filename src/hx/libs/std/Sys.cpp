@@ -151,11 +151,11 @@ void _hx_std_sys_sleep( double f )
 **/
 bool _hx_std_set_time_locale( String l )
 {
-#if defined(ANDROID) || defined(GCW0)
+#if defined(ANDROID) || defined(GCW0) || defined(KORE_CONSOLE)
     return false;
 #else
 
-#if defined(NEKO_POSIX) && !defined(KORE_CONSOLE)
+#if defined(NEKO_POSIX)
    locale_t lc, old;
    lc = newlocale(LC_TIME_MASK,l.utf8_str(),NULL);
    if( !lc )
