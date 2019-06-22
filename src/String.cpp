@@ -222,8 +222,8 @@ inline int Char16Advance(const char16_t *&ioStr,bool throwOnErr=true)
       int peek = *ioStr++;
       if (IsUtf16HighSurrogate(peek))
       {
-         if (throwOnErr)
-            hx::Throw(HX_CSTRING("Invalid UTF16"));
+         //if (throwOnErr)
+         //   hx::Throw(HX_CSTRING("Invalid UTF16"));
          return 0xFFFD;
       }
 
