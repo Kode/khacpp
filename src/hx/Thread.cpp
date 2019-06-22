@@ -1,7 +1,8 @@
 #include <hxcpp.h>
 
 #include <hx/Thread.h>
-#include <time.h>
+
+#include <kinc/system.h>
 
 DECLARE_TLS_DATA(class hxThreadInfo, tlsCurrentThread);
 
@@ -452,24 +453,10 @@ public:
 
 	hx::InternalFinalizer *mFinalizer;
 
-	#if defined(HX_WINDOWS) || defined(__SNC__) || defined(KORE_CONSOLE)
 	double Now()
 	{
-		return 0;
+		return kinc_time();
 	}
-	#elif defined(HX_WINDOWS)
-	double Now()
-	{
-		return (double)clock()/CLOCKS_PER_SEC;
-	}
-	#else
-	double Now()
-	{
-		struct timeval tv;
-		gettimeofday(&tv,0);
-		return tv.tv_sec + tv.tv_usec*0.000001;
-	}
-	#endif
 
 	static void clean(hx::Object *inObj)
 	{

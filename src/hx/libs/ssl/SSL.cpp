@@ -256,7 +256,8 @@ void _hx_ssl_set_socket( Dynamic hssl, Dynamic hsocket ) {
 void _hx_ssl_set_hostname( Dynamic hssl, String hostname ){
 	int ret;
 	sslctx *ssl = val_ssl(hssl);
-	if( ret = mbedtls_ssl_set_hostname(ssl->s, hostname.__s) != 0 )
+	hx::strbuf buf;
+	if( ret = mbedtls_ssl_set_hostname(ssl->s, hostname.utf8_str(&buf)) != 0 )
 		ssl_error(ret);
 }
 
@@ -512,7 +513,8 @@ Dynamic _hx_ssl_cert_load_file( String file ){
 	int r;
 	sslcert *cert = new sslcert();
 	cert->create( NULL );
-	if( r = mbedtls_x509_crt_parse_file(cert->c, file.__s) != 0 ){
+   hx::strbuf buf;
+	if( r = mbedtls_x509_crt_parse_file(cert->c, file.utf8_str(&buf)) != 0 ){
 		cert->destroy();
 		ssl_error(r);
 	}
@@ -523,7 +525,8 @@ Dynamic _hx_ssl_cert_load_path( String path ){
 	int r;
 	sslcert *cert = new sslcert();
 	cert->create( NULL );
-	if( r = mbedtls_x509_crt_parse_path(cert->c, path.__s) != 0 ){
+   hx::strbuf buf;
+	if( r = mbedtls_x509_crt_parse_path(cert->c, path.utf8_str(&buf)) != 0 ){
 		cert->destroy();
 		ssl_error(r);
 	}
@@ -552,9 +555,10 @@ String _hx_ssl_cert_get_subject( Dynamic hcert, String objname ){
 	obj = &cert->c->subject;
 	if( obj == NULL )
 		hx::Throw( HX_CSTRING("cert_get_subject") );
+   hx::strbuf buf;
 	while( obj != NULL ){
 		r = mbedtls_oid_get_attr_short_name( &obj->oid, &oname );
-		if( r == 0 && strcmp( oname, objname.__s ) == 0 )
+		if( r == 0 && strcmp( oname, objname.utf8_str(&buf) ) == 0 )
 			return asn1_buf_to_string( &obj->val );
 		obj = obj->next;
 	}
@@ -569,9 +573,10 @@ String _hx_ssl_cert_get_issuer( Dynamic hcert, String objname ){
 	obj = &cert->c->issuer;
 	if( obj == NULL )
 		hx::Throw( HX_CSTRING("cert_get_issuer") );
+   hx::strbuf buf;
 	while( obj != NULL ){
 		r = mbedtls_oid_get_attr_short_name( &obj->oid, &oname );
-		if( r == 0 && strcmp( oname, objname.__s ) == 0 )
+		if( r == 0 && strcmp( oname, objname.utf8_str(&buf) ) == 0 )
 			return asn1_buf_to_string( &obj->val );
 		obj = obj->next;
 	}
@@ -631,6 +636,10 @@ Dynamic _hx_ssl_cert_get_next( Dynamic hcert ){
 }
 
 Dynamic _hx_ssl_cert_add_pem( Dynamic hcert, String data ){
+   #ifdef HX_SMART_STRINGS
+   if (data.isUTF16Encoded())
+		hx::Throw( HX_CSTRING("Invalid data encoding") );
+   #endif
 	sslcert *cert = val_cert(hcert);
 	int r;
 	bool isnew = 0;
@@ -640,7 +649,7 @@ Dynamic _hx_ssl_cert_add_pem( Dynamic hcert, String data ){
 		isnew = 1;
 	}
 	unsigned char *b = (unsigned char *)malloc((data.length+1) * sizeof(unsigned char));
-	memcpy(b,data.__s,data.length);
+	memcpy(b,data.raw_ptr(),data.length);
 	b[data.length] = '\0';
 	r = mbedtls_x509_crt_parse( cert->c, b, data.length+1 );
 	free(b);
@@ -685,18 +694,24 @@ Dynamic _hx_ssl_key_from_der( Array<unsigned char> buf, bool pub ){
 }
 
 Dynamic _hx_ssl_key_from_pem( String data, bool pub, String pass ){
+   #ifdef HX_SMART_STRINGS
+   if (data.isUTF16Encoded())
+		hx::Throw( HX_CSTRING("Invalid data encoding") );
+   #endif
 	sslpkey *pk = new sslpkey();
 	pk->create();
 	int r;
 	unsigned char *b = (unsigned char *)malloc((data.length+1) * sizeof(unsigned char));
-	memcpy(b,data.__s,data.length);
+	memcpy(b,data.raw_ptr(),data.length);
 	b[data.length] = '\0';
 	if( pub ){
 		r = mbedtls_pk_parse_public_key( pk->k, b, data.length+1 );
 	}else if( pass == null() ){
 		r = mbedtls_pk_parse_key( pk->k, b, data.length+1, NULL, 0 );
 	}else{
-		r = mbedtls_pk_parse_key( pk->k, b, data.length+1, (const unsigned char *)pass.__s, pass.length );
+      Array<unsigned char> pbytes(0,0);
+      __hxcpp_bytes_of_string(pbytes,pass);
+		r = mbedtls_pk_parse_key( pk->k, b, data.length+1, (const unsigned char *)pbytes->GetBase(), pbytes->length );
 	}
 	free(b);
 	if( r != 0 ){
@@ -707,7 +722,8 @@ Dynamic _hx_ssl_key_from_pem( String data, bool pub, String pass ){
 }
 
 Array<unsigned char> _hx_ssl_dgst_make( Array<unsigned char> buf, String alg ){
-	const mbedtls_md_info_t *md = mbedtls_md_info_from_string(alg.__s);
+   hx::strbuf ubuf;
+	const mbedtls_md_info_t *md = mbedtls_md_info_from_string(alg.utf8_str(&ubuf));
 	if( md == NULL )
 		hx::Throw( HX_CSTRING("Invalid hash algorithm") );
 
@@ -726,7 +742,8 @@ Array<unsigned char> _hx_ssl_dgst_sign( Array<unsigned char> buf, Dynamic hpkey,
 	unsigned char hash[32];
 	sslpkey *pk = val_pkey(hpkey);
 
-	const mbedtls_md_info_t *md = mbedtls_md_info_from_string( alg.__s );
+   hx::strbuf ubuf;
+	const mbedtls_md_info_t *md = mbedtls_md_info_from_string( alg.utf8_str(&ubuf) );
 	if( md == NULL )
 		hx::Throw( HX_CSTRING("Invalid hash algorithm") );
 
@@ -748,7 +765,8 @@ bool _hx_ssl_dgst_verify( Array<unsigned char> buf, Array<unsigned char> sign, D
 	unsigned char hash[32];
 	sslpkey *pk = val_pkey(hpkey);
 
-	md = mbedtls_md_info_from_string( alg.__s );
+   hx::strbuf ubuf;
+	md = mbedtls_md_info_from_string( alg.utf8_str(&ubuf) );
 	if( md == NULL )
 		hx::Throw( HX_CSTRING("Invalid hash algorithm") );
 

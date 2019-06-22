@@ -11,7 +11,7 @@
 
 
 
-#if defined(HX_WINDOWS) && !defined(HX_WINRT)
+#if defined(HX_WINDOWS) || defined(HX_WINRT)
 #include <Windows.h>
 #endif
 
@@ -85,10 +85,10 @@ static void CriticalErrorHandler(String inErr, bool allowFixup)
    ctx->dumpExceptionStack();
 #endif
 
-    DBGLOG("Critical Error: %s\n", inErr.__s);
+    DBGLOG("Critical Error: %s\n", inErr.utf8_str());
 
 #if defined(HX_WINDOWS) && !defined(HX_WINRT)
-    MessageBoxA(0, inErr.__s, "Critial Error - program must terminate",
+    MessageBoxA(0, inErr.utf8_str(), "Critial Error - program must terminate",
         MB_ICONEXCLAMATION|MB_OK);
 #endif
 
@@ -362,7 +362,7 @@ void StackContext::dumpExceptionStack()
    int size = mExceptionStack.size();
    for(int i = size - 1; i >= 0; i--)
    {
-      EXCEPTION_PRINT("Called from %s\n", mExceptionStack[i].toDisplay().__s);
+      EXCEPTION_PRINT("Called from %s\n", mExceptionStack[i].toDisplay().utf8_str());
    }
 }
 

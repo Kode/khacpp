@@ -93,6 +93,11 @@ template <> struct CompareTraits<signed short> : public CompareTraits<int> { };
 template <> struct CompareTraits<unsigned short> : public CompareTraits<int> { };
 template <> struct CompareTraits<signed char> : public CompareTraits<int> { };
 template <> struct CompareTraits<unsigned char> : public CompareTraits<int> { };
+template <> struct CompareTraits<char> : public CompareTraits<int> { };
+template <> struct CompareTraits<wchar_t> : public CompareTraits<int> { };
+#if __cplusplus >= 201103L || defined(KORE_MICROSOFT)
+template <> struct CompareTraits<char16_t> : public CompareTraits<int> { };
+#endif
 
 
 template <> 
@@ -157,7 +162,7 @@ struct CompareTraits< String >
    inline static hx::Object *toObject(const String &inValue) { return Dynamic(inValue).mPtr; }
 
    inline static int getDynamicCompareType(const String &) { return type; }
-   inline static bool isNull(const String &inValue) { return !inValue.__s; }
+   inline static bool isNull(const String &inValue) { return !inValue.raw_ptr(); }
 };
 
 
@@ -364,11 +369,8 @@ inline bool TestLessEq(const T1 &v1, const T2 &v2)
       }
       else if (t1<=(int)CompareAsDouble || t2<=(int)CompareAsDouble)
       {
-         // numeric with a object...
-         return LESS ? ( EQ ? traits1::toDouble(v1) <= traits2::toDouble(v2) :
-                              traits1::toDouble(v1) <  traits2::toDouble(v2)  ) :
-                       ( EQ ? traits1::toDouble(v1) == traits2::toDouble(v2) :
-                              traits1::toDouble(v1) != traits2::toDouble(v2)  );
+         // numeric with a object only works for not-equal
+         return !LESS && !EQ;
       }
       else
       {
