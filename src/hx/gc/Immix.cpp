@@ -157,7 +157,9 @@ static bool sGcVerifyGenerational = false;
 
 
 #if HX_HAS_ATOMIC && (HXCPP_GC_DEBUG_LEVEL==0) && !defined(HX_GC_VERIFY)
-  #if defined(HX_MACOS) || defined(HX_WINDOWS) || defined(HX_LINUX)
+  #if defined(KORE_PS4) || defined(KORE_XBOX_ONE)
+  enum { MAX_MARK_THREADS = 4 };
+  #elif defined(HX_MACOS) || defined(HX_WINDOWS) || defined(HX_LINUX)
   enum { MAX_MARK_THREADS = 4 };
   #else
   enum { MAX_MARK_THREADS = 2 };

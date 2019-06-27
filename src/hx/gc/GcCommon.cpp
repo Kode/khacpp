@@ -26,7 +26,7 @@ extern void __hxt_new_string(void* result, int size);
 
 namespace hx
 {
-#if defined(HX_MACOS) || defined(HX_WINDOWS) || defined(HX_LINUX) || defined(__ORBIS__)
+#if defined(HX_MACOS) || defined(HX_WINDOWS) || defined(HX_LINUX) || defined(KORE_CONSOLE)
 int sgMinimumWorkingMemory       = 20*1024*1024;
 int sgMinimumFreeSpace           = 10*1024*1024;
 #else
