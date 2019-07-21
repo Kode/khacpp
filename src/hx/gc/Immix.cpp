@@ -370,7 +370,7 @@ namespace hx
 {
 int gPauseForCollect = 0x00000000;
 
-bool gMultiThreadMode = false;
+bool gMultiThreadMode = true;
 
 StackContext *gMainThreadContext = 0;
 
