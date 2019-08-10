@@ -8,10 +8,10 @@
 #include <sys/stat.h>
 #endif
 
-#pragma warning(disable : 4996)
-
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#else
+#pragma warning(disable : 4996)
 #endif
 
 int __sys_prims() { return 0; }
@@ -427,13 +427,13 @@ static value sys_rename( value path, value newname ) {
 	<doc>Run the [stat] command on the given file or directory.</doc>
 **/
 static value sys_stat( value path ) {
-	#if defined(EPPC) || defined(KORE_CONSOLE)
+#if defined(EPPC) || defined(KORE_CONSOLE) || defined(KORE_WINDOWSAPP)
 	return alloc_null();
 	#else
 	value o;
 	val_check(path,string);
 	
-	#if defined(NEKO_WINDOWS) && !defined(KORE_WINDOWSAPP) && !defined(KORE_XBOX_ONE)
+	#if defined(NEKO_WINDOWS)
 	const wchar_t* _path = val_wstring(path);
 	gc_enter_blocking();
 	WIN32_FILE_ATTRIBUTE_DATA data;
@@ -683,7 +683,7 @@ static value sys_read_dir( value p) {
 #if defined(HX_WINRT) && defined(__cplusplus_winrt)
    auto folder = (Windows::Storage::StorageFolder::GetFolderFromPathAsync( ref new Platform::String(val_wstring(p)) ))->GetResults();
    auto results = folder->GetFilesAsync(Windows::Storage::Search::CommonFileQuery::DefaultQuery)->GetResults();
-   for(int i=0;i<results->Size;i++)
+   for(int i=0;i<(int)results->Size;i++)
       val_array_push(result,alloc_wstring(results->GetAt(i)->Path->Data()));
 #elif defined(NEKO_WINDOWS) && !defined(KORE_CONSOLE)
 	const wchar_t *path = val_wstring(p);

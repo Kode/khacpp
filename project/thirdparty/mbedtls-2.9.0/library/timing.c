@@ -322,11 +322,13 @@ unsigned long mbedtls_timing_get_timer( struct mbedtls_timing_hr_time *val, int 
 #endif
 }
 
+#ifndef KORE_CONSOLE
 static void sighandler( int signum )
 {
     mbedtls_timing_alarmed = 1;
-    signal( signum, sighandler );
+	signal(signum, sighandler);
 }
+#endif
 
 void mbedtls_set_alarm( int seconds )
 {

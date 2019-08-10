@@ -10,6 +10,9 @@
 #pragma clang diagnostic ignored "-Wparentheses-equality"
 #pragma clang diagnostic ignored "-Wconditional-uninitialized"
 #pragma clang diagnostic ignored "-Wreorder"
+#pragma clang diagnostic ignored "-Wself-assign"
+#pragma clang diagnostic ignored "-Wint-to-void-pointer-cast"
+#pragma clang diagnostic ignored "-Woverloaded-virtual"
 #else
 #pragma warning(disable : 4018 4101 4146 4244 4305 4127 4100 4267 4389 4201 4312 4244 4996)
 #endif
