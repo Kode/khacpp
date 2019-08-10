@@ -46,6 +46,10 @@ depending on the PRIV macro. */
 #ifndef PCRE_INTERNAL_H
 #define PCRE_INTERNAL_H
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wunused-function"
+#endif
+
 /* Define PCRE_DEBUG to get debugging output on stdout. */
 
 #if 0

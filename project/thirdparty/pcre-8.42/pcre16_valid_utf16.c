@@ -41,7 +41,9 @@ POSSIBILITY OF SUCH DAMAGE.
 /* This module contains an internal function for validating UTF-16 character
 strings. */
 
+#ifndef __clang__
 #pragma warning(disable : 4244)
+#endif
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"

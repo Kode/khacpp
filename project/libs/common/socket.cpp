@@ -53,10 +53,8 @@
 #	define MSG_NOSIGNAL 0
 #endif
 
+#ifndef KORE_CONSOLE
 static SERR block_error() {
-#ifdef KORE_CONSOLE
-	return PS_ERROR;
-#else
 #ifdef OS_WINDOWS
 	int err = WSAGetLastError();
 	if( err == WSAEWOULDBLOCK || err == WSAEALREADY )
@@ -65,8 +63,8 @@ static SERR block_error() {
 #endif
 		return PS_BLOCK;
 	return PS_ERROR;
-#endif
 }
+#endif
 
 void psock_init() {
 #if defined(OS_WINDOWS) && !defined(KORE_CONSOLE)

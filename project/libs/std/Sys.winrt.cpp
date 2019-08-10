@@ -8,10 +8,10 @@
 #include <sys/stat.h>
 #endif
 
-#pragma warning(disable : 4996)
-
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#else
+#pragma warning(disable : 4996)
 #endif
 
 int __sys_prims() { return 0; }

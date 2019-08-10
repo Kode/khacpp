@@ -11,6 +11,10 @@
 
 #include <Kore/Log.h>
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wunused-private-field"
+#endif
+
 static bool sgIsCollecting = false;
 
 namespace hx
