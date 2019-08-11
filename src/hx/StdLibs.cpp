@@ -295,7 +295,7 @@ void __trace(Dynamic inObj, Dynamic info)
    hx::strbuf convertBuf;
    if (info==null())
    {
-      PRINTF("?? %s\n", text.raw_ptr() ? text.out_str(&convertBuf) : "null");
+      PRINTF("?? %s", text.raw_ptr() ? text.out_str(&convertBuf) : "null");
    }
    else
    {
@@ -304,7 +304,7 @@ void __trace(Dynamic inObj, Dynamic info)
 
       hx::strbuf convertBuf;
       //PRINTF("%s:%d: %s\n", filename, line, text.raw_ptr() ? text.out_str(&convertBuf) : "null");
-      PRINTF("%s:%d: %s\n", filename, line, text.raw_ptr() ? text.out_str(&convertBuf) : "null");
+      PRINTF("%s:%d: %s", filename, line, text.raw_ptr() ? text.out_str(&convertBuf) : "null");
    }
 
 }
