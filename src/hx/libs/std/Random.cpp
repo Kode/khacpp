@@ -27,6 +27,9 @@
 
 
 #define NSEEDS   25
+#ifdef MAX
+#undef MAX
+#endif
 #define MAX      7
 
 namespace
