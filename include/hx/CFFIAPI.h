@@ -148,6 +148,7 @@ DEFFUNC_4(value,val_ocallN,value,int,value *,int)
 // Objects access
 DEFFUNC_1(int,val_id,const char *)
 DEFFUNC_3(void,alloc_field,value,int,value)
+DEFFUNC_3(void,alloc_field_numeric,value,int,double)
 DEFFUNC_2(value,val_field,value,int)
 DEFFUNC_2(double,val_field_numeric,value,int)
 
@@ -177,6 +178,7 @@ DEFFUNC_1(void, destroy_root,gcroot)
 
 DEFFUNC_0(void, gc_enter_blocking)
 DEFFUNC_0(void, gc_exit_blocking)
+DEFFUNC_0(bool, gc_try_blocking)
 DEFFUNC_0(void, gc_safe_point)
 DEFFUNC_2(void, gc_set_top_of_stack,int *,bool)
 

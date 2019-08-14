@@ -374,8 +374,6 @@ namespace hx
 {
 int gPauseForCollect = 0x00000000;
 
-bool gMultiThreadMode = true;
-
 StackContext *gMainThreadContext = 0;
 
 unsigned int gImmixStartFlag[128];
@@ -3123,7 +3121,11 @@ public:
          mLargeAllocSpace = inSize<<1;
 
       unsigned int *result = 0;
-      bool do_lock = hx::gMultiThreadMode;
+      #ifndef HXCPP_SINGLE_THREADED_APP
+      bool do_lock = true;
+      #else
+      bool do_lock = false;
+      #endif
       bool isLocked = false;
 
 
@@ -3208,7 +3210,12 @@ public:
             mLargeAllocSpace = rounded<<1;
       }
 
-      bool do_lock = hx::gMultiThreadMode;
+      #ifndef HXCPP_SINGLE_THREADED_APP
+      bool do_lock = true;
+      #else
+      bool do_lock = false;
+      #endif
+
       if (do_lock)
          mLargeListLock.Lock();
 
@@ -3430,14 +3437,13 @@ public:
             continue;
          }
 
-         if (hx::gMultiThreadMode)
-         {
-            hx::EnterGCFreeZone();
-            gThreadStateChangeLock->Lock();
-            hx::ExitGCFreeZoneLocked();
+         #ifndef HXCPP_SINGLE_THREADED_APP
+         hx::EnterGCFreeZone();
+         gThreadStateChangeLock->Lock();
+         hx::ExitGCFreeZoneLocked();
 
-            result = GetNextFree(inRequiredBytes);
-         }
+         result = GetNextFree(inRequiredBytes);
+         #endif
 
          bool forceCompact = false;
          if (!result && allowMoreBlocks() && (!sgInternalEnable || GetWorkingMemory()<sWorkingMemorySize))
@@ -3471,8 +3477,9 @@ public:
          // Assume all wil be used
          mCurrentRowsInUse += result->GetFreeRows();
 
-         if (hx::gMultiThreadMode)
-            gThreadStateChangeLock->Unlock();
+         #ifndef HXCPP_SINGLE_THREADED_APP
+         gThreadStateChangeLock->Unlock();
+         #endif
 
          result->zeroAndUnlock();
 
@@ -4616,6 +4623,8 @@ public:
    void Collect(bool inMajor, bool inForceCompact, bool inLocked=false)
    {
       PROFILE_COLLECT_SUMMARY_START;
+
+      #ifndef HXCPP_SINGLE_THREADED_APP
       // If we set the flag from 0 -> 0xffffffff then we are the collector
       //  otherwise, someone else is collecting at the moment - so wait...
       if (!HxAtomicExchangeIf(0, 0xffffffff,(volatile int *)&hx::gPauseForCollect))
@@ -4636,22 +4645,22 @@ public:
          }
          return;
       }
+      #endif
 
       STAMP(t0)
 
       // We are the collector - all must wait for us
       LocalAllocator *this_local = 0;
-      if (hx::gMultiThreadMode)
-      {
-         this_local = (LocalAllocator *)(hx::ImmixAllocator *)hx::tlsStackContext;
+      #ifndef HXCPP_SINGLE_THREADED_APP
+      this_local = (LocalAllocator *)(hx::ImmixAllocator *)hx::tlsStackContext;
 
-         if (!inLocked)
-            gThreadStateChangeLock->Lock();
+      if (!inLocked)
+         gThreadStateChangeLock->Lock();
 
-         for(int i=0;i<mLocalAllocs.size();i++)
-            if (mLocalAllocs[i]!=this_local)
-               WaitForSafe(mLocalAllocs[i]);
-      }
+      for(int i=0;i<mLocalAllocs.size();i++)
+         if (mLocalAllocs[i]!=this_local)
+            WaitForSafe(mLocalAllocs[i]);
+      #endif
 
       sgIsCollecting = true;
 
@@ -5124,8 +5133,7 @@ public:
 
 
       hx::gPauseForCollect = 0x00000000;
-      if (hx::gMultiThreadMode)
-      {
+      #ifndef HXCPP_SINGLE_THREADED_APP
          for(int i=0;i<mLocalAllocs.size();i++)
          {
             #ifdef HXCPP_SCRIPTABLE
@@ -5137,13 +5145,11 @@ public:
 
          if (!inLocked)
             gThreadStateChangeLock->Unlock();
-      }
-      else
-      {
+      #else
         #ifdef HXCPP_SCRIPTABLE
         hx::gMainThreadContext->byteMarkId = hx::gByteMarkID;
         #endif
-      }
+      #endif
 
 
       PROFILE_COLLECT_SUMMARY_END;
@@ -5451,7 +5457,9 @@ public:
    {
       mTopOfStack = mBottomOfStack = inTopOfStack;
       mRegisterBufSize = 0;
+      #ifndef HXCPP_SINGLE_THREADED_APP
       mGCFreeZone = false;
+      #endif
       mStackLocks = 0;
       mGlobalStackLock = 0;
       Reset();
@@ -5494,8 +5502,10 @@ public:
 
 
       // It is in the free zone - wait for 'SetTopOfStack' to activate
+      #ifndef HXCPP_SINGLE_THREADED_APP
       mGCFreeZone = true;
       mReadyForCollect.Set();
+      #endif
       sGlobalAlloc->AddLocal(this);
    }
 
@@ -5505,8 +5515,10 @@ public:
 
       onThreadDetach();
 
+      #ifndef HXCPP_SINGLE_THREADED_APP
       if (!mGCFreeZone)
          EnterGCFreeZone();
+      #endif
 
       AutoLock lock(*gThreadStateChangeLock);
 
@@ -5603,8 +5615,10 @@ public:
          else
             mGlobalStackLock = true;
 
+         #ifndef HXCPP_SINGLE_THREADED_APP
          if (mGCFreeZone)
             ExitGCFreeZone();
+         #endif
       }
       else
       {
@@ -5618,7 +5632,6 @@ public:
             Release();
          }
       }
-
 
       #ifdef VerifyStackRead
       VerifyStackRead(mBottomOfStack, mTopOfStack)
@@ -5671,8 +5684,10 @@ public:
       VerifyStackRead(mBottomOfStack, mTopOfStack)
       #endif
 
+      #ifndef HXCPP_SINGLE_THREADED_APP
       if (mGCFreeZone)
          ExitGCFreeZone();
+      #endif
 
       CAPTURE_REGS;
    }
@@ -5682,6 +5697,7 @@ public:
    {
       if (sgIsCollecting)
          CriticalGCError("Bad Allocation while collecting - from finalizer?");
+      #ifndef HXCPP_SINGLE_THREADED_APP
       volatile int dummy = 1;
       mBottomOfStack = (int *)&dummy;
       CAPTURE_REGS;
@@ -5691,10 +5707,12 @@ public:
 
       mReadyForCollect.Set();
       mCollectDone.Wait();
+      #endif
    }
 
    void EnterGCFreeZone()
    {
+      #ifndef HXCPP_SINGLE_THREADED_APP
       volatile int dummy = 1;
       mBottomOfStack = (int *)&dummy;
       mGCFreeZone = true;
@@ -5707,30 +5725,37 @@ public:
       #endif
 
       mReadyForCollect.Set();
+      #endif
+   }
+
+   bool TryGCFreeZone()
+   {
+      #ifndef HXCPP_SINGLE_THREADED_APP
+      if (mGCFreeZone)
+         return false;
+      EnterGCFreeZone();
+      #endif
+      return true;
    }
 
    void ExitGCFreeZone()
    {
-      #ifdef HXCPP_DEBUG
+      #ifndef HXCPP_SINGLE_THREADED_APP
       if (!mGCFreeZone)
          CriticalGCError("GCFree Zone mismatch");
-      #endif
 
-      if (hx::gMultiThreadMode)
-      {
-         AutoLock lock(*gThreadStateChangeLock);
-         mReadyForCollect.Reset();
-         mGCFreeZone = false;
-      }
+      AutoLock lock(*gThreadStateChangeLock);
+      mReadyForCollect.Reset();
+      mGCFreeZone = false;
+      #endif
    }
         // For when we already hold the lock
    void ExitGCFreeZoneLocked()
    {
-      if (hx::gMultiThreadMode)
-      {
-         mReadyForCollect.Reset();
-         mGCFreeZone = false;
-      }
+      #ifndef HXCPP_SINGLE_THREADED_APP
+      mReadyForCollect.Reset();
+      mGCFreeZone = false;
+      #endif
    }
 
 
@@ -5740,6 +5765,7 @@ public:
    //  it has finished the collect.
    void WaitForSafe()
    {
+      #ifndef HXCPP_SINGLE_THREADED_APP
       if (!mGCFreeZone)
       {
          // Cause allocation routines for fail ...
@@ -5751,12 +5777,15 @@ public:
          #endif
          mReadyForCollect.Wait();
       }
+      #endif
    }
 
    void ReleaseFromSafe()
    {
+      #ifndef HXCPP_SINGLE_THREADED_APP
       if (!mGCFreeZone)
          mCollectDone.Set();
+      #endif
    }
 
    void ExpandAlloc(int &ioSize)
@@ -5785,12 +5814,14 @@ public:
 
    void *CallAlloc(int inSize,unsigned int inObjectFlags)
    {
-      #ifdef HXCPP_DEBUG
+      #ifndef HXCPP_SINGLE_THREADED_APP
+      #if HXCPP_DEBUG
       if (mGCFreeZone)
          CriticalGCError("Allocating from a GC-free thread");
       #endif
       if (hx::gPauseForCollect)
          PauseForCollect();
+      #endif
 
       #if defined(HXCPP_VISIT_ALLOCS) && defined(HXCPP_M64)
       // Make sure we can fit a relocation pointer
@@ -5979,12 +6010,15 @@ public:
    hx::RegisterCaptureBuffer mRegisterBuf;
    int                   mRegisterBufSize;
 
+   #ifndef HXCPP_SINGLE_THREADED_APP
    bool            mGCFreeZone;
+   HxSemaphore     mReadyForCollect;
+   HxSemaphore     mCollectDone;
+   #endif
+
    int             mStackLocks;
    bool            mGlobalStackLock;
    int             mID;
-   HxSemaphore     mReadyForCollect;
-   HxSemaphore     mCollectDone;
 };
 
 
@@ -5993,22 +6027,14 @@ public:
 inline LocalAllocator *GetLocalAlloc(bool inAllowEmpty=false)
 {
    #ifndef HXCPP_SINGLE_THREADED_APP
-   if (hx::gMultiThreadMode)
-   {
-      #ifdef HXCPP_DEBUG
       LocalAllocator *result = (LocalAllocator *)(hx::ImmixAllocator *)hx::tlsStackContext;
       if (!result && !inAllowEmpty)
-      {
          hx::BadImmixAlloc();
-      }
-      return result;
-      #else
-      return (LocalAllocator *)(hx::ImmixAllocator *)hx::tlsStackContext;
-      #endif
-   }
-   #endif
 
-   return (LocalAllocator *)hx::gMainThreadContext;
+      return result;
+   #else
+      return (LocalAllocator *)hx::gMainThreadContext;
+   #endif
 }
 
 void WaitForSafe(LocalAllocator *inAlloc)
@@ -6066,29 +6092,37 @@ void PauseForCollect()
 
 void EnterGCFreeZone()
 {
-   if (hx::gMultiThreadMode)
-   {
+   #ifndef HXCPP_SINGLE_THREADED_APP
       LocalAllocator *tla = GetLocalAlloc();
       tla->EnterGCFreeZone();
-   }
+   #endif
+}
+
+
+bool TryGCFreeZone()
+{
+   #ifndef HXCPP_SINGLE_THREADED_APP
+      LocalAllocator *tla = GetLocalAlloc();
+      return tla->TryGCFreeZone();
+   #else
+      return false;
+   #endif
 }
 
 void ExitGCFreeZone()
 {
-   if (hx::gMultiThreadMode)
-   {
+   #ifndef HXCPP_SINGLE_THREADED_APP
       LocalAllocator *tla = GetLocalAlloc();
       tla->ExitGCFreeZone();
-   }
+   #endif
 }
 
 void ExitGCFreeZoneLocked()
 {
-   if (hx::gMultiThreadMode)
-   {
+   #ifndef HXCPP_SINGLE_THREADED_APP
       LocalAllocator *tla = GetLocalAlloc();
       tla->ExitGCFreeZoneLocked();
-   }
+   #endif
 }
 
 void InitAlloc()
@@ -6120,8 +6154,9 @@ void InitAlloc()
 
 void GCPrepareMultiThreaded()
 {
-   if (!hx::gMultiThreadMode)
-      hx::gMultiThreadMode = true;
+   #ifdef HXCPP_SINGLE_THREADED_APP
+   CriticalGCError("GCPrepareMultiThreaded called with HXCPP_SINGLE_THREADED_APP");
+   #endif
 }
 
 
@@ -6541,6 +6576,13 @@ void __hxcpp_enter_gc_free_zone()
 {
    hx::EnterGCFreeZone();
 }
+
+
+bool __hxcpp_try_gc_free_zone()
+{
+   return hx::TryGCFreeZone();
+}
+
 
 
 void __hxcpp_exit_gc_free_zone()

@@ -69,7 +69,7 @@ inline int HxAtomicDec(volatile int *ioWhere)
 
 #elif defined(ANDROID)
 
-#if (HXCPP_ANDROID_PLATFORM>=21)
+#if (HXCPP_ANDROID_PLATFORM>=16)
 // Nice one, google, no one was using that.
 #define __ATOMIC_INLINE__ static __inline__ __attribute__((always_inline))
 // returns 0=exchange took place, 1=not
