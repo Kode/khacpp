@@ -4,6 +4,10 @@ struct uint32array {
 	unsigned int* data;
 	int myLength;
 
+	uint32array() {
+		data = NULL;
+	}
+
 	void alloc(int elements) {
 		myLength = elements;
 		data = new unsigned int[myLength];
