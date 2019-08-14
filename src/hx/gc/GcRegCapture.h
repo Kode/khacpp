@@ -11,7 +11,7 @@
       #define HXCPP_CAPTURE_x86
    #endif
 
-   #if (defined(HX_MACOS) || (defined(HX_WINDOWS) && !defined(HX_WINRT)) || defined(_XBOX_ONE)) && defined(HXCPP_M64)
+   #if (defined(HX_MACOS) || (defined(HX_WINDOWS) && !defined(HX_WINRT)) || defined(_XBOX_ONE) || defined(KORE_PS4) || defined(KORE_XBOX_ONE)) && defined(HXCPP_M64)
       #define HXCPP_CAPTURE_x64
    #endif
 
@@ -27,7 +27,6 @@ namespace hx
 
 typedef jmp_buf RegisterCaptureBuffer;
 
-#if (defined(HX_MACOS) || (defined(HX_WINDOWS) && !defined(HX_WINRT)) || defined(_XBOX_ONE) || defined(KORE_PS4) || defined(KORE_XBOX_ONE)) && defined(HXCPP_M64)
 #define CAPTURE_REGS \
    setjmp(mRegisterBuf);
 
