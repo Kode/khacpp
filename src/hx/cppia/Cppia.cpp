@@ -4033,7 +4033,7 @@ struct MemReferenceSetter : public CppiaExpr
 
             #ifdef HXCPP_GC_GENERATIONAL
             if (isPointerObject((T*)0))
-               genWriteBarrier(compiler, sJitTemp2, (tmpVal + (targetType==jtString ? StringOffset::Ptr) : 0)).as(jtPointer));
+               genWriteBarrier(compiler, sJitTemp2, (tmpVal + ((targetType==jtString ? StringOffset::Ptr : 0))).as(jtPointer) );
             #endif
 
             compiler->convert( tmpVal, getType(), inDest, destType );
@@ -4380,23 +4380,22 @@ struct MemReferenceCrement : public CppiaExpr
          case etFloat:
             {
             ioPtr.type = jtFloat;
-            JitVal fdiff( diff<0 ? &sMinusOne : &sOne );
-            compiler->move(sJitTemp0, fdiff);
+            compiler->move( sJitTemp1, (void *)(diff<0 ? &sMinusOne : &sOne) );
             if ( inDest.type==jtVoid)
             {
-               compiler->add( ioPtr,  ioPtr, sJitTemp0.star(etFloat) );
+               compiler->add( ioPtr,  ioPtr, sJitTemp1.star(etFloat) );
             }
             else if (op==coPostInc || op==coPostDec)
             {
                compiler->move( sJitTempF0, ioPtr );
-               compiler->add( ioPtr, sJitTempF0, sJitTemp0.star(etFloat) );
+               compiler->add( ioPtr, sJitTempF0, sJitTemp1.star(etFloat) );
                compiler->convert( sJitTempF0, etFloat, inDest, destType );
             }
             else
             {
-               compiler->add( sJitTempF0, ioPtr, sJitTemp0.star(etFloat) );
+               compiler->add( sJitTempF0, ioPtr, sJitTemp1.star(etFloat) );
                compiler->move( ioPtr, sJitTempF0);
-               compiler->convert( sJitTempF0, etInt, inDest, destType );
+               compiler->convert( sJitTempF0, etFloat, inDest, destType );
             }
             }
             break;

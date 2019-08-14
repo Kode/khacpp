@@ -1,8 +1,11 @@
 #include "hxcpp.h"
 #include "GcRegCapture.h"
 
+#ifdef HXCPP_CAPTURE_SETJMP // {
 
-#ifdef HXCPP_CAPTURE_x86 // {
+// Nothing
+
+#elif defined(HXCPP_CAPTURE_x86) // }  {
 
 #pragma optimize( "", off )
 

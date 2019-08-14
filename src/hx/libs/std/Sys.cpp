@@ -502,6 +502,8 @@ Dynamic _hx_std_sys_stat( String path )
 **/
 String _hx_std_sys_file_type( String path )
 {
+   if (path==null())
+      return String();
    #if defined(EPPC) || defined(KORE_CONSOLE)
    return String();
    #else
