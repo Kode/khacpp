@@ -4,6 +4,10 @@ struct int16array {
 	short* data;
 	int myLength;
 
+	int16array() {
+		data = NULL;
+	}
+
 	void alloc(int elements) {
 		myLength = elements;
 		data = new short[myLength];
