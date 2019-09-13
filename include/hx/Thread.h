@@ -324,34 +324,34 @@ typedef TAutoLock<HxMutex> AutoLock;
 
 struct HxSemaphore {
 	HxSemaphore() {
-		event.create();
+		kinc_event_init(&event, true);
 	}
 
 	~HxSemaphore() {
-		event.destroy();
+		kinc_event_destroy(&event);
 	}
 
 	void Set() {
-		event.signal();
+		kinc_event_signal(&event);
 	}
 
 	void Wait() {
-		event.wait();
+		kinc_event_wait(&event);
 	}
 
 	bool WaitSeconds(double inSeconds) {
-		return event.tryToWait(inSeconds);
+		return kinc_event_try_to_wait(&event, inSeconds);
 	}
 
 	void Reset() {
-		event.reset();
+		kinc_event_reset(&event);
 	}
 
 	void Clean() {
-		event.destroy();
+		kinc_event_destroy(&event);
 	}
 private:
-	Kore::Event event;
+	kinc_event_t event;
 };
 
 #elif defined(HX_WINDOWS)
