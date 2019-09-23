@@ -28,7 +28,7 @@
 
 #include "hx/HeaderVersion.h"
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && _MSC_VER < 1923
    #include <typeinfo.h>
    namespace hx { typedef ::type_info type_info; }
 #else
@@ -38,7 +38,7 @@
    namespace hx { typedef std::type_info type_info; }
    #ifndef EMSCRIPTEN
       using hx::type_info;
-      #ifdef __MINGW32__
+      #if defined(__MINGW32__) || defined(_MSC_VER)
          #include <stdint.h>
       #else
          typedef int64_t  __int64;
