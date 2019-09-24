@@ -354,6 +354,38 @@ private:
 	kinc_event_t event;
 };
 
+struct ThreadPoolSignal {
+	ThreadPoolSignal() {
+		kinc_event_init(&event, true);
+	}
+
+	~ThreadPoolSignal() {
+
+	}
+
+	void Set() {
+		kinc_event_signal(&event);
+	}
+
+	void Wait() {
+		kinc_event_wait(&event);
+	}
+
+	bool WaitSeconds(double inSeconds) {
+		return kinc_event_try_to_wait(&event, inSeconds);
+	}
+
+	void Reset() {
+		kinc_event_reset(&event);
+	}
+
+	void Clean() {
+		kinc_event_destroy(&event);
+	}
+private:
+	kinc_event_t event;
+};
+
 #elif defined(HX_WINDOWS)
 
 struct HxSemaphore

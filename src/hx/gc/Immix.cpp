@@ -546,7 +546,7 @@ inline void WaitThreadLocked(ThreadPoolSignal &ioSignal)
    pthread_cond_wait(&ioSignal, &sThreadPoolLock.mMutex);
 }
 #else
-typedef HxSemaphore ThreadPoolSignal;
+//typedef HxSemaphore ThreadPoolSignal;
 #endif
 
 typedef TAutoLock<ThreadPoolLock> ThreadPoolAutoLock;
@@ -577,14 +577,10 @@ static bool sgThreadPoolAbort = false;
 // Pthreads enters the sleep state while holding a mutex, so it no cost to update
 //  the sleeping state and thereby avoid over-signalling the condition
 bool             sThreadSleeping[MAX_MARK_THREADS];
-uint8_t          sThreadWake[MAX_MARK_THREADS*sizeof(ThreadPoolSignal)];
+ThreadPoolSignal sThreadWake[MAX_MARK_THREADS];
 bool             sThreadJobDoneSleeping = false;
 ThreadPoolSignal sThreadJobDone;
 
-static inline ThreadPoolSignal* getThreadWake(int index)
-{
-	return (ThreadPoolSignal*)(sThreadWake+index*sizeof(ThreadPoolSignal));
-}
 
 static inline void SignalThreadPool(ThreadPoolSignal &ioSignal, bool sThreadSleeping)
 {
@@ -600,7 +596,7 @@ static void wakeThreadLocked(int inThreadId)
 {
    sRunningThreads |= (1<<inThreadId);
    sLazyThreads = sRunningThreads != sAllThreads;
-   SignalThreadPool(*getThreadWake(inThreadId),sThreadSleeping[inThreadId]);
+   SignalThreadPool(sThreadWake[inThreadId],sThreadSleeping[inThreadId]);
 }
 
 union BlockData
@@ -4283,7 +4279,7 @@ public:
       }
       #else
       while( !(sRunningThreads & (1<<inId) ) )
-         getThreadWake(inId)->Wait();
+         sThreadWake[inId].Wait();
       #endif
    }
 
@@ -4436,7 +4432,7 @@ public:
       sLazyThreads = sRunningThreads != sAllThreads;
 
       for(int i=0;i<start;i++)
-         SignalThreadPool(*getThreadWake(i),sThreadSleeping[i]);
+         SignalThreadPool(sThreadWake[i],sThreadSleeping[i]);
 
       if (inWait)
       {
@@ -6133,9 +6129,6 @@ void InitAlloc()
 {
    for(int i=0;i<IMMIX_LINE_LEN;i++)
       gImmixStartFlag[i] = 1<<( i>>2 ) ;
-
-   for(int i=0;i<MAX_MARK_THREADS;i++)
-	   new (getThreadWake(i)) ThreadPoolSignal();
 
    hx::CommonInitAlloc();
    sgAllocInit = true;
