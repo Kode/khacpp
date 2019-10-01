@@ -108,7 +108,7 @@ int gInAlloc = false;
 static size_t sWorkingMemorySize          = 10*1024*1024;
 
 #ifdef HXCPP_GC_MOVING
-static size_t sgMaximumFreeSpace  = 200*1024*1024;
+static size_t sgMaximumFreeSpace  = 20*1024*1024;
 #else
 static size_t sgMaximumFreeSpace  = 1024*1024*1024;
 #endif
@@ -130,7 +130,7 @@ static size_t sgMaximumFreeSpace  = 1024*1024*1024;
   #endif
 #endif
 
-//define SHOW_FRAGMENTATION_BLOCKS
+// #define SHOW_FRAGMENTATION_BLOCKS
 #if defined SHOW_FRAGMENTATION_BLOCKS
   #define SHOW_FRAGMENTATION
 #endif
@@ -223,6 +223,9 @@ static hx::Object *gCollectTrace = 0;
 static bool gCollectTraceDoPrint = false;
 static int gCollectTraceCount = 0;
 static int sgSpamCollects = 0;
+#endif
+
+#if defined(HXCPP_DEBUG) || defined(HXCPP_GC_DEBUG_ALWAYS_MOVE)
 static int sgAllocsSinceLastSpam = 0;
 #endif
 
@@ -621,6 +624,7 @@ struct BlockDataStats
       emptyBlocks += inOther.emptyBlocks;
       fraggedBlocks += inOther.fraggedBlocks;
       fragScore += inOther.fragScore;
+      fraggedRows += inOther.fraggedRows;
    }
 
    int rowsInUse;
@@ -628,6 +632,7 @@ struct BlockDataStats
    int emptyBlocks;
    int fragScore;
    int fraggedBlocks;
+   int fraggedRows;
 };
 
 static BlockDataStats sThreadBlockDataStats[MAX_MARK_THREADS];
@@ -701,6 +706,7 @@ struct BlockDataInfo
    int          mMaxHoleSize;
    int          mMoveScore;
    int          mUsedBytes;
+   int          mFraggedRows;
    bool         mPinned;
    unsigned char mZeroed;
    bool         mReclaimed;
@@ -748,6 +754,7 @@ struct BlockDataInfo
    {
       mUsedRows = 0;
       mUsedBytes = 0;
+      mFraggedRows = 0;
       mPinned = false;
       ZERO_MEM(allocStart,sizeof(int)*IMMIX_LINES);
       ZERO_MEM(mPtr->mRowMarked+IMMIX_HEADER_LINES, IMMIX_USEFUL_LINES); 
@@ -766,6 +773,7 @@ struct BlockDataInfo
    {
       mUsedRows = IMMIX_USEFUL_LINES;
       mUsedBytes = mUsedRows<<IMMIX_LINE_BITS;
+      mFraggedRows = 0;
       memset(mPtr->mRowMarked+IMMIX_HEADER_LINES, 1,IMMIX_USEFUL_LINES); 
       mRanges[0].start = 0;
       mRanges[0].length = 0;
@@ -841,6 +849,7 @@ struct BlockDataInfo
    {
       outStats.rowsInUse += mUsedRows;
       outStats.bytesInUse += mUsedBytes;
+      outStats.fraggedRows += mFraggedRows;
       //outStats.bytesInUse += 0;
       outStats.fragScore += mPinned ? (mMoveScore>0?1:0) : mMoveScore;
 
@@ -904,6 +913,8 @@ struct BlockDataInfo
       mOwned = false;
       outStats.rowsInUse += mUsedRows;
       outStats.bytesInUse += mUsedBytes;
+      outStats.fraggedRows += mFraggedRows;
+      mFraggedRows = 0;
       mHoles = 0;
 
       if (mUsedRows==IMMIX_LINES)
@@ -917,7 +928,9 @@ struct BlockDataInfo
          mReclaimed = false;
       }
 
-      mMaxHoleSize = (IMMIX_LINES - mUsedRows) << IMMIX_LINE_BITS;
+      int left = (IMMIX_LINES - mUsedRows) << IMMIX_LINE_BITS;
+      if (left<mMaxHoleSize)
+         mMaxHoleSize = left;
    }
 
    template<bool FULL>
@@ -1070,12 +1083,15 @@ struct BlockDataInfo
          outStats->rowsInUse += mUsedRows;
          outStats->bytesInUse += mUsedBytes;
          outStats->fragScore += mMoveScore;
+         outStats->fraggedRows += mFraggedRows;
 
          if (mUsedRows==0)
             outStats->emptyBlocks++;
          if (mMoveScore> FRAG_THRESH )
             outStats->fraggedBlocks++;
       }
+
+      mFraggedRows = 0;
    }
 
    int calcFragScore()
@@ -1377,6 +1393,10 @@ bool MostUsedFirst(BlockDataInfo *inA, BlockDataInfo *inB)
    return inA->getUsedRows() > inB->getUsedRows();
 }
 
+//bool BiggestFreeFirst(BlockDataInfo *inA, BlockDataInfo *inB)
+//{
+//   return inA->mMaxHoleSize > inB->mMaxHoleSize;
+//}
 
 bool LeastUsedFirst(BlockDataInfo *inA, BlockDataInfo *inB)
 {
@@ -1994,9 +2014,10 @@ void MarkAllocUnchecked(void *inPtr,hx::MarkContext *__inCtx)
       }
       #endif
 
-      if (flags)
+      int size = flags & 0xffff;
+      // Size will be 0 for large allocs -> no need to mark block
+      if (size)
       {
-         int size = flags & 0xffff;
          int start = (int)(ptr_i & IMMIX_BLOCK_OFFSET_MASK);
          int startRow = start>>IMMIX_LINE_BITS;
          int blockId = *(BlockIdType *)(ptr_i & IMMIX_BLOCK_BASE_MASK);
@@ -3455,7 +3476,7 @@ public:
          if (!result)
          {
             inAlloc->SetupStack();
-            Collect(false,forceCompact,true);
+            Collect(false,forceCompact,true,true);
             result = GetNextFree(inRequiredBytes);
          }
 
@@ -3464,7 +3485,7 @@ public:
             // Try with compact this time...
             forceCompact = true;
             inAlloc->SetupStack();
-            Collect(false,forceCompact,true);
+            Collect(false,forceCompact,true,true);
             result = GetNextFree(inRequiredBytes);
          }
 
@@ -4620,7 +4641,7 @@ public:
    }
    #endif
 
-   void Collect(bool inMajor, bool inForceCompact, bool inLocked=false)
+   void Collect(bool inMajor, bool inForceCompact, bool inLocked=false,bool inFreeIsFragged=false)
    {
       PROFILE_COLLECT_SUMMARY_START;
 
@@ -4690,6 +4711,12 @@ public:
       __hxt_gc_start();
       #endif
 
+      size_t freeFraggedRows = 0; 
+      if (inFreeIsFragged)
+      {
+         for(int i=mNextFreeBlock; i<mFreeBlocks.size(); i++)
+            freeFraggedRows += mFreeBlocks[i]->GetFreeRows();
+      }
 
       // Now all threads have mTopOfStack & mBottomOfStack set.
       bool generational = false; 
@@ -4761,19 +4788,22 @@ public:
       if (!full && generational)
       {
          countRows(stats);
-
-         double filled = (double)stats.rowsInUse / (double)(mAllBlocks.size()*IMMIX_USEFUL_LINES);
+         size_t currentRows = stats.rowsInUse + stats.fraggedRows + freeFraggedRows;
+         double filled = (double)(currentRows) / (double)(mAllBlocks.size()*IMMIX_USEFUL_LINES);
          if (filled>0.85)
          {
             // Failure of generational estimation
-            int retained = stats.rowsInUse - mRowsInUse;
+            int retained = currentRows - mRowsInUse;
             int space = mAllBlocks.size()*IMMIX_USEFUL_LINES - mRowsInUse;
             if (space<retained)
                space = retained;
+            if (space<1)
+               space = 1;
             mGenerationalRetainEstimate = (double)retained/(double)space;
             #ifdef SHOW_MEM_EVENTS
-            GCLOG("Generational retention too high %f, do normal collect\n", mGenerationalRetainEstimate);
+            GCLOG("Generational retention/fragmentation too high %f, do normal collect\n", mGenerationalRetainEstimate);
             #endif
+
 
             generational = false;
             MarkAll(generational);
@@ -4802,7 +4832,7 @@ public:
       #ifdef HXCPP_GC_MOVING
       if (!full)
       {
-         double useRatio = (double)(stats.rowsInUse<<IMMIX_LINE_BITS) / (sWorkingMemorySize);
+         double useRatio = (double)(mRowsInUse<<IMMIX_LINE_BITS) / (sWorkingMemorySize);
          #if defined(SHOW_FRAGMENTATION) || defined(SHOW_MEM_EVENTS)
             GCLOG("Row use ratio:%f\n", useRatio);
          #endif
@@ -4823,18 +4853,17 @@ public:
          sgTimeToNextTableUpdate = 15;
 
       size_t oldRowsInUse = mRowsInUse;
-      mRowsInUse = stats.rowsInUse;
+      mRowsInUse = stats.rowsInUse + stats.fraggedRows + freeFraggedRows;
 
       bool moved = false;
-      size_t bytesInUse = stats.bytesInUse;
 
       #if defined(SHOW_FRAGMENTATION) || defined(SHOW_MEM_EVENTS)
       GCLOG("Total memory : %s\n", formatBytes(GetWorkingMemory()).c_str());
-      GCLOG("  reserved bytes : %s\n", formatBytes((size_t)mRowsInUse*IMMIX_LINE_LEN).c_str());
+      GCLOG("  reserved bytes : %s\n", formatBytes(mRowsInUse*IMMIX_LINE_LEN).c_str());
       if (full)
       {
-         GCLOG("  active bytes   : %s\n", formatBytes(bytesInUse).c_str());
-         GCLOG("  active ratio   : %f\n", (double)bytesInUse/( mRowsInUse*IMMIX_LINE_LEN));
+         GCLOG("  active bytes   : %s\n", formatBytes(stats.bytesInUse).c_str());
+         GCLOG("  active ratio   : %f\n", (double)stats.bytesInUse/( mRowsInUse*IMMIX_LINE_LEN));
          GCLOG("  fragged blocks : %d (%.1f%%)\n", stats.fraggedBlocks, stats.fraggedBlocks*100.0/mAllBlocks.size() );
          GCLOG("  fragged score  : %f\n", (double)stats.fragScore/mAllBlocks.size() );
       }
@@ -4842,6 +4871,7 @@ public:
       GCLOG("  empty blocks : %d (%.1f%%)\n", stats.emptyBlocks, stats.emptyBlocks*100.0/mAllBlocks.size());
       #endif
 
+      size_t bytesInUse = mRowsInUse<<IMMIX_LINE_BITS;
 
       STAMP(t3)
 
@@ -4907,7 +4937,7 @@ public:
             doRelease = true;
          else
          {
-            size_t mem = stats.rowsInUse<<IMMIX_LINE_BITS;
+            size_t mem = mRowsInUse<<IMMIX_LINE_BITS;
             size_t targetFree = std::max((size_t)hx::sgMinimumFreeSpace, mem/100 * (size_t)hx::sgTargetFreeSpacePercentage );
             targetFree = std::min(targetFree, (size_t)sgMaximumFreeSpace );
             sWorkingMemorySize = std::max( mem + targetFree, (size_t)hx::sgMinimumWorkingMemory);
@@ -4954,7 +4984,7 @@ public:
             {
                if (doRelease)
                {
-                  size_t mem = stats.rowsInUse<<IMMIX_LINE_BITS;
+                  size_t mem = mRowsInUse<<IMMIX_LINE_BITS;
                   size_t targetFree = std::max((size_t)hx::sgMinimumFreeSpace, bytesInUse/100 *hx::sgTargetFreeSpacePercentage );
                   targetFree = std::min(targetFree, (size_t)sgMaximumFreeSpace );
                   size_t targetMem = std::max( mem + targetFree, (size_t)hx::sgMinimumWorkingMemory) +
@@ -4982,7 +5012,7 @@ public:
                #if defined(SHOW_FRAGMENTATION) || defined(SHOW_MEM_EVENTS)
                GCLOG("After compacting---\n");
                GCLOG("  total memory : %s\n", formatBytes(GetWorkingMemory()).c_str() );
-               GCLOG("  total needed : %s\n", formatBytes((size_t)stats.rowsInUse*IMMIX_LINE_LEN).c_str() );
+               GCLOG("  total needed : %s\n", formatBytes((size_t)mRowsInUse*IMMIX_LINE_LEN).c_str() );
                GCLOG("  for bytes    : %s\n", formatBytes(bytesInUse).c_str() );
                GCLOG("  empty blocks : %d (%.1f%%)\n", stats.emptyBlocks, stats.emptyBlocks*100.0/mAllBlocks.size());
                GCLOG("  fragged blocks : %d (%.1f%%)\n", stats.fraggedBlocks, stats.fraggedBlocks*100.0/mAllBlocks.size() );
@@ -5001,7 +5031,7 @@ public:
 
       STAMP(t5)
 
-      size_t mem = stats.rowsInUse<<IMMIX_LINE_BITS;
+      size_t mem = mRowsInUse<<IMMIX_LINE_BITS;
       size_t baseMem = full ? bytesInUse : mem;
       #ifdef HXCPP_GC_DYNAMIC_SIZE
       size_t targetFree = std::max((size_t)hx::sgMinimumFreeSpace, (size_t)(baseMem * profileCollectSummary.spaceFactor ) );
@@ -5039,11 +5069,12 @@ public:
       else
       {
          // move towards 0.2
-         mGenerationalRetainEstimate += (0.2-mGenerationalRetainEstimate)*0.025;
+         mGenerationalRetainEstimate += (0.2-mGenerationalRetainEstimate)*0.25;
       }
 
       double filled_ratio = (double)mRowsInUse/(double)(mAllBlocksCount*IMMIX_USEFUL_LINES);
       double after_gen = filled_ratio + (1.0-filled_ratio)*mGenerationalRetainEstimate;
+
       if (after_gen<0.75)
       {
          sGcMode = gcmGenerational;
@@ -5051,11 +5082,12 @@ public:
       else
       {
          sGcMode = gcmFull;
-         gByteMarkID |= 0x30;
+         // What was I thinking here?  This breaks #851
+         //gByteMarkID |= 0x30;
       }
 
       #ifdef SHOW_MEM_EVENTS
-      GCLOG("filled=%.2f%% + junk = %.2f%% = %.2f%% -> %s\n",
+      GCLOG("filled=%.2f%% + estimate = %.2f%% = %.2f%% -> %s\n",
             filled_ratio*100, mGenerationalRetainEstimate*100, after_gen*100, sGcMode==gcmFull?"Full":"Generational");
       #endif
 
@@ -5444,6 +5476,8 @@ void MarkConservative(int *inBottom, int *inTop,hx::MarkContext *__inCtx)
 //
 // One per thread ...
 
+static int sFragIgnore=0;
+
 class LocalAllocator : public hx::StackContext
 {
    // Must be called locked
@@ -5552,6 +5586,7 @@ public:
       allocBase = 0;
       mCurrentHole = 0;
       mCurrentHoles = 0;
+      mFraggedRows = &sFragIgnore;
       #ifdef HXCPP_GC_NURSERY
       spaceFirst = 0;
       spaceOversize = 0;
@@ -5860,6 +5895,7 @@ public:
 
                return buffer;
             }
+            *mFraggedRows += (spaceOversize - spaceFirst)>>IMMIX_LINE_BITS;
          #else
             int end = spaceStart + allocSize + skip4;
             if (end <= spaceEnd)
@@ -5886,8 +5922,11 @@ public:
 
                return buffer;
             }
+            *mFraggedRows += (spaceEnd - spaceStart)>>IMMIX_LINE_BITS;
          #endif
-         else if (mMoreHoles)
+
+
+         if (mMoreHoles)
          {
             #ifdef HXCPP_GC_NURSERY
             spaceFirst = allocBase + mCurrentRange[mCurrentHole].start + sizeof(int);
@@ -5917,6 +5956,7 @@ public:
             mCurrentRange = info->mRanges;
             allocStartFlags = info->allocStart;
             mCurrentHoles = info->mHoles;
+            mFraggedRows = &info->mFraggedRows;
             #ifdef HXCPP_GC_NURSERY
             spaceFirst = allocBase + mCurrentRange->start + sizeof(int);
             spaceOversize = spaceFirst + mCurrentRange->length;
@@ -6001,6 +6041,7 @@ public:
    int            mCurrentHole;
    int            mCurrentHoles;
    HoleRange     *mCurrentRange;
+   int           *mFraggedRows;
 
      bool           mMoreHoles;
 
