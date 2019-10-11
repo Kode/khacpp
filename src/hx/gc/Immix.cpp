@@ -4623,7 +4623,6 @@ public:
          mAllBlocks[i]->verify("After mark");
       #endif
 
-
       #ifdef HX_WATCH
       for(void **watch = hxWatchList; *watch; watch++)
       {
@@ -4765,10 +4764,16 @@ public:
       #if defined(HX_GC_VERIFY) && defined(HXCPP_GC_GENERATIONAL)
       if (generational)
       {
+         #ifdef SHOW_MEM_EVENTS
+         GCLOG("verify generational [\n");
+         #endif
          sGcVerifyGenerational = true;
          sgTimeToNextTableUpdate--;
          MarkAll(false);
          sGcVerifyGenerational = false;
+         #ifdef SHOW_MEM_EVENTS
+         GCLOG("] verify generational\n");
+         #endif
       }
       #endif
 
@@ -5405,7 +5410,7 @@ void MarkConservative(int *inBottom, int *inTop,hx::MarkContext *__inCtx)
    #endif
 
    #ifdef SHOW_MEM_EVENTS
-   GCLOG("Mark conservative %p...%p (%d)\n", inBottom, inTop, (int)(inTop-inBottom) );
+   GCLOG("Mark conservative %p...%p (%d) [...", inBottom, inTop, (int)(inTop-inBottom) );
    #endif
 
    #ifdef HXCPP_STACK_UP
@@ -5516,6 +5521,9 @@ void MarkConservative(int *inBottom, int *inTop,hx::MarkContext *__inCtx)
          // sGlobalAlloc->GetMemType(vptr) , memUnmanaged );
       }
    }
+   #ifdef SHOW_MEM_EVENTS
+   GCLOG("...]\n");
+   #endif
 }
 
 } // namespace hx
