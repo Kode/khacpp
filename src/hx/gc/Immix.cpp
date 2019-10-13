@@ -108,7 +108,8 @@ int gInAlloc = false;
 static size_t sWorkingMemorySize          = 10*1024*1024;
 
 #ifdef HXCPP_GC_MOVING
-static size_t sgMaximumFreeSpace  = 20*1024*1024;
+// Just not sure what this shold be
+static size_t sgMaximumFreeSpace  = 1024*1024*1024;
 #else
 static size_t sgMaximumFreeSpace  = 1024*1024*1024;
 #endif
@@ -144,6 +145,7 @@ static size_t sgMaximumFreeSpace  = 1024*1024*1024;
 //#define PROFILE_THREAD_USAGE
 //#define HX_GC_VERIFY
 //#define SHOW_MEM_EVENTS
+//#define SHOW_MEM_EVENTS_VERBOSE
 //#define SHOW_FRAGMENTATION
 
 //#define HX_GC_FIXED_BLOCKS
@@ -393,7 +395,7 @@ static void VisitLocalAlloc(LocalAllocator *inAlloc,hx::VisitContext *__inCtx);
 static void WaitForSafe(LocalAllocator *inAlloc);
 static void ReleaseFromSafe(LocalAllocator *inAlloc);
 static void ClearPooledAlloc(LocalAllocator *inAlloc);
-static void CollectFromThisThread(bool inMajor);
+static void CollectFromThisThread(bool inMajor,bool inForceCompact);
 
 namespace hx
 {
@@ -860,7 +862,7 @@ struct BlockDataInfo
 
    void destroy()
    {
-      #ifdef SHOW_MEM_EVENTS
+      #ifdef SHOW_MEM_EVENTS_VERBOSE
       GCLOG("  release block %d : %p\n",  mId, this );
       #endif
       (*gBlockInfo)[mId] = 0;
@@ -3111,7 +3113,7 @@ public:
          #ifdef SHOW_MEM_EVENTS
          //GCLOG("Large alloc causing collection");
          #endif
-         CollectFromThisThread(false);
+         CollectFromThisThread(false,false);
       }
 
       inSize = (inSize +3) & ~3;
@@ -3150,6 +3152,7 @@ public:
 
       if (!result)
          result = (unsigned int *)HxAlloc(inSize + sizeof(int)*2);
+
       if (!result)
       {
          #ifdef SHOW_MEM_EVENTS
@@ -3162,8 +3165,14 @@ public:
             isLocked = false;
          }
 
-         CollectFromThisThread(true);
+         CollectFromThisThread(true,true);
          result = (unsigned int *)HxAlloc(inSize + sizeof(int)*2);
+      }
+
+      if (!result)
+      {
+         GCLOG("Memory Exhausted!\n");
+         DebuggerTrap();
       }
 
       if (inClear)
@@ -3200,7 +3209,7 @@ public:
          if (inDelta>0 && (inDelta+mLargeAllocated > mLargeAllocForceRefresh) && sgInternalEnable)
          {
             //GCLOG("onMemoryChange alloc causing collection");
-            CollectFromThisThread(false);
+            CollectFromThisThread(false,false);
          }
 
          int rounded = (inDelta +3) & ~3;
@@ -3310,7 +3319,7 @@ public:
          if (sgTimeToNextTableUpdate>1)
          {
             #ifdef SHOW_FRAGMENTATION
-              #ifdef SHOW_MEM_EVENTS
+              #ifdef SHOW_MEM_EVENTS_VERBOSE
                 GCLOG("  alloc -> enable full collect\n");
               #endif
             #endif
@@ -3363,7 +3372,7 @@ public:
       char *chunk = (char *)HxAllocGCBlock( 1<<(IMMIX_BLOCK_GROUP_BITS + IMMIX_BLOCK_BITS) );
       if (!chunk)
       {
-         DebuggerTrap();
+         //DebuggerTrap();
          #ifdef SHOW_MEM_EVENTS
          GCLOG("Alloc failed - try collect\n");
          #endif
@@ -3393,7 +3402,7 @@ public:
       VerifyBlockOrder();
       #endif
 
-      #if defined(SHOW_MEM_EVENTS) || defined(SHOW_FRAGMENTATION_BLOCKS)
+      #if defined(SHOW_MEM_EVENTS_VERBOSE) || defined(SHOW_FRAGMENTATION_BLOCKS)
       if (inJustBorrowing)
       {
          GCLOG("Borrow Blocks %d = %d k\n", mAllBlocks.size(), (mAllBlocks.size() << IMMIX_BLOCK_BITS)>>10);
@@ -3929,7 +3938,7 @@ public:
          {
             size_t groupBytes = g.blocks << (IMMIX_BLOCK_BITS);
 
-            #ifdef SHOW_MEM_EVENTS
+            #ifdef SHOW_MEM_EVENTS_VERBOSE
             GCLOG("Release group %d: %p -> %p\n", i, g.alloc, g.alloc+groupBytes);
             #endif
             #ifdef HX_GC_VERIFY
@@ -4866,7 +4875,13 @@ public:
       #endif
 
       if (full)
+      {
+         #ifdef HXCPP_GC_MOVING
+         sgTimeToNextTableUpdate = 7;
+         #else
          sgTimeToNextTableUpdate = 15;
+         #endif
+      }
 
       size_t oldRowsInUse = mRowsInUse;
       mRowsInUse = stats.rowsInUse + stats.fraggedRows + freeFraggedRows;
@@ -4908,7 +4923,8 @@ public:
 
       size_t recycleRemaining = 0;
       #ifdef RECYCLE_LARGE
-      recycleRemaining = mLargeAllocForceRefresh;
+      if (!inForceCompact)
+         recycleRemaining = mLargeAllocForceRefresh;
       #endif
 
       int idx = 0;
@@ -4974,8 +4990,11 @@ public:
          }
 
 
-         if (doRelease || stats.fragScore > mAllBlocks.size()*FRAG_THRESH || hx::gAlwaysMove)
+         bool isFragged = stats.fragScore > mAllBlocks.size()*FRAG_THRESH;
+         if (doRelease || isFragged || hx::gAlwaysMove)
          {
+            if (isFragged && sgTimeToNextTableUpdate>3)
+               sgTimeToNextTableUpdate = 3;
             calcMoveOrder( );
 
             // Borrow some blocks to ensuure space to defrag into
@@ -6169,11 +6188,11 @@ void VisitLocalAlloc(LocalAllocator *inAlloc,hx::VisitContext *__inCtx)
 
 
 
-void CollectFromThisThread(bool inMajor)
+void CollectFromThisThread(bool inMajor,bool inForceCompact)
 {
    LocalAllocator *la = GetLocalAlloc();
    la->SetupStack();
-   sGlobalAlloc->Collect(inMajor,false);
+   sGlobalAlloc->Collect(inMajor,inForceCompact);
 }
 
 namespace hx
@@ -6305,7 +6324,7 @@ void *InternalNew(int inSize,bool inIsObject)
    if (sgSpamCollects && sgAllocsSinceLastSpam>=sgSpamCollects)
    {
       //GCLOG("InternalNew spam\n");
-      CollectFromThisThread(false);
+      CollectFromThisThread(false,false);
    }
    sgAllocsSinceLastSpam++;
    #endif
@@ -6395,7 +6414,7 @@ void *InternalRealloc(void *inData,int inSize, bool inExpand)
    if (sgSpamCollects && sgAllocsSinceLastSpam>=sgSpamCollects)
    {
       //GCLOG("InternalNew spam\n");
-      CollectFromThisThread(false);
+      CollectFromThisThread(false,false);
    }
    sgAllocsSinceLastSpam++;
    #endif
