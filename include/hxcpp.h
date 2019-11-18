@@ -14,7 +14,7 @@
 #pragma clang diagnostic ignored "-Wint-to-void-pointer-cast"
 #pragma clang diagnostic ignored "-Woverloaded-virtual"
 #else
-#pragma warning(disable : 4018 4101 4146 4244 4305 4127 4100 4267 4389 4201 4312 4244 4996 4457 4458 4189)
+#pragma warning(disable : 4018 4101 4146 4244 4305 4127 4100 4267 4389 4201 4312 4244 4996 4457 4458 4189 4701 4702)
 #endif
 
 // Standard headers ....
