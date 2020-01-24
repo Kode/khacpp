@@ -335,6 +335,7 @@ typedef Dynamic (*StaticFunction2)(const Dynamic &inArg0,const Dynamic &inArg1);
 typedef Dynamic (*StaticFunction3)(const Dynamic &inArg0,const Dynamic &inArg1,const Dynamic &inArg2);
 typedef Dynamic (*StaticFunction4)(const Dynamic &inArg0,const Dynamic &inArg1,const Dynamic &inArg2,const Dynamic &inArg3);
 typedef Dynamic (*StaticFunction5)(const Dynamic &inArg0,const Dynamic &inArg1,const Dynamic &inArg2,const Dynamic &inArg3,const Dynamic &inArg4);
+typedef Dynamic (*StaticFunction6)(const Dynamic &inArg0,const Dynamic &inArg1,const Dynamic &inArg2,const Dynamic &inArg3,const Dynamic &inArg4,const Dynamic &inArg5);
 typedef Dynamic (*StaticFunctionVar)(const Array<Dynamic> &inArgs);
 
 
@@ -365,6 +366,8 @@ HXCPP_EXTERN_CLASS_ATTRIBUTES
 Dynamic CreateStaticFunction4(const char *,StaticFunction4);
 HXCPP_EXTERN_CLASS_ATTRIBUTES
 Dynamic CreateStaticFunction5(const char *,StaticFunction5);
+HXCPP_EXTERN_CLASS_ATTRIBUTES
+Dynamic CreateStaticFunction6(const char *,StaticFunction6);
 HXCPP_EXTERN_CLASS_ATTRIBUTES
 Dynamic CreateStaticFunctionVar(const char *,StaticFunctionVar,int inN);
 
