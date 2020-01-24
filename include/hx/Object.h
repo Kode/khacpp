@@ -122,6 +122,7 @@ enum
    clsIdCStatic3,
    clsIdCStatic4,
    clsIdCStatic5,
+   clsIdCStatic6,
    clsIdCStaticVar,
    clsIdMutex,
    clsIdLock,
