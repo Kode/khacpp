@@ -21,7 +21,7 @@
 #  include <strings.h>
 #  undef strcmpi
 #  define strcmpi(a,b) strcasecmp(a,b)
-#elif defined(KORE_XBOX_ONE)
+#elif !defined(KORE_WINDOWS) && !defined(KORE_WINDOWSAPP)
 #	include <string.h>
 #   undef strcmpi
 #   define strcmpi(a,b) _stricmp(a,b)
