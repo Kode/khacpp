@@ -18,7 +18,7 @@
          #define USE_GETTIMEOFDAY
       #endif
    #endif
-   #if defined(__ORBIS__)
+   #if defined(KORE_SONY)
       // fill in for a missing localtime_r with localtime_s
       #define localtime_r localtime_s
       #define gmtime_r gmtime_s
