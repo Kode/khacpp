@@ -93,7 +93,7 @@ static void *sgObject_root = 0;
 // With virtual inheritance, stack pointers can point to the middle of an object
 
 // Compilers optimize by taking the address of an initernal data member
-static int sgCheckInternalOffset = sizeof(void *)+sizeof(int);
+static int sgCheckInternalOffset = sizeof(void *)*2;
 static int sgCheckInternalOffsetRows = 1;
 
 int gInAlloc = false;
