@@ -1347,7 +1347,7 @@ int String::lastIndexOf(const String &inValue, Dynamic inStart) const
       if (s016 && s116)
          return TLastIndexOf(s, __w, length, inValue.__w, inValue.length);
 
-      while(s>0)
+      while(s>=0)
       {
          if (s016 ? StrMatch(__w+s, inValue.__s, l) : StrMatch(inValue.__w, __s+s, l) )
             return s;
@@ -1522,11 +1522,11 @@ String _hx_utf8_to_utf16(const unsigned char *ptr, int inUtf8Len, bool addHash)
    if (addHash)
    {
       #ifdef EMSCRIPTEN
-         *((emscripten_align1_int *)(str+char16Count+1) );
+         *((emscripten_align1_int *)(str+char16Count+1) ) = hash;
       #else
-         *((unsigned int *)(str+char16Count+1) );
+         *((unsigned int *)(str+char16Count+1) ) = hash;
       #endif
-         ((unsigned int *)(str))[-1] |= HX_GC_STRING_HASH | HX_GC_STRING_CHAR16_T;
+      ((unsigned int *)(str))[-1] |= HX_GC_STRING_HASH | HX_GC_STRING_CHAR16_T;
    }
    else
       ((unsigned int *)(str))[-1] |= HX_GC_STRING_CHAR16_T;
@@ -1575,7 +1575,51 @@ const char * String::utf8_str(hx::IStringAlloc *inBuffer,bool throwInvalid) cons
    return __s;
 }
 
+const char *String::ascii_substr(hx::IStringAlloc *inBuffer,int start, int length) const
+{
+   #ifdef HX_SMART_STRINGS
+   if (isUTF16Encoded())
+   {
+      const char16_t *p0 = __w + start;
+      const char16_t *p = p0;
+      const char16_t *limit = p+length;
+      while(p<limit)
+      {
+         if (*p<=0 || *p>=127)
+            break;
+         p++;
+      }
+      int validLen = (int)(p-p0);
+      char *result = (char *)inBuffer->allocBytes(validLen+1);
+      for(int i=0;i<validLen;i++)
+         result[i] = p0[i];
+      result[validLen] = 0;
+      return result;
+   }
+   #endif
+   if (__s[start+length]=='\0')
+      return __s+start;
+   char *result = (char *)inBuffer->allocBytes(length+1);
+   memcpy(result,__s+start,length);
+   result[length] = '\0';
+
+   return result;
+}
+
 #ifdef HX_SMART_STRINGS
+
+bool String::eq(const ::String &inRHS) const
+{
+   if (length != inRHS.length)
+      return false;
+
+   bool s0IsWide = isUTF16Encoded();
+   if (s0IsWide != inRHS.isUTF16Encoded() )
+      return false;
+   return !memcmp(__s, inRHS.__s, s0IsWide ? 2 * length : length );
+}
+
+
 int String::compare(const ::String &inRHS) const
 {
    if (!__s)
