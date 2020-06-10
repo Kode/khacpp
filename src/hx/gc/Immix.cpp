@@ -1119,7 +1119,7 @@ struct BlockDataInfo
 
 
    // When known to be an actual object start...
-   AllocType GetAllocTypeChecked(int inOffset)
+   AllocType GetAllocTypeChecked(int inOffset, bool allowPrevious)
    {
       char time = mPtr->mRow[0][inOffset+HX_ENDIAN_MARK_ID_BYTE_HEADER];
       if ( ((time+1) & MARK_BYTE_MASK) != (gByteMarkID & MARK_BYTE_MASK)  )
@@ -1127,6 +1127,9 @@ struct BlockDataInfo
          // Object is either out-of-date, or already marked....
          return time==gByteMarkID ? allocMarked : allocNone;
       }
+
+      if (!allowPrevious)
+         return allocNone;
 
       if (*(unsigned int *)(mPtr->mRow[0] + inOffset) & IMMIX_ALLOC_IS_CONTAINER)
       {
@@ -1201,7 +1204,7 @@ struct BlockDataInfo
 }
    #endif
 
-   AllocType GetAllocType(int inOffset)
+   AllocType GetAllocType(int inOffset,bool inAllowPrevious)
    {
       // Row that the header would be on
       int r = inOffset >> IMMIX_LINE_BITS;
@@ -1223,10 +1226,10 @@ struct BlockDataInfo
          return allocNone;
       }
 
-      return GetAllocTypeChecked(inOffset);
+      return GetAllocTypeChecked(inOffset,inAllowPrevious);
    }
 
-   AllocType GetEnclosingAllocType(int inOffset,void **outPtr)
+   AllocType GetEnclosingAllocType(int inOffset,void **outPtr,bool inAllowPrevious)
    {
       for(int dx=0;dx<=sgCheckInternalOffset;dx+=4)
       {
@@ -1246,7 +1249,7 @@ struct BlockDataInfo
                   break;
 
                *outPtr = (void *)(mPtr->mRow[0] + blockOffset + sizeof(int));
-               return GetAllocTypeChecked(blockOffset);
+               return GetAllocTypeChecked(blockOffset,inAllowPrevious);
             }
          }
       }
@@ -1723,8 +1726,11 @@ class MarkContext
     int       mThreadId;
     MarkChunk *marking;
 
+
 public:
     enum { StackSize = 8192 };
+
+    bool isGenerational;
 
     MarkContext(int inThreadId = -1)
     {
@@ -1734,6 +1740,8 @@ public:
        #endif
        mThreadId = inThreadId;
        marking = sGlobalChunks.alloc();
+
+       isGenerational = false;
     }
     ~MarkContext()
     {
@@ -1743,6 +1751,8 @@ public:
        #endif
        // TODO: Free slabs
     }
+
+
     #ifdef HXCPP_DEBUG
     void PushClass(const char *inClass)
     {
@@ -1753,6 +1763,7 @@ public:
        }
        mPos++;
     }
+
 
     void SetMember(const char *inMember)
     {
@@ -1790,6 +1801,7 @@ public:
        }
     }
     #endif
+
 
     void pushObj(hx::Object *inObject)
     {
@@ -2151,7 +2163,6 @@ void MarkObjectAllocUnchecked(hx::Object *inPtr,hx::MarkContext *__inCtx)
 void MarkObjectArray(hx::Object **inPtr, int inLength, hx::MarkContext *__inCtx)
 {
    hx::Object *tmp;
-   unsigned int mask = gPrevMarkIdMask;
 
    int extra = inLength & 0x0f;
    for(int i=0;i<extra;i++)
@@ -4555,7 +4566,7 @@ public:
       else
       {
          #ifdef HX_WATCH
-         GCLOG(" non-gen mark byte -> %02x\n", hx::gByteMarkID);
+         GCLOG(" generational mark byte -> %02x\n", hx::gByteMarkID);
          #endif
          ClearBlockMarks();
       }
@@ -4611,6 +4622,8 @@ public:
       MEM_STAMP(tMarkLocal);
       hx::localCount = 0;
 
+      mMarker.isGenerational = inGenerational;
+
       // Mark local stacks
       for(int i=0;i<mLocalAllocs.size();i++)
          MarkLocalAlloc(mLocalAllocs[i] , &mMarker);
@@ -4633,6 +4646,8 @@ public:
       {
          mMarker.processMarkStack();
       }
+
+
 
       MEM_STAMP(tMarked);
 
@@ -5476,6 +5491,16 @@ void MarkConservative(int *inBottom, int *inTop,hx::MarkContext *__inCtx)
    void *lastWatch = 0;
    bool isWatch = false;
    #endif
+
+   #ifdef HXCPP_GC_GENERATIONAL
+   // If this is a generational mark, then the byte marker has not been increased.
+   // Previous mark Ids are therfore from more than 1 collection ago
+   bool allowPrevious = !__inCtx->isGenerational;
+   #else
+   const bool allowPrevious = true;
+   #endif
+
+
    for(int *ptr = inBottom ; ptr<inTop; ptr++)
    {
       void *vptr = *(void **)ptr;
@@ -5514,8 +5539,18 @@ void MarkConservative(int *inBottom, int *inTop,hx::MarkContext *__inCtx)
 
                int pos = (int)(((size_t)vptr) & IMMIX_BLOCK_OFFSET_MASK);
                AllocType t = sgCheckInternalOffset ?
-                     info->GetEnclosingAllocType(pos-sizeof(int),&vptr):
-                     info->GetAllocType(pos-sizeof(int));
+                     info->GetEnclosingAllocType(pos-sizeof(int),&vptr, allowPrevious):
+                     info->GetAllocType(pos-sizeof(int), allowPrevious);
+
+               #ifdef HX_WATCH
+               if (!isWatch && hxInWatchList(vptr))
+               {
+                  isWatch = true;
+                  GCLOG("********* Watch location conservative mark offset %p:%d\n",vptr,mem);
+               }
+               #endif
+
+
                if ( t==allocObject )
                {
                   #ifdef HX_WATCH
@@ -5524,7 +5559,7 @@ void MarkConservative(int *inBottom, int *inTop,hx::MarkContext *__inCtx)
                      GCLOG(" Mark object %p (%p)\n", vptr,ptr);
                   }
                   #endif
-                  HX_MARK_OBJECT( ((hx::Object *)vptr) );
+                  hx::MarkObjectAlloc( ((hx::Object *)vptr), __inCtx );
                   lastPin = vptr;
                   info->pin();
                }
@@ -5874,6 +5909,18 @@ public:
       #endif
       return true;
    }
+
+   bool TryExitGCFreeZone()
+   {
+      #ifndef HXCPP_SINGLE_THREADED_APP
+      if (!mGCFreeZone)
+         return false;
+      ExitGCFreeZone();
+      return true;
+      #endif
+      return false;
+   }
+
 
    void ExitGCFreeZone()
    {
@@ -6252,6 +6299,20 @@ bool TryGCFreeZone()
       return false;
    #endif
 }
+
+bool TryExitGCFreeZone()
+{
+   #ifndef HXCPP_SINGLE_THREADED_APP
+      LocalAllocator *tla = GetLocalAlloc(true);
+      if (!tla)
+         return 0;
+      bool left = tla->TryExitGCFreeZone();
+      return left;
+   #else
+      return false;
+   #endif
+}
+
 
 void ExitGCFreeZone()
 {
