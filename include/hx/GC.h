@@ -216,6 +216,8 @@ void EnterGCFreeZone();
 void ExitGCFreeZone();
 // retuns true if ExitGCFreeZone should be called
 bool TryGCFreeZone();
+// retuns true if ExitGCFreeZone was called
+bool TryExitGCFreeZone();
 
 class HXCPP_EXTERN_CLASS_ATTRIBUTES AutoGCFreeZone
 {
@@ -257,8 +259,6 @@ HXCPP_EXTERN_CLASS_ATTRIBUTES void MarkPopClass(hx::MarkContext *__inCtx);
 void GCCheckPointer(void *);
 void GCOnNewPointer(void *);
 
-
-void SetTopOfStack(void *inTopOfStack,bool inForce=false);
 
 // Called internally before and GC operations
 void CommonInitAlloc();

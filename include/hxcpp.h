@@ -76,13 +76,13 @@
   #include <stddef.h>
 #endif
 
-#if defined(EMSCRIPTEN)  || defined(_ARM_) || defined(__arm__)
+#if defined(EMSCRIPTEN)  || defined(_ARM_) || defined(__arm__) || defined(GCW0)
    #define HXCPP_ALIGN_FLOAT
 #endif
 
 // Must allign allocs to 8 bytes to match floating point requirement?
 // Ints must br read on 4-byte boundary
-#ifdef EMSCRIPTEN
+#if defined(EMSCRIPTEN) || defined(GCW0)
    #define HXCPP_ALIGN_ALLOC
 #endif
 
@@ -206,12 +206,15 @@ typedef char HX_CHAR;
 
 #ifdef HX_SMART_STRINGS
   #define HX_FIELD_EQ(name,field) (name.isAsciiEncoded() && !::memcmp(name.raw_ptr(), field, sizeof(field)/sizeof(char)))
-  // No null check is performed....
+  // No null check is performedd...
   #define HX_QSTR_EQ(name,field) (name.length==field.length && field.isAsciiEncodedQ() && !::memcmp(name.raw_ptr(), field.raw_ptr() , field.length) )
+  // field is known to be isAsciiEncodedQ
+  #define HX_QSTR_EQ_AE(name,field) (name.length==field.length && !::memcmp(name.raw_ptr(), field.raw_ptr() , field.length) )
 #else
   #define HX_FIELD_EQ(name,field) !::memcmp(name.__s, field, sizeof(field)/sizeof(char))
   // No null check is performed....
   #define HX_QSTR_EQ(name,field) (name.length==field.length && !::memcmp(name.__s, field.__s, field.length))
+  #define HX_QSTR_EQ_AE(name,field) (name.length==field.length && !::memcmp(name.__s, field.__s, field.length))
 #endif
 
 #if defined(_MSC_VER)

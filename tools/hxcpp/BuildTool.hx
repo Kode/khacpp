@@ -638,7 +638,10 @@ class BuildTool
          }
          else if (nvcc)
          {
-            var extraObj = linkNvccFiles(mCompiler.mObjDir, someCompiled, groupObjs, group.mId, mCompiler.mExt);
+            var objDir = mCompiler.mObjDir;
+            if (group.isCached())
+               objDir = CompileCache.compileCache;
+            var extraObj = linkNvccFiles(objDir, someCompiled, groupObjs, group.mId, mCompiler.mExt);
             groupObjs.push(extraObj);
             objs = objs.concat(groupObjs);
          }
@@ -675,11 +678,25 @@ class BuildTool
 
             var linker = mLinkers.get(target.mToolID);
             var output = linker.link(target,objs, mCompiler, extraDeps);
+
             if (output!="")
             {
                if (mStripper!=null)
+               {
                   if (target.mToolID=="exe" || target.mToolID=="dll")
+                  {
+                     if ( mDefines.exists("HXCPP_DEBUG_LINK_AND_STRIP") )
+                     {
+                        var unstripped = mCompiler.mObjDir + "/" + linker.getSimpleFilename(target);
+                        Log.v("Save unstripped to " + unstripped);
+
+                        var chmod = isWindows ? false : target.mToolID=="exe";
+                        CopyFile.copyFile(output, unstripped, false, Overwrite.ALWAYS, chmod);
+                     }
+
                      mStripper.strip(output);
+                  }
+               }
 
                if (manifest!=null && (target.mToolID=="exe" || target.mToolID=="dll") )
                {
@@ -757,9 +774,34 @@ class BuildTool
          objDirLen++;
       var outFile = "nvcc_" + inGroupName + mCompiler.mExt;
       var fullFile = objDir + "/" + outFile;
+
       if (hasChanged || !sys.FileSystem.exists(fullFile) )
       {
+         var maxObjs = 25;
          var shortObjs = nvObjs.map( function(f) return f.substr(objDirLen) );
+         if (shortObjs.length>maxObjs)
+         {
+            var partObjs = new Array<String>();
+            var p0 = 0;
+            var n =shortObjs.length;
+            var groupIdx = 0;
+            while(p0<n)
+            {
+               var subName = "nvcc_" + inGroupName + "_" + (groupIdx++) + mCompiler.mExt;
+               var remain = n-p0;
+               var use = remain<maxObjs ? remain : remain<maxObjs*2 ? (remain>>1) : maxObjs;
+               var files = shortObjs.slice(p0,p0+use);
+
+               var flags = getNvccLinkFlags().concat(files).concat(["-o",subName]);
+               var dbgFlags = getNvccLinkFlags().concat(["[.", "x"+subName.length,".]"]).concat(["-o",subName]);
+               Log.v("Linking nvcc in " + objDir + ":" + getNvcc() + dbgFlags.join(" ") );
+               ProcessManager.runCommand(objDir ,getNvcc(),  flags );
+               partObjs.push(subName);
+               p0 += use;
+            }
+            shortObjs = partObjs;
+         }
+
          var flags = getNvccLinkFlags().concat(shortObjs).concat(["-o",outFile]);
          var dbgFlags = getNvccLinkFlags().concat(["[.", "x"+shortObjs.length,".]"]).concat(["-o",outFile]);
          Log.v("Linking nvcc in " + objDir + ":" + getNvcc() + dbgFlags.join(" ") );
@@ -935,6 +977,8 @@ class BuildTool
                      group.mCacheProject = substitute(el.att.project);
                   if (el.has.asLibrary)
                      group.mAsLibrary = true;
+                  if (el.has.respectTimestamp)
+                     group.mRespectTimestamp = true;
                case "tag" :
                    group.addTag( substitute(el.att.value) );
                case "addTwice" :
