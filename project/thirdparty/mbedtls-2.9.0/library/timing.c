@@ -301,8 +301,8 @@ unsigned long mbedtls_timing_get_timer( struct mbedtls_timing_hr_time *val, int 
 #ifdef KORE_CONSOLE
 	return 0;
 #else
-    unsigned long delta;
-    struct timeval offset;
+    //unsigned long delta;
+    //struct timeval offset;
     struct _hr_time *t = (struct _hr_time *) val;
 
     if( reset )

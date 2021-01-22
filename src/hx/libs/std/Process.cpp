@@ -165,7 +165,7 @@ static String TQuoted(const T *ptr, int len)
    return String::create( &quoted[0], qlen );
 }
 
-#if !defined(APPLETV) && !defined(HX_APPLEWATCH) && !defined(KORE_CONSOLE)
+#if defined(NEKO_WINDOWS)
 static String quoteString(String v)
 {
    #ifdef HX_SMART_STRINGS

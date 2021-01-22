@@ -68,6 +68,9 @@ COMPILE_PCREx macro will already be appropriately set. */
 #undef PCRE_INCLUDED
 #endif
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wconditional-uninitialized"
+#endif
 
 /* Macro for setting individual bits in class bitmaps. */
 

@@ -56,6 +56,9 @@ typedef socklen_t SocketLen;
 #endif
 
 #if defined(NEKO_WINDOWS) || defined(NEKO_MAC)
+#ifdef MSG_NOSIGNAL
+#undef MSG_NOSIGNAL
+#endif
 #   define MSG_NOSIGNAL 0
 #endif
 
