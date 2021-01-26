@@ -40,6 +40,10 @@
 #  include <ctype.h>
 #endif
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wcomma"
+#endif
+
 /* ===========================================================================
  * Constants
  */

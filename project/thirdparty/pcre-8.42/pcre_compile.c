@@ -45,6 +45,10 @@ supporting internal functions that are not used by other modules. */
 #pragma warning(disable : 4703)
 #endif
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wcomma"
+#endif
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
