@@ -13,11 +13,11 @@
 
 #if defined(KORE)
 
-#include <Kore/pch.h>
-#include <Kore/Threads/Atomic.h>
-#include <Kore/Threads/Event.h>
-#include <Kore/Threads/Mutex.h>
-#include <Kore/Threads/Thread.h>
+#include <kinc/pch.h>
+#include <kinc/threads/atomic.h>
+#include <kinc/threads/event.h>
+#include <kinc/threads/mutex.h>
+#include <kinc/threads/thread.h>
 
 #elif defined(HX_WINRT)
 
@@ -47,22 +47,22 @@
 
 inline bool HxAtomicExchangeIf(int inTest, int inNewVal, volatile int *ioWhere)
 {
-	return KORE_ATOMIC_COMPARE_EXCHANGE(ioWhere, inTest, inNewVal);
+	return KINC_ATOMIC_COMPARE_EXCHANGE(ioWhere, inTest, inNewVal);
 }
 
 inline bool HxAtomicExchangeIfPtr(void *inTest, void *inNewVal, void *volatile *ioWhere)
 {
-	return KORE_ATOMIC_COMPARE_EXCHANGE_POINTER(ioWhere, inTest, inNewVal);
+	return KINC_ATOMIC_COMPARE_EXCHANGE_POINTER(ioWhere, inTest, inNewVal);
 }
 
 inline int HxAtomicInc(volatile int *ioWhere)
 {
-	return KORE_ATOMIC_INCREMENT(ioWhere);
+	return KINC_ATOMIC_INCREMENT(ioWhere);
 }
 
 inline int HxAtomicDec(volatile int *ioWhere)
 {
-	return KORE_ATOMIC_DECREMENT(ioWhere);
+	return KINC_ATOMIC_DECREMENT(ioWhere);
 }
 
 #define HX_HAS_ATOMIC 1
@@ -179,30 +179,30 @@ inline bool HxAtomicExchangeIfCastPtr(void *inTest, void *inNewVal,void *ioWhere
 
 struct HxMutex {
 	HxMutex() {
-		mutex.create();
+        kinc_mutex_init(&mutex);
 	}
 
 	~HxMutex() {
-		mutex.destroy();
+		kinc_mutex_destroy(&mutex);
 	}
 
 	void Lock() {
-		mutex.lock();
+		kinc_mutex_lock(&mutex);
 	}
 
 	void Unlock() {
-		mutex.unlock();
+		kinc_mutex_unlock(&mutex);
 	}
 
 	bool TryLock() {
-		return mutex.tryToLock();
+		return kinc_mutex_try_to_lock(&mutex);
 	}
 
 	void Clean() {
-		mutex.destroy();
+		kinc_mutex_destroy(&mutex);
 	}
 private:
-	Kore::Mutex mutex;
+	kinc_mutex_t mutex;
 };
 
 #define THREAD_FUNC_TYPE void
@@ -210,7 +210,8 @@ private:
 
 inline bool HxCreateDetachedThread(void (*func)(void *), void *param)
 {
-	Kore::createAndRunThread(func, param);
+    kinc_thread_t thread;
+    kinc_thread_init(&thread, func, param);
 	return true;
 }
 
@@ -545,11 +546,11 @@ struct HxSemaphore
 
 #if defined(KORE)
 
-#include <Kore/Threads/Thread.h>
+#include <kinc/threads/thread.h>
 
 inline void HxSleep(unsigned int ms)
 {
-	Kore::threadSleep(ms);
+	kinc_thread_sleep(ms);
 }
 
 #elif defined HX_WINRT

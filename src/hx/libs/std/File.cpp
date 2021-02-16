@@ -346,8 +346,8 @@ String _hx_std_file_contents_string( String name )
    return String::create(&buffer[0], buffer.size());
 }
 
-#include <Kore/pch.h>
-#include <Kore/IO/FileReader.h>
+#include <kinc/pch.h>
+#include <kinc/io/filereader.h>
 
 
 /**
@@ -360,22 +360,22 @@ Array<unsigned char> _hx_std_file_contents_bytes( String name )
 
    hx::EnterGCFreeZone();
 
-   Kore::FileReader file;
+   kinc_file_reader_t file;
 
-   if(!file.open(name.utf8_str(&buf)))
+   if(!kinc_file_reader_open(&file, name.utf8_str(&buf), KINC_FILE_TYPE_ASSET))
       file_error("file_contents",name);
    hx::ExitGCFreeZone();
 
-   Array<unsigned char> buffer = Array_obj<unsigned char>::__new(file.size(),file.size());
+   Array<unsigned char> buffer = Array_obj<unsigned char>::__new(kinc_file_reader_size(&file),kinc_file_reader_size(&file));
    hx::EnterGCFreeZone();
-   if (file.size())
+   if (kinc_file_reader_size(&file))
    {
       char *dest = (char *)&buffer[0];
 
       //hx::EnterGCFreeZone();
-      file.read(dest, file.size());
+      kinc_file_reader_read(&file, dest, kinc_file_reader_size(&file));
    }
-   file.close();
+   kinc_file_reader_close(&file);
    hx::ExitGCFreeZone();
    return buffer;
 }

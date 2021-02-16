@@ -9,7 +9,7 @@
 
 #include <stdlib.h>
 
-#include <Kore/Log.h>
+#include <kinc/log.h>
 
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wunused-private-field"
@@ -247,7 +247,7 @@ static int sgSpamCollects = 0;
 static int sgAllocsSinceLastSpam = 0;
 #endif
 
-#define GCLOG(...) Kore::log(Kore::Info, __VA_ARGS__)
+#define GCLOG(...) kinc_log(KINC_LOG_LEVEL_INFO, __VA_ARGS__)
 
 #ifdef PROFILE_COLLECT
    #define STAMP(t) double t = __hxcpp_time_stamp();

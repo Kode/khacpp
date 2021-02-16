@@ -27,8 +27,8 @@ typedef int64_t __int64;
 #if defined(BLACKBERRY) || defined(GCW0)
 #include <unistd.h>
 #endif
-#include <Kore/pch.h>
-#include <Kore/Log.h>
+#include <kinc/pch.h>
+#include <kinc/log.h>
 
 #include <string>
 #include <map>
@@ -43,7 +43,7 @@ typedef int64_t __int64;
 #endif
 
 #ifdef KORE
-#define PRINTF(fmt, ...) Kore::log(Kore::Info, fmt, __VA_ARGS__);
+#define PRINTF(fmt, ...) kinc_log(KINC_LOG_LEVEL_INFO, fmt, __VA_ARGS__);
 #elif HX_WINRT
 #define PRINTF WINRT_PRINTF
 #elif defined(TIZEN)
