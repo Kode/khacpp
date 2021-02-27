@@ -113,7 +113,7 @@ static size_t sgMaximumFreeSpace  = 1024*1024*1024;
 #endif
 
 
-// #define HXCPP_GC_DEBUG_LEVEL 1
+ #define HXCPP_GC_DEBUG_LEVEL 1
 
 #if HXCPP_GC_DEBUG_LEVEL>1
   #define PROFILE_COLLECT
@@ -138,12 +138,27 @@ static size_t sgMaximumFreeSpace  = 1024*1024*1024;
 //#define PROFILE_COLLECT
 //#define PROFILE_THREAD_USAGE
 //#define HX_GC_VERIFY
+//#define HX_GC_VERIFY_ALLOC_START
 //#define SHOW_MEM_EVENTS
 //#define SHOW_MEM_EVENTS_VERBOSE
 //#define SHOW_FRAGMENTATION
+//
+// Setting this can make it easier to reproduce this problem since it takes
+//  the timing of the zeroing out of the equation
+//#define HX_GC_ZERO_EARLY
 
+// Setting this on windows64 will mean this objects are allocated in the same place,
+//  which can make native debugging easier
 //#define HX_GC_FIXED_BLOCKS
+//
+// If the problem happens on the same object, you can print info about the object
+//  every collect so you can see where it goes wrong (usually requires HX_GC_FIXED_BLOCKS)
 //#define HX_WATCH
+
+#if defined(HX_GC_VERIFY) && defined(HXCPP_GC_GENERATIONAL)
+#define HX_GC_VERIFY_GENERATIONAL
+#endif
+
 
 #ifdef HX_WATCH
 void *hxWatchList[] = {
@@ -169,26 +184,31 @@ bool hxInWatchList(void *watch)
    #define HXCPP_GC_SUMMARY
 #endif
 
-#if defined(HX_GC_VERIFY) && defined(HXCPP_GC_GENERATIONAL)
+#ifdef HX_GC_VERIFY_GENERATIONAL
 static bool sGcVerifyGenerational = false;
 #endif
 
 
 #if HX_HAS_ATOMIC && (HXCPP_GC_DEBUG_LEVEL==0) && !defined(HX_GC_VERIFY) && false
   #if defined(KORE_PS4) || defined(KORE_XBOX_ONE)
-  enum { MAX_MARK_THREADS = 4 };
+  enum { MAX_GC_THREADS = 4 };
   #elif defined(HX_MACOS) || defined(HX_WINDOWS) || defined(HX_LINUX)
   enum { MAX_MARK_THREADS = 4 };
   #else
-  enum { MAX_MARK_THREADS = 2 };
+  enum { MAX_GC_THREADS = 2 };
   #endif
 #else
-  enum { MAX_MARK_THREADS = 1 };
+  enum { MAX_GC_THREADS = 1 };
+#endif
+
+#if (MAX_GC_THREADS>1)
+   // You can uncomment this for better call stacks if it crashes while collecting
+   #define HX_MULTI_THREAD_MARKING
 #endif
 
 #ifdef PROFILE_THREAD_USAGE
-static int sThreadMarkCountData[MAX_MARK_THREADS+1];
-static int sThreadArrayMarkCountData[MAX_MARK_THREADS+1];
+static int sThreadMarkCountData[MAX_GC_THREADS+1];
+static int sThreadArrayMarkCountData[MAX_GC_THREADS+1];
 static int *sThreadMarkCount = sThreadMarkCountData + 1;
 static int *sThreadArrayMarkCount = sThreadArrayMarkCountData + 1;
 static int sThreadChunkPushCount;
@@ -597,8 +617,8 @@ static bool sgThreadPoolAbort = false;
 
 // Pthreads enters the sleep state while holding a mutex, so it no cost to update
 //  the sleeping state and thereby avoid over-signalling the condition
-bool             sThreadSleeping[MAX_MARK_THREADS];
-ThreadPoolSignal sThreadWake[MAX_MARK_THREADS];
+bool             sThreadSleeping[MAX_GC_THREADS];
+ThreadPoolSignal sThreadWake[MAX_GC_THREADS];
 bool             sThreadJobDoneSleeping = false;
 ThreadPoolSignal sThreadJobDone;
 
@@ -653,7 +673,7 @@ struct BlockDataStats
    int fraggedRows;
 };
 
-static BlockDataStats sThreadBlockDataStats[MAX_MARK_THREADS];
+static BlockDataStats sThreadBlockDataStats[MAX_GC_THREADS];
 #ifdef HXCPP_VISIT_ALLOCS
 static hx::VisitContext *sThreadVisitContext = 0;
 #endif
@@ -876,6 +896,22 @@ struct BlockDataInfo
       if (mMoveScore> FRAG_THRESH )
          outStats.fraggedBlocks++;
    }
+
+   #ifdef HX_GC_VERIFY_ALLOC_START
+   void verifyAllocStart()
+   {
+      unsigned char *rowMarked = mPtr->mRowMarked;
+
+      for(int r = IMMIX_HEADER_LINES; r<IMMIX_LINES; r++)
+      {
+         if (!rowMarked[r] && allocStart[r])
+         {
+            printf("allocStart set without marking\n");
+            DebuggerTrap();
+         }
+      }
+   }
+   #endif
 
    void countRows(BlockDataStats &outStats)
    {
@@ -1151,6 +1187,10 @@ struct BlockDataInfo
    #ifdef HXCPP_GC_NURSERY
    AllocType GetEnclosingNurseryType(int inOffset, void **outPtr)
    {
+      // The block did not get used in the previous cycle, so allocStart is invalid and
+      //  no new objects should be in here
+      if (!mZeroed)
+         return allocNone;
       // For the nursery(generational) case, the allocStart markers are not set
       // So trace tne new object links through the new allocation holes
       for(int h=0;h<mHoles;h++)
@@ -1238,25 +1278,34 @@ struct BlockDataInfo
          int blockOffset = inOffset - dx;
          if (blockOffset >= 0)
          {
-	         int r = blockOffset >> IMMIX_LINE_BITS;
-	         if (r >= IMMIX_HEADER_LINES && r < IMMIX_LINES)
-	         {
-	            // Normal, good alloc
-	            int rowPos = hx::gImmixStartFlag[blockOffset &127];
-	            if ( allocStart[r] & rowPos )
-	            {
-	               // Found last valid object - is it big enough?
-	               unsigned int header =  *(unsigned int *)((char *)mPtr + blockOffset);
-	               int size = (header & IMMIX_ALLOC_SIZE_MASK) >> IMMIX_ALLOC_SIZE_SHIFT;
-	               // Valid object not big enough...
-	               if (blockOffset + size +sizeof(int) <= inOffset )
-	                  break;
-	
-	               *outPtr = (void *)(mPtr->mRow[0] + blockOffset + sizeof(int));
-	               return GetAllocTypeChecked(blockOffset,inAllowPrevious);
-	            }
-	         }
-	       }
+            int r = blockOffset >> IMMIX_LINE_BITS;
+            if (r >= IMMIX_HEADER_LINES && r < IMMIX_LINES)
+            {
+               // Normal, good alloc
+               int rowPos = hx::gImmixStartFlag[blockOffset &127];
+               if ( allocStart[r] & rowPos )
+               {
+                  // Found last valid object - is it big enough?
+                  unsigned int header =  *(unsigned int *)((char *)mPtr + blockOffset);
+                  int size = (header & IMMIX_ALLOC_SIZE_MASK) >> IMMIX_ALLOC_SIZE_SHIFT;
+                  // Valid object not big enough...
+                  if (blockOffset + size +sizeof(int) <= inOffset )
+                     break;
+
+                  // If the object is old, it could be the tail end of an old row that
+                  //  thinks is is covering this row, but it is not because this row is reused.
+                  // So we can say there is no other object that could be covering
+                  //  this spot, but not that it is not a nursery object.
+                  AllocType result = GetAllocTypeChecked(blockOffset,inAllowPrevious);
+                  if (result!=allocNone)
+                  {
+                     *outPtr = (void *)(mPtr->mRow[0] + blockOffset + sizeof(int));
+                     return result;
+                  }
+                  break;
+               }
+            }
+          }
       }
 
       #ifdef HXCPP_GC_NURSERY
@@ -1479,19 +1528,19 @@ struct GlobalChunks
       HxAtomicInc(&sThreadChunkPushCount);
       #endif
 
-      if (MAX_MARK_THREADS>1 && sLazyThreads)
+      if (MAX_GC_THREADS>1 && sLazyThreads)
       {
          ThreadPoolAutoLock l(sThreadPoolLock);
 
          #ifdef PROFILE_THREAD_USAGE
            #define CHECK_THREAD_WAKE(tid) \
-            if (MAX_MARK_THREADS >tid && sgThreadCount>tid && (!(sRunningThreads & (1<<tid)))) { \
+            if (MAX_GC_THREADS >tid && sgThreadCount>tid && (!(sRunningThreads & (1<<tid)))) { \
             wakeThreadLocked(tid); \
             sThreadChunkWakes++; \
            } 
          #else
            #define CHECK_THREAD_WAKE(tid)  \
-            if (MAX_MARK_THREADS >tid && sgThreadCount>tid && (!(sRunningThreads & (1<<tid)))) { \
+            if (MAX_GC_THREADS >tid && sgThreadCount>tid && (!(sRunningThreads & (1<<tid)))) { \
             wakeThreadLocked(tid); \
            }
          #endif
@@ -1638,7 +1687,8 @@ struct GlobalChunks
    //  and returns a new job if there is one
    MarkChunk *popJobOrFinish(MarkChunk *inChunk,int inThreadId)
    {
-      if (MAX_MARK_THREADS > 1 && sAllThreads)
+      #ifdef HX_MULTI_THREAD_MARKING
+      if (sAllThreads)
       {
          MarkChunk *result =  popJobLocked(inChunk);
          if (!result)
@@ -1659,6 +1709,7 @@ struct GlobalChunks
          }
          return result;
       }
+      #endif
 
       return popJobLocked(inChunk);
    }
@@ -1846,11 +1897,13 @@ public:
        {
           if (!marking || !marking->count)
           {
-             if (MAX_MARK_THREADS>1 && sgThreadPoolAbort)
+             #ifdef HX_MULTI_THREAD_MARKING
+             if (sgThreadPoolAbort)
              {
                 releaseJobs();
                 return;
              }
+             #endif
 
              marking = sGlobalChunks.popJobOrFinish(marking,mThreadId);
              if (!marking)
@@ -1872,8 +1925,9 @@ public:
              if (obj)
              {
                 obj->__Mark(this);
+                #if HX_MULTI_THREAD_MARKING
                 // Load balance
-                if (MAX_MARK_THREADS>1 && sLazyThreads && marking->count>32)
+                if (sLazyThreads && marking->count>32)
                 {
                    MarkChunk *c = sGlobalChunks.alloc();
                    marking->count -= 16;
@@ -1883,6 +1937,7 @@ public:
                 }
                 #ifdef PROFILE_THREAD_USAGE
                 sThreadMarkCount[mThreadId]++;
+                #endif
                 #endif
              }
              else
@@ -1972,7 +2027,7 @@ void MarkAllocUnchecked(void *inPtr,hx::MarkContext *__inCtx)
    #ifdef HXCPP_GC_NURSERY
    if (!(flags & 0xff000000))
    {
-      #if defined(HXCPP_GC_GENERATIONAL) && defined(HX_GC_VERIFY)
+      #ifdef HX_GC_VERIFY_GENERATIONAL
       if (sGcVerifyGenerational)
       {
          printf("Nursery alloc escaped generational collection %p\n", inPtr);
@@ -2013,7 +2068,7 @@ void MarkAllocUnchecked(void *inPtr,hx::MarkContext *__inCtx)
    else
    #endif
    {
-      #if defined(HXCPP_GC_GENERATIONAL) && defined(HX_GC_VERIFY)
+      #ifdef HX_GC_VERIFY_GENERATIONAL
       if (sGcVerifyGenerational && ((unsigned char *)inPtr)[HX_ENDIAN_MARK_ID_BYTE] != gPrevByteMarkID)
       {
          printf("Alloc missed int generational collection %p\n", inPtr);
@@ -2059,7 +2114,7 @@ void MarkObjectAllocUnchecked(hx::Object *inPtr,hx::MarkContext *__inCtx)
    #ifdef HXCPP_GC_NURSERY
    if (!(flags & 0xff000000))
    {
-      #if defined(HXCPP_GC_GENERATIONAL) && defined(HX_GC_VERIFY)
+      #if defined(HX_GC_VERIFY_GENERATIONAL)
          if (sGcVerifyGenerational)
          {
             printf("Nursery object escaped generational collection %p\n", inPtr);
@@ -2180,7 +2235,14 @@ void MarkObjectArray(hx::Object **inPtr, int inLength, hx::MarkContext *__inCtx)
    hx::Object **end = ptrI + inLength;
 
 
-   if (MAX_MARK_THREADS>1 && sAllThreads && inLength>4096)
+   #define MARK_PTR_I \
+   tmp = *ptrI++; \
+   if (tmp) MarkObjectAlloc(tmp,__inCtx);
+
+
+
+   #ifdef HX_MULTI_THREAD_MARKING
+   if (sAllThreads && inLength>4096)
    {
       hx::Object **dishOffEnd = end - 4096;
       while(ptrI<end)
@@ -2192,10 +2254,6 @@ void MarkObjectArray(hx::Object **inPtr, int inLength, hx::MarkContext *__inCtx)
          }
          else
          {
-            #define MARK_PTR_I \
-            tmp = *ptrI++; \
-            if (tmp) MarkObjectAlloc(tmp,__inCtx);
-
             MARK_PTR_I;
             MARK_PTR_I;
             MARK_PTR_I;
@@ -2219,6 +2277,7 @@ void MarkObjectArray(hx::Object **inPtr, int inLength, hx::MarkContext *__inCtx)
       }
    }
    else
+   #endif
    {
       while(ptrI<end)
       {
@@ -2248,7 +2307,7 @@ void MarkObjectArray(hx::Object **inPtr, int inLength, hx::MarkContext *__inCtx)
 void MarkStringArray(String *inPtr, int inLength, hx::MarkContext *__inCtx)
 {
    #if 0
-   if (MAX_MARK_THREADS>1 && sAllThreads && inLength>4096)
+   if (MAX_GC_THREADS>1 && sAllThreads && inLength>4096)
    {
       int extra = inLength & 0x0f;
       for(int i=0;i<extra;i++)
@@ -4150,7 +4209,7 @@ public:
          for(int i=0;i<n;i++)
             (*inRemembered)[i]->__Visit(inCtx);
       }
-      else if (MAX_MARK_THREADS>1 && inMultithread && mAllBlocks.size())
+      else if (MAX_GC_THREADS>1 && inMultithread && mAllBlocks.size())
       {
          sThreadVisitContext = inCtx;
          StartThreadJobs(tpjVisitBlocks, mAllBlocks.size(), true);
@@ -4249,7 +4308,7 @@ public:
       }
    }
 
-
+  
 
    #ifdef HXCPP_VISIT_ALLOCS
    void VisitBlockAsync(hx::VisitContext *inCtx)
@@ -4504,7 +4563,7 @@ public:
       if (!sThreadPoolInit)
       {
          sThreadPoolInit = true;
-         for(int i=0;i<MAX_MARK_THREADS;i++)
+         for(int i=0;i<MAX_GC_THREADS;i++)
             CreateWorker(i);
       }
 
@@ -4515,7 +4574,7 @@ public:
 
       sgThreadPoolJob = inJob;
 
-      sgThreadCount = inThreadLimit<0 ? MAX_MARK_THREADS : std::min((int)MAX_MARK_THREADS, inThreadLimit) ;
+      sgThreadCount = inThreadLimit<0 ? MAX_GC_THREADS : std::min((int)MAX_GC_THREADS, inThreadLimit) ;
 
       int start = std::min(inWorkers, sgThreadCount );
 
@@ -4621,7 +4680,7 @@ public:
       MEM_STAMP(tMarkInit);
 
       #ifdef PROFILE_THREAD_USAGE
-      for(int i=-1;i<MAX_MARK_THREADS;i++)
+      for(int i=-1;i<MAX_GC_THREADS;i++)
          sThreadChunkPushCount = sThreadChunkWakes = sThreadMarkCount[i] = sThreadArrayMarkCount[i] = 0;
       #endif
 
@@ -4682,17 +4741,14 @@ public:
 
       MEM_STAMP(tMarkLocalEnd);
 
-      if (MAX_MARK_THREADS>1)
-      {
+      #ifdef HX_MULTI_THREAD_MARKING
          mMarker.releaseJobs();
 
          // Unleash the workers...
-         StartThreadJobs(tpjMark, MAX_MARK_THREADS, true);
-      }
-      else
-      {
+         StartThreadJobs(tpjMark, MAX_GC_THREADS, true);
+      #else
          mMarker.processMarkStack();
-      }
+      #endif
 
 
 
@@ -4716,6 +4772,15 @@ public:
       #endif
    }
 
+
+   
+   #ifdef HX_GC_VERIFY_ALLOC_START
+   void verifyAllocStart()
+   {
+      for(int i=1;i<mAllBlocks.size();i++)
+         mAllBlocks[i]->verifyAllocStart();
+   }
+   #endif
 
    #ifdef HX_GC_VERIFY
    void VerifyBlockOrder()
@@ -4845,8 +4910,7 @@ public:
 
       MarkAll(generational);
 
-      #if defined(HX_GC_VERIFY) && defined(HXCPP_GC_GENERATIONAL)
-      if (generational)
+      #ifdef HX_GC_VERIFY_GENERATIONAL
       {
          #ifdef SHOW_MEM_EVENTS
          GCLOG("verify generational [\n");
@@ -4900,6 +4964,9 @@ public:
             GCLOG("Generational retention/fragmentation too high %f, do normal collect\n", mGenerationalRetainEstimate);
             #endif
 
+            #ifdef HX_GC_VERIFY_ALLOC_START
+            verifyAllocStart();
+            #endif
 
             generational = false;
             MarkAll(generational);
@@ -5216,7 +5283,8 @@ public:
       STAMP(t6)
       double period = t6-sLastCollect;
       sLastCollect=t6;
-      GCLOG("Collect time total=%.2fms =%.1f%%\n  setup=%.2f\n  %s=%.2f(init=%.2f/roots=%.2f %d+%d/loc=%.2f*%d %d+%d/mark=%.2f %d+%d/fin=%.2f*%d/ids=%.2f)\n  reclaim=%.2f\n  large(%d->%d, recyc %d)=%.2f\n  defrag=%.2f\n",
+      GCLOG("Collect time %s total=%.2fms =%.1f%%\n  setup=%.2f\n  %s=%.2f(init=%.2f/roots=%.2f %d+%d/loc=%.2f*%d %d+%d/mark=%.2f %d+%d/fin=%.2f*%d/ids=%.2f)\n  reclaim=%.2f\n  large(%d->%d, recyc %d)=%.2f\n  defrag=%.2f\n",
+               generational ? "gen" : "std",
               (t6-t0)*1000, (t6-t0)*100.0/period, // total %
               (t1-t0)*1000, // sync/setup
               generational ? "mark gen" : "mark", (t2-t1)*1000,
@@ -5236,7 +5304,7 @@ public:
 
       #ifdef PROFILE_THREAD_USAGE
       GCLOG("Thread chunks:%d, wakes=%d\n", sThreadChunkPushCount, sThreadChunkWakes);
-      for(int i=-1;i<MAX_MARK_THREADS;i++)
+      for(int i=-1;i<MAX_GC_THREADS;i++)
         GCLOG(" thread %d] %d + %d\n", i, sThreadMarkCount[i], sThreadArrayMarkCount[i]);
       GCLOG("Locking spins  : %d\n", sSpinCount);
       sSpinCount = 0;
@@ -5295,13 +5363,13 @@ public:
 
    void reclaimBlocks(bool full, BlockDataStats &outStats)
    {
-      if (MAX_MARK_THREADS>1)
+      if (MAX_GC_THREADS>1)
       {
-         for(int i=0;i<MAX_MARK_THREADS;i++)
+         for(int i=0;i<MAX_GC_THREADS;i++)
             sThreadBlockDataStats[i].clear();
          StartThreadJobs(full ? tpjReclaimFull : tpjReclaim, mAllBlocks.size(), true);
          outStats = sThreadBlockDataStats[0];
-         for(int i=1;i<MAX_MARK_THREADS;i++)
+         for(int i=1;i<MAX_GC_THREADS;i++)
             outStats.add(sThreadBlockDataStats[i]);
       }
       else
@@ -5320,13 +5388,13 @@ public:
 
    void countRows(BlockDataStats &outStats)
    {
-      if (MAX_MARK_THREADS>1)
+      if (MAX_GC_THREADS>1)
       {
-         for(int i=0;i<MAX_MARK_THREADS;i++)
+         for(int i=0;i<MAX_GC_THREADS;i++)
             sThreadBlockDataStats[i].clear();
          StartThreadJobs(tpjCountRows, mAllBlocks.size(), true);
          outStats = sThreadBlockDataStats[0];
-         for(int i=1;i<MAX_MARK_THREADS;i++)
+         for(int i=1;i<MAX_GC_THREADS;i++)
             outStats.add(sThreadBlockDataStats[i]);
       }
       else
@@ -5379,7 +5447,13 @@ public:
    void backgroundProcessFreeList(bool inJit)
    {
       mZeroListQueue = 0;
-      if ( MAX_MARK_THREADS>1 && mFreeBlocks.size()>4)
+      #ifdef HX_GC_ZERO_EARLY
+      mZeroList.setSize(mFreeBlocks.size());
+      memcpy( &mZeroList[0], &mFreeBlocks[0], mFreeBlocks.size()*sizeof(void *));
+
+      StartThreadJobs(tpjAsyncZero, mZeroList.size(),true);
+      #else
+      if ( MAX_GC_THREADS>1 && mFreeBlocks.size()>4)
       {
          mZeroList.setSize(mFreeBlocks.size());
          memcpy( &mZeroList[0], &mFreeBlocks[0], mFreeBlocks.size()*sizeof(void *));
@@ -5388,6 +5462,7 @@ public:
          //  slowing down the main thread
          StartThreadJobs(inJit ? tpjAsyncZeroJit : tpjAsyncZero, mZeroList.size(), false, 1);
       }
+      #endif
    }
 
 
@@ -5518,6 +5593,9 @@ void MarkConservative(int *inBottom, int *inTop,hx::MarkContext *__inCtx)
 
    #ifdef SHOW_MEM_EVENTS
    GCLOG("Mark conservative %p...%p (%d) [...", inBottom, inTop, (int)(inTop-inBottom) );
+     #ifdef HX_WATCH
+     GCLOG("\n");
+     #endif
    #endif
 
    #ifdef HXCPP_STACK_UP
@@ -5629,19 +5707,24 @@ void MarkConservative(int *inBottom, int *inTop,hx::MarkContext *__inCtx)
                   lastPin = vptr;
                   info->pin();
                }
-               else
+               #ifdef HX_WATCH
+               else // memBlock
                {
-                  #ifdef HX_WATCH
                   if (isWatch)
                   {
                      GCLOG(" missed watch %p:%d\n", vptr,t);
-
-                     int x = info->GetAllocType(pos-sizeof(int));
-                     int y = info->GetEnclosingAllocType(pos-sizeof(int),&vptr);
-                     printf("but got %d,%d o=%d\n",x,y,sgCheckInternalOffset);
+                     int x = info->GetAllocType(pos-sizeof(int),allowPrevious);
+                     int y = info->GetEnclosingAllocType(pos-sizeof(int),&vptr,allowPrevious);
+                     #ifdef HXCPP_GC_NURSERY
+                     void *nptr;
+                     int z = info->GetEnclosingNurseryType(pos-sizeof(int),&nptr);
+                     #else
+                     int z = 0;
+                     #endif
+                     printf("but got alloc type=%d, enclosing=%d nurs=%d o=%d\n",x,y,z,sgCheckInternalOffset);
                   }
-                  #endif
                }
+               #endif
             }
          }
          // GCLOG(" rejected %p %p %d %p %d=%d\n", ptr, vptr, !((size_t)vptr & 0x03), prev,

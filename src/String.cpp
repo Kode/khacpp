@@ -1566,12 +1566,16 @@ void __hxcpp_string_of_bytes(Array<unsigned char> &inBytes,String &outString,int
 
 
 
-const char * String::utf8_str(hx::IStringAlloc *inBuffer,bool throwInvalid) const
+const char * String::utf8_str(hx::IStringAlloc *inBuffer,bool throwInvalid, int *byteLength) const
 {
    #ifdef HX_SMART_STRINGS
    if (isUTF16Encoded())
-      return TConvertToUTF8(__w,0,inBuffer,throwInvalid);
+      return TConvertToUTF8(__w,byteLength,inBuffer,throwInvalid);
    #endif
+   if (byteLength != 0)
+   {
+      *byteLength = length;
+   }
    return __s;
 }
 
@@ -2302,9 +2306,12 @@ public:
    String mValue;
 };
 
+
+
+
 hx::Class &GetStringClass() { return __StringClass; }
 
-}
+} // end namespace hx
 
 hx::Object *String::__ToObject() const
 {
@@ -2335,6 +2342,11 @@ hx::Object *String::__ToObject() const
    bool isConst = __s[HX_GC_CONST_ALLOC_MARK_OFFSET] & HX_GC_CONST_ALLOC_MARK_BIT;
    NewObjectType type = isConst ?  NewObjAlloc : NewObjContainer;
    return new (type) StringData(*this);
+}
+
+hx::Object * String::makePermanentObject() const
+{
+   return new (hx::NewObjConst)StringData(makePermanent());
 }
 
 
