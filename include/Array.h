@@ -450,10 +450,10 @@ template<typename TYPE> inline bool ContainsPointers()
 
 struct TNonGcStringSet;
 
-template<typename T> inline const void *PointerOf(hx::ObjectPtr<T> &o) { return o.mPtr; }
-inline const void *PointerOf(String &s) { return s.raw_ptr(); }
+//template<typename T> inline const void *PointerOf(hx::ObjectPtr<T> &o) { return o.mPtr; }
+//inline const void *PointerOf(String &s) { return s.raw_ptr(); }
 inline const void *PointerOf(hx::TNonGcStringSet &set) { return 0; }
-inline const void *PointerOf(...) { return 0; }
+//inline const void *PointerOf(...) { return 0; }
 
 
 
