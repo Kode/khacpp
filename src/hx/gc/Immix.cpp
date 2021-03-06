@@ -60,7 +60,7 @@ enum { gAlwaysMove = false };
 
 #include <hx/QuickVec.h>
 
-// #define HXCPP_GC_BIG_BLOCKS
+#define HXCPP_GC_BIG_BLOCKS
 
 
 #ifndef __has_builtin
