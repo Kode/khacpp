@@ -323,7 +323,7 @@ int _hx_std_sys_command( String cmd )
 #endif
    hx::ExitGCFreeZone();
 
-   #if !defined(NEKO_WINDOWS)
+   #if !defined(NEKO_WINDOWS) && !defined(__FreeBSD__)
    result = WEXITSTATUS(result) | (WTERMSIG(result) << 8);
    #endif
 
@@ -867,7 +867,7 @@ Array<String> _hx_std_sys_env()
 **/
 int _hx_std_sys_getch( bool b )
 {
-#if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(KORE_CONSOLE)
+#if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(KORE_CONSOLE) || defined(__FreeBSD__)
    return 0;
 #elif defined(NEKO_WINDOWS)
    hx::EnterGCFreeZone();
