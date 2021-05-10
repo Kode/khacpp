@@ -13,7 +13,6 @@
 
 #if defined(KORE)
 
-#include <kinc/pch.h>
 #include <kinc/threads/atomic.h>
 #include <kinc/threads/event.h>
 #include <kinc/threads/mutex.h>

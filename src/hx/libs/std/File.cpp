@@ -346,7 +346,6 @@ String _hx_std_file_contents_string( String name )
    return String::create(&buffer[0], buffer.size());
 }
 
-#include <kinc/pch.h>
 #include <kinc/io/filereader.h>
 
 

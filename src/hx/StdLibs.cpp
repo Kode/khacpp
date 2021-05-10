@@ -27,7 +27,6 @@ typedef int64_t __int64;
 #if defined(BLACKBERRY) || defined(GCW0)
 #include <unistd.h>
 #endif
-#include <kinc/pch.h>
 #include <kinc/log.h>
 
 #include <string>

@@ -13,7 +13,6 @@
     // Nothing
   #elif defined(KORE_CONSOLE)
 
-#include <Kore/pch.h>
 #include <Kore/Threads/ThreadLocal.h>
 
 namespace hx {
