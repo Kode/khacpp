@@ -448,13 +448,6 @@ template<typename TYPE> inline bool ContainsPointers()
    return TypeContainsPointers( (TYPE *)0 );
 }
 
-struct TNonGcStringSet;
-
-template<typename T> inline const void *PointerOf(hx::ObjectPtr<T> &o) { return o.mPtr; }
-inline const void *PointerOf(String &s) { return s.raw_ptr(); }
-inline const void *PointerOf(hx::TNonGcStringSet &set) { return 0; }
-inline const void *PointerOf(...) { return 0; }
-
 
 
 // For returning "null" when out of bounds ...

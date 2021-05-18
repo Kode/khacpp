@@ -172,6 +172,9 @@ void Math_obj::__boot()
 #endif  
 
   srand(t ^ (pid | (pid << 16)));
+  #ifdef HX_ANDROID
+  srand48(t ^ (pid | (pid << 16)));
+  #endif
   rand();
 }
 
