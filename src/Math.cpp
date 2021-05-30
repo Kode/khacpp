@@ -155,7 +155,7 @@ void Math_obj::__boot()
    unsigned int t = 0;
 #endif
 
-#if defined(HX_WINDOWS)
+#if defined(HX_WINDOWS) && !defined(__BORLANDC__)
   #if defined(HX_WINRT)
    #if defined(__cplusplus_winrt)
    int pid = Windows::Security::Cryptography::CryptographicBuffer::GenerateRandomNumber();

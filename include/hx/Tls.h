@@ -48,7 +48,7 @@ namespace hx {
 
   #else
 
-   #ifndef __GNUC__
+   #if ! defined(__GNUC__) && !defined(__BORLANDC__)
    #include <intrin.h>
    #endif
 
