@@ -80,7 +80,7 @@
   #include <stddef.h>
 #endif
 
-#if defined(EMSCRIPTEN)  || defined(_ARM_) || defined(__arm__) || defined(GCW0)
+#if defined(EMSCRIPTEN)  || defined(_ARM_) || defined(__arm__) || defined(GCW0) || defined(KORE_SWITCH)
    #define HXCPP_ALIGN_FLOAT
 #endif
 
@@ -93,6 +93,9 @@
 #if defined(__LP64__) || defined(_LP64) || defined(_WIN64)
 #if !defined(HXCPP_M64)
 #define HXCPP_M64
+#endif
+#if defined(_ARM_) || defined(__arm__) || defined(KORE_SWITCH)
+#define HXCPP_ARM64
 #endif
 #endif
 
