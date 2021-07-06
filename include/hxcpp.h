@@ -19,6 +19,7 @@
 #endif
 
 // Standard headers ....
+#include <limits>
 
 // Windows hack
 #define NOMINMAX
