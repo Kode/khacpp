@@ -188,8 +188,8 @@ String __hxcpp_get_kind(Dynamic inObject)
 #ifndef __clang__
 #pragma warning( disable : 4290 )
 #endif
-#define THROWS throw(Dynamic)
-//#define THROWS
+// #define THROWS throw(Dynamic)
+#define THROWS
 
 
 extern "C" {
