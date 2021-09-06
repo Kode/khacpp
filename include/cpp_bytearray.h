@@ -5,9 +5,11 @@
 struct bytearray {
 	uint8_t *data;
 	int myLength;
+	int refCount;
 
 	bytearray() {
 		data = NULL;
+		refCount = 0;
 	}
 
 	void alloc(int elements) {
@@ -15,9 +17,16 @@ struct bytearray {
 		data = new uint8_t[myLength];
 	}
 
-	void free() {
-		delete[] data;
-		data = NULL;
+	void addRef() {
+		++refCount;
+	}
+
+	void subRef() {
+		--refCount;
+		if (refCount == 0) {
+			delete[] data;
+			data = NULL;
+		}
 	}
 
 	int byteLength() {
