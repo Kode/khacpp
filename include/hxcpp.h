@@ -1,6 +1,8 @@
 #ifndef HXCPP_H
 #define HXCPP_H
 
+#include <kinc/global.h>
+
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wunused-variable"
 #pragma clang diagnostic ignored "-Wunused-value"
