@@ -10,7 +10,7 @@
 #   include <unistd.h>
 #   include <memory.h>
 #   include <errno.h>
-#   if defined(ANDROID) || defined(BLACKBERRY) || defined(EMSCRIPTEN) || defined(__FreeBSD__)
+#   if (defined(ANDROID) || defined(BLACKBERRY) || defined(EMSCRIPTEN) || defined(__FreeBSD__)) && !defined(KORE_CONSOLE)
 #      include <sys/wait.h>
 #   elif !defined(NEKO_MAC) && !defined(KORE_CONSOLE)
 #      include <wait.h>

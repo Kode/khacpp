@@ -13,36 +13,36 @@
     // Nothing
   #elif defined(KORE_CONSOLE)
 
-#include <Kore/Threads/ThreadLocal.h>
+#include <kinc/threads/threadlocal.h>
 
 namespace hx {
 	template<typename DATA, bool FAST = false> struct TLSData {
 		TLSData() {
-			tls.create();
+			kinc_thread_local_init(&tls);
 		}
 
 		~TLSData() {
-			tls.destroy();
+			kinc_thread_local_destroy(&tls);
 		}
 
 		DATA *Get() {
-			return (DATA*)tls.get();
+			return (DATA*)kinc_thread_local_get(&tls);
 		}
 
 		void Set(DATA *inData) {
-			tls.set(inData);
+			kinc_thread_local_set(&tls, inData);
 		}
 
 		inline DATA *operator=(DATA *inData) {
-			tls.set(inData);
+			kinc_thread_local_set(&tls, inData);
 			return inData;
 		}
 
 		inline operator DATA*() {
-			return (DATA*)tls.get();
+			return (DATA*)kinc_thread_local_get(&tls);
 		}
 	private:
-		Kore::ThreadLocal tls;
+		kinc_thread_local_t tls;
 	};
 }
 
