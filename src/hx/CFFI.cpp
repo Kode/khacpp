@@ -191,6 +191,8 @@ String __hxcpp_get_kind(Dynamic inObject)
 // #define THROWS throw(Dynamic)
 #define THROWS
 
+//#define THROWS throw(Dynamic)
+#define THROWS
 
 extern "C" {
 

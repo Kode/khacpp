@@ -365,7 +365,7 @@ https://github.com/dotnet/coreclr/blob/master/src/vm/util.cpp
 
 #define ISWHITE(x) ((x)==(' ') || (x)==('\t') || (x)==('\n') || (x)==('\r') )
 
-static void ParseCommandLine(LPTSTR psrc, Array<String> &out)
+static void ParseCommandLine(LPWSTR psrc, Array<String> &out)
 {
     unsigned int argcount = 1;       // discovery of arg0 is unconditional, below
 
@@ -387,7 +387,7 @@ static void ParseCommandLine(LPTSTR psrc, Array<String> &out)
        we need to preserve compatibility.
     */
 
-    LPTSTR pStart = psrc;
+    LPWSTR pStart = psrc;
     bool skipQuote = false;
 
     // Pairs of double-quotes vanish...
@@ -534,7 +534,7 @@ Array<String> __get_args()
    #ifdef HX_WINRT
    // Do nothing
    #elif defined(HX_WINDOWS)
-   LPTSTR str =  GetCommandLine();
+   LPWSTR str =  GetCommandLineW();
    ParseCommandLine(str, result);
    #else
    #ifdef __APPLE__
@@ -628,48 +628,32 @@ int __int__(double x)
 }
 
 
+static inline bool is_hex_string(const char *c, int len)
+{
+   return (len > 2 && c[0] == '0' && (c[1] == 'x' || c[1] == 'X'))
+      || (len > 3 && (c[0] == '-' || c[0] == '+') && c[1] == '0' && (c[2] == 'x' || c[2] == 'X'));
+}
+
 Dynamic __hxcpp_parse_int(const String &inString)
 {
    if (!inString.raw_ptr())
       return null();
-   long result;
    hx::strbuf buf;
    const char *str = inString.utf8_str(&buf);
-   bool hex =  (str[0]=='0' && (str[1]=='x' || str[1]=='X'));
-   char *end = 0;
 
-   if (hex)
-      result = (long)strtoul(str+2,&end,16);
-   else
-      result = strtol(str,&end,10);
+   // On the first non space char check to see if we've got a hex string
+   while (isspace(*str)) ++str;
+   bool isHex = is_hex_string(str, strlen(str));
+   char *end = 0;
+   long result = strtol(str,&end,isHex ? 16 : 10);
+   #ifdef HX_WINDOWS
+   if (str==end && !isHex)
+   #else
    if (str==end)
+   #endif
       return null();
    return (int)result;
 }
-
-
-int __hxcpp_parse_substr_int(const String &inString,int inStart, int inLen)
-{
-   if (!inString.raw_ptr())
-      return 0;
-   if (inLen<0)
-      inLen = inString.length - inStart;
-   long result;
-   hx::strbuf buf;
-   const char *str = inString.ascii_substr(&buf,inStart,inLen);
-   bool hex =  (str[0]=='0' && (str[1]=='x' || str[1]=='X'));
-   char *end = 0;
-
-   if (hex)
-      result = (long)strtoul(str+2,&end,16);
-   else
-      result = strtol(str,&end,10);
-   if (str==end)
-      return 0;
-   return (int)result;
-}
-
-
 
 
 double __hxcpp_parse_substr_float(const String &inString,int start, int length)

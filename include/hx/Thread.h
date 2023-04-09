@@ -26,8 +26,13 @@
 
 #elif defined(_WIN32)
 
+#ifdef HXCPP_WINXP_COMPAT
 #undef _WIN32_WINNT
 #define _WIN32_WINNT 0x0400
+#else
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#endif
 
 #include <windows.h>
 #include <process.h>
@@ -42,143 +47,6 @@
 #ifdef RegisterClass
 #undef RegisterClass
 #endif
-
-#if defined(KORE)
-
-inline bool HxAtomicExchangeIf(int inTest, int inNewVal, volatile int *ioWhere)
-{
-	return KINC_ATOMIC_COMPARE_EXCHANGE(ioWhere, inTest, inNewVal);
-}
-
-inline bool HxAtomicExchangeIfPtr(void *inTest, void *inNewVal, void *volatile *ioWhere)
-{
-	return KINC_ATOMIC_COMPARE_EXCHANGE_POINTER(ioWhere, inTest, inNewVal);
-}
-
-inline int HxAtomicInc(volatile int *ioWhere)
-{
-	return KINC_ATOMIC_INCREMENT(ioWhere);
-}
-
-inline int HxAtomicDec(volatile int *ioWhere)
-{
-	return KINC_ATOMIC_DECREMENT(ioWhere);
-}
-
-#define HX_HAS_ATOMIC 1
-
-#elif defined(ANDROID)
-
-#define HX_HAS_ATOMIC 1
-
-#if (HXCPP_ANDROID_PLATFORM>=16)
-// Nice one, google, no one was using that.
-#define __ATOMIC_INLINE__ static __inline__ __attribute__((always_inline))
-// returns 0=exchange took place, 1=not
-__ATOMIC_INLINE__ int __atomic_cmpxchg(int old, int _new, volatile int *ptr)
-   { return __sync_val_compare_and_swap(ptr, old, _new) != old; }
-__ATOMIC_INLINE__ int __atomic_dec(volatile int *ptr) { return __sync_fetch_and_sub (ptr, 1); }
-__ATOMIC_INLINE__ int __atomic_inc(volatile int *ptr) { return __sync_fetch_and_add (ptr, 1); }
-#else
-#include <sys/atomics.h>
-#endif
-
-// returns 1 if exchange took place
-inline bool HxAtomicExchangeIf(int inTest, int inNewVal,volatile int *ioWhere)
-   { return !__atomic_cmpxchg(inTest, inNewVal, ioWhere); }
-inline bool HxAtomicExchangeIfPtr(void *inTest, void *inNewVal,void * volatile *ioWhere)
-   { return __sync_val_compare_and_swap(ioWhere, inTest, inNewVal)==inTest; }
-
-// Returns old value naturally
-inline int HxAtomicInc(volatile int *ioWhere)
-   { return __atomic_inc(ioWhere); }
-inline int HxAtomicDec(volatile int *ioWhere)
-   { return __atomic_dec(ioWhere); }
-
-
-#elif defined(HX_WINDOWS)
-
-inline bool HxAtomicExchangeIf(int inTest, int inNewVal,volatile int *ioWhere)
-   { return InterlockedCompareExchange((volatile LONG *)ioWhere, inNewVal, inTest)==inTest; }
-
-inline bool HxAtomicExchangeIfPtr(void *inTest, void *inNewVal,void *volatile *ioWhere)
-   { return InterlockedCompareExchangePointer(ioWhere, inNewVal, inTest)==inTest; }
-
-// Make it return old value
-inline int HxAtomicInc(volatile int *ioWhere)
-   { return InterlockedIncrement((volatile LONG *)ioWhere)-1; }
-inline int HxAtomicDec(volatile int *ioWhere)
-   { return InterlockedDecrement((volatile LONG *)ioWhere)+1; }
-
-#define HX_HAS_ATOMIC 1
-
-#elif defined(HX_MACOS) || defined(IPHONE) || defined(APPLETV)
-#include <libkern/OSAtomic.h>
-
-#define HX_HAS_ATOMIC 1
-
-inline bool HxAtomicExchangeIf(int inTest, int inNewVal,volatile int *ioWhere)
-   { return OSAtomicCompareAndSwap32Barrier(inTest, inNewVal, ioWhere); }
-inline bool HxAtomicExchangeIfPtr(void *inTest, void *inNewVal,void * volatile *ioWhere)
-   { return OSAtomicCompareAndSwapPtrBarrier(inTest, inNewVal, ioWhere); }
-inline int HxAtomicInc(volatile int *ioWhere)
-   { return OSAtomicIncrement32Barrier(ioWhere)-1; }
-inline int HxAtomicDec(volatile int *ioWhere)
-   { return OSAtomicDecrement32Barrier(ioWhere)+1; }
-
-
-#elif defined(HX_LINUX)
-
-#define HX_HAS_ATOMIC 1
-
-inline bool HxAtomicExchangeIf(int inTest, int inNewVal,volatile int *ioWhere)
-   { return __sync_bool_compare_and_swap(ioWhere, inTest, inNewVal); }
-inline bool HxAtomicExchangeIfPtr(void *inTest, void *inNewVal,void *volatile *ioWhere)
-   { return __sync_bool_compare_and_swap(ioWhere, inTest, inNewVal); }
-// Returns old value naturally
-inline int HxAtomicInc(volatile int *ioWhere)
-   { return __sync_fetch_and_add(ioWhere,1); }
-inline int HxAtomicDec(volatile int *ioWhere)
-   { return __sync_fetch_and_sub(ioWhere,1); }
-
-#else
-
-#define HX_HAS_ATOMIC 0
-
-inline bool HxAtomicExchangeIfPtr(void *inTest, void *inNewVal,void *volatile *ioWhere)
-{
-   if (*ioWhere == inTest)
-   {
-      *ioWhere = inNewVal;
-      return true;
-   }
-   return false;
-}
-
-
-inline int HxAtomicExchangeIf(int inTest, int inNewVal,volatile int *ioWhere)
-{
-   if (*ioWhere == inTest)
-   {
-      *ioWhere = inNewVal;
-      return true;
-   }
-   return false;
-}
-inline int HxAtomicInc(volatile int *ioWhere)
-   { return (*ioWhere)++; }
-inline int HxAtomicDec(volatile int *ioWhere)
-   { return (*ioWhere)--; }
-
-
-#endif
-
-inline bool HxAtomicExchangeIfCastPtr(void *inTest, void *inNewVal,void *ioWhere)
-{
-   return HxAtomicExchangeIfPtr(inTest, inNewVal, (void *volatile *)ioWhere);
-}
-
-#if defined(KORE)
 
 struct HxMutex {
 	HxMutex() {

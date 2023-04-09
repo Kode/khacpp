@@ -858,7 +858,7 @@ struct BlockDataInfo
       if (mZeroed)
          return false;
 
-      if (HxAtomicExchangeIf(0,1,&mZeroLock))
+      if (_hx_atomic_compare_exchange(&mZeroLock, 0,1) == 0)
          return zeroAndUnlock();
 
       return false;
@@ -1468,7 +1468,7 @@ void GCOnNewPointer(void *inPtr)
 {
    #ifdef HXCPP_GC_DEBUG_ALWAYS_MOVE
    hx::sgPointerMoved.erase(inPtr);
-   HxAtomicInc(&sgAllocsSinceLastSpam);
+   _hx_atomic_add(&sgAllocsSinceLastSpam, 1);
    #endif
 }
 
@@ -1501,7 +1501,7 @@ struct GlobalChunks
       {
          MarkChunk *head = (MarkChunk *)processList;
          inChunk->next = head;
-         if (HxAtomicExchangeIfCastPtr(head, inChunk, &processList))
+         if (_hx_atomic_compare_exchange_cast_ptr(&processList, head, inChunk) == head)
             break;
       }
 
@@ -1514,12 +1514,12 @@ struct GlobalChunks
       {
          MarkChunk *head = (MarkChunk *)processList;
          inChunk->next = head;
-         if (HxAtomicExchangeIfCastPtr(head, inChunk, &processList))
+         if (_hx_atomic_compare_exchange_cast_ptr(&processList, head, inChunk) == head)
             break;
       }
 
       #ifdef PROFILE_THREAD_USAGE
-      HxAtomicInc(&sThreadChunkPushCount);
+      _hx_atomic_add(&sThreadChunkPushCount, 1);
       #endif
 
       if (MAX_GC_THREADS>1 && sLazyThreads)
@@ -1622,7 +1622,7 @@ struct GlobalChunks
       {
          MarkChunk *head = (MarkChunk *)freeList;
          inChunk->next = head;
-         if (HxAtomicExchangeIfCastPtr(head, inChunk, &freeList))
+         if (_hx_atomic_compare_exchange_cast_ptr(&freeList, head, inChunk) == head)
             return;
       }
    }
@@ -1633,11 +1633,11 @@ struct GlobalChunks
       if (inChunk)
          release(inChunk);
 
-      while( !HxAtomicExchangeIf(0,1,&processListPopLock) )
+      while(_hx_atomic_compare_exchange(&processListPopLock, 0, 1) != 0)
       {
          // Spin
          #ifdef PROFILE_THREAD_USAGE
-         HxAtomicInc(&sSpinCount);
+         _hx_atomic_add(&sSpinCount, 1);
          #endif
       }
 
@@ -1650,7 +1650,7 @@ struct GlobalChunks
             return 0;
          }
          MarkChunk *next = head->next;
-         if (HxAtomicExchangeIfCastPtr(head, next, &processList))
+         if (_hx_atomic_compare_exchange_cast_ptr(&processList, head, next) == head)
          {
             processListPopLock = 0;
 
@@ -1716,11 +1716,11 @@ struct GlobalChunks
 
    inline MarkChunk *alloc()
    {
-      while( !HxAtomicExchangeIf(0,1,&freeListPopLock) )
+      while(_hx_atomic_compare_exchange(&freeListPopLock, 0, 1) != 0)
       {
          // Spin
          #ifdef PROFILE_THREAD_USAGE
-         HxAtomicInc(&sSpinCount);
+         _hx_atomic_add(&sSpinCount, 1);
          #endif
       }
 
@@ -1733,7 +1733,7 @@ struct GlobalChunks
             return new MarkChunk;
          }
          MarkChunk *next = head->next;
-         if (HxAtomicExchangeIfCastPtr(head, next, &freeList))
+         if (_hx_atomic_compare_exchange_cast_ptr(&freeList, head, next) == head)
          {
             freeListPopLock = 0;
 
@@ -2046,7 +2046,7 @@ void MarkAllocUnchecked(void *inPtr,hx::MarkContext *__inCtx)
 
          unsigned int *pos = info->allocStart + startRow;
          unsigned int val = *pos;
-         while(!HxAtomicExchangeIf(val,val|gImmixStartFlag[start&127], (volatile int *)pos))
+         while(_hx_atomic_compare_exchange((volatile int *)pos, val,val|gImmixStartFlag[start&127]) != val)
             val = *pos;
 
          #ifdef HXCPP_GC_GENERATIONAL
@@ -2131,7 +2131,7 @@ void MarkObjectAllocUnchecked(hx::Object *inPtr,hx::MarkContext *__inCtx)
 
       unsigned int *pos = info->allocStart + startRow;
       unsigned int val = *pos;
-      while(!HxAtomicExchangeIf(val,val|gImmixStartFlag[start&127], (volatile int *)pos))
+      while(_hx_atomic_compare_exchange( (volatile int *)pos, val, val|gImmixStartFlag[start&127]) != val)
          val = *pos;
       #ifdef HXCPP_GC_GENERATIONAL
       info->mHasSurvivor = true;
@@ -3363,7 +3363,7 @@ public:
              if (!info->mOwned && info->mMaxHoleSize>=inRequiredBytes)
              {
                 // Acquire the zero-lock
-                if (HxAtomicExchangeIf(0,1,&info->mZeroLock))
+                if (_hx_atomic_compare_exchange(&info->mZeroLock, 0, 1) == 0)
                 {
                    // Acquire ownership...
                    if (info->mOwned)
@@ -3379,7 +3379,7 @@ public:
                       int idx = nextFreeBlock;
                       while(idx<mFreeBlocks.size() && mFreeBlocks[idx]->mOwned)
                       {
-                         HxAtomicExchangeIf(idx,idx+1,mNextFreeBlockOfSize+sizeSlot);
+                         _hx_atomic_compare_exchange(mNextFreeBlockOfSize+sizeSlot, idx, idx+1);
                          idx++;
                       }
 
@@ -3391,7 +3391,7 @@ public:
                          else
                          {
                             if (!info->mZeroed)
-                               HxAtomicInc(&sThreadZeroMisses);
+                               _hx_atomic_add(&sThreadZeroMisses, 1);
                          }
                          #endif
                        }
@@ -4278,7 +4278,7 @@ public:
    {
       while(!sgThreadPoolAbort)
       {
-         int blockId = HxAtomicInc( &mThreadJobId );
+         int blockId = _hx_atomic_add(&mThreadJobId, 1);
          if (blockId>=mAllBlocks.size())
             break;
 
@@ -4293,7 +4293,7 @@ public:
    {
       while(!sgThreadPoolAbort)
       {
-         int blockId = HxAtomicInc( &mThreadJobId );
+         int blockId = _hx_atomic_add(&mThreadJobId, 1);
          if (blockId>=mAllBlocks.size())
             break;
 
@@ -4306,7 +4306,7 @@ public:
    {
       while(!sgThreadPoolAbort)
       {
-         int blockId = HxAtomicInc( &mThreadJobId );
+         int blockId = _hx_atomic_add(&mThreadJobId, 1);
          if (blockId>=mAllBlocks.size())
             break;
 
@@ -4321,7 +4321,7 @@ public:
    {
       while(!sgThreadPoolAbort)
       {
-         int blockId = HxAtomicInc( &mThreadJobId );
+         int blockId = _hx_atomic_add(&mThreadJobId, 1);
          if (blockId>=mAllBlocks.size())
             break;
 
@@ -4335,7 +4335,7 @@ public:
    {
       while(!sgThreadPoolAbort)
       {
-         int zeroListId = HxAtomicInc( &mThreadJobId );
+         int zeroListId = _hx_atomic_add(&mThreadJobId, 1);
          if (zeroListId>=mZeroList.size())
             break;
 
@@ -4361,7 +4361,7 @@ public:
          spinCount = 0;
 
          // Look at next block...
-         int zeroListId = HxAtomicInc( &mThreadJobId );
+         int zeroListId = _hx_atomic_add(&mThreadJobId, 1);
          if (zeroListId>=mZeroList.size())
          {
             // Done, so sleep...
@@ -4372,7 +4372,7 @@ public:
          if (info->tryZero())
          {
             // We zeroed it, so increase queue count
-            HxAtomicInc(&mZeroListQueue);
+            _hx_atomic_add(&mZeroListQueue, 1);
             #ifdef PROFILE_THREAD_USAGE
             sThreadBlockZeroCount++;
             #endif
@@ -4386,7 +4386,7 @@ public:
    void onZeroedBlockDequeued()
    {
       // Wake the thread?
-      if (HxAtomicDec(&mZeroListQueue)<sMinZeroQueueSize && !sRunningThreads)
+      if (_hx_atomic_sub(&mZeroListQueue, 1)<sMinZeroQueueSize && !sRunningThreads)
       {
          if (mZeroListQueue + mThreadJobId < mZeroList.size())
          {
@@ -4810,7 +4810,7 @@ public:
       #ifndef HXCPP_SINGLE_THREADED_APP
       // If we set the flag from 0 -> 0xffffffff then we are the collector
       //  otherwise, someone else is collecting at the moment - so wait...
-      if (!HxAtomicExchangeIf(0, 0xffffffff,(volatile int *)&hx::gPauseForCollect))
+      if (_hx_atomic_compare_exchange((volatile int *)&hx::gPauseForCollect, 0, 0xffffffff) != 0)
       {
          if (inLocked)
          {
@@ -6567,7 +6567,7 @@ void *InternalNew(int inSize,bool inIsObject)
       //GCLOG("InternalNew spam\n");
       CollectFromThisThread(false,false);
    }
-   HxAtomicInc(&sgAllocsSinceLastSpam);
+   _hx_atomic_add(&sgAllocsSinceLastSpam, 1);
    #endif
 
    if (inSize>=IMMIX_LARGE_OBJ_SIZE)
@@ -6678,7 +6678,7 @@ void *InternalRealloc(int inFromSize, void *inData,int inSize, bool inExpand)
       //GCLOG("InternalNew spam\n");
       CollectFromThisThread(false,false);
    }
-   HxAtomicInc(&sgAllocsSinceLastSpam);
+   _hx_atomic_add(&sgAllocsSinceLastSpam, 1);
    #endif
 
    void *new_data = 0;
