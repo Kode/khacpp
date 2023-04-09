@@ -4,6 +4,10 @@
 
 #include <kinc/system.h>
 
+#ifdef _WIN32
+#include <Windows.h>
+#endif
+
 DECLARE_TLS_DATA(class hxThreadInfo, tlsCurrentThread);
 
 // g_threadInfoMutex allows atomic access to g_nextThreadNumber

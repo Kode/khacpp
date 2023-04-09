@@ -48,6 +48,8 @@
 #undef RegisterClass
 #endif
 
+#if defined(KORE)
+
 struct HxMutex {
 	HxMutex() {
         kinc_mutex_init(&mutex);
