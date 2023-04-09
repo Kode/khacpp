@@ -4,11 +4,13 @@
 
 #include <kinc/system.h>
 
-#ifdef _WIN32
+#ifdef HX_WINDOWS
 #include <Windows.h>
 #endif
 
-#include <time.h>
+#ifndef HX_WINDOWS
+#include <sys/time.h>
+#endif
 
 DECLARE_TLS_DATA(class hxThreadInfo, tlsCurrentThread);
 
