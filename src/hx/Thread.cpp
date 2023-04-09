@@ -8,6 +8,8 @@
 #include <Windows.h>
 #endif
 
+#include <time.h>
+
 DECLARE_TLS_DATA(class hxThreadInfo, tlsCurrentThread);
 
 // g_threadInfoMutex allows atomic access to g_nextThreadNumber
