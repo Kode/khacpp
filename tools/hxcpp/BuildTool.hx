@@ -1307,8 +1307,9 @@ class BuildTool
       {
          if (isWindowsArm)
             return "arm64";
-         var architecture = Sys.getEnv ("PROCESSOR_ARCHITEW6432");
-         if (architecture != null && architecture.indexOf ("64") > -1)
+         var architecture = Sys.getEnv("PROCESSOR_ARCHITECTURE");
+         var wow64Architecture = Sys.getEnv("PROCESSOR_ARCHITEW6432");
+         if (architecture.indexOf("64") > -1 || wow64Architecture != null && wow64Architecture.indexOf("64") > -1)
          {
             return "m64";
          }
@@ -1895,14 +1896,14 @@ class BuildTool
          if (!defines.exists("ANDROID_HOST"))
          {
             if ( (new EReg("mac","i")).match(os) )
-               defines.set("ANDROID_HOST","darwin-x86");
+               defines.set("ANDROID_HOST","darwin-x86_64");
             else if ( (new EReg("window","i")).match(os) )
             {
                defines.set("windows_host","1");
                defines.set("ANDROID_HOST","windows");
             }
             else if ( (new EReg("linux","i")).match(os) )
-               defines.set("ANDROID_HOST","linux-x86");
+               defines.set("ANDROID_HOST","linux-x86_64");
             else
             {
                Log.error ("Unknown android host \"" + os + "\"");

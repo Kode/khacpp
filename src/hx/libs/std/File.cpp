@@ -371,7 +371,6 @@ Array<unsigned char> _hx_std_file_contents_bytes( String name )
    {
       char *dest = (char *)&buffer[0];
 
-      //hx::EnterGCFreeZone();
       kinc_file_reader_read(&file, dest, kinc_file_reader_size(&file));
    }
    kinc_file_reader_close(&file);

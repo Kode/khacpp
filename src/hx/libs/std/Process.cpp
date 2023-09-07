@@ -10,6 +10,7 @@
 #   include <unistd.h>
 #   include <memory.h>
 #   include <errno.h>
+#   include <signal.h>
 #   if (defined(ANDROID) || defined(BLACKBERRY) || defined(EMSCRIPTEN) || defined(__FreeBSD__)) && !defined(KORE_CONSOLE)
 #      include <sys/wait.h>
 #   elif !defined(NEKO_MAC) && !defined(KORE_CONSOLE)
@@ -581,7 +582,7 @@ void _hx_std_process_kill( Dynamic handle )
 
    #ifdef NEKO_WINDOWS
    TerminateProcess(p->pinf.hProcess, -1);
-   #elif defined(APPLETV) && !defined(HX_APPLEWATCH)
+   #else
    kill(p->pid, SIGTERM);
    #endif
 }

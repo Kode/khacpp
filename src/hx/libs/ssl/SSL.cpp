@@ -187,16 +187,19 @@ struct sslpkey : public hx::Object
 static mbedtls_entropy_context entropy;
 static mbedtls_ctr_drbg_context ctr_drbg;
 
+static bool is_ssl_blocking( int r ) {
+	return r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE;
+}
 
-static void block_error() {
+static bool is_block_error() {
 	#ifdef NEKO_WINDOWS
 	int err = WSAGetLastError();
 	if( err == WSAEWOULDBLOCK || err == WSAEALREADY || err == WSAETIMEDOUT )
 	#else
 	if( errno == EAGAIN || errno == EWOULDBLOCK || errno == EINPROGRESS || errno == EALREADY )
 	#endif
-		hx::Throw(HX_CSTRING("Blocking"));
-	hx::Throw(HX_CSTRING("ssl network error"));
+		return true;
+	return false;
 }
 
 static void ssl_error( int ret ){
@@ -231,9 +234,12 @@ void _hx_ssl_handshake( Dynamic hssl ) {
 	sslctx *ssl = val_ssl(hssl);
 	POSIX_LABEL(handshake_again);
 	r = mbedtls_ssl_handshake( ssl->s );
-	if( r == SOCKET_ERROR ) {
+	if ( is_ssl_blocking(r) ) {
 		HANDLE_EINTR(handshake_again);
-		block_error();
+		hx::Throw(HX_CSTRING("Blocking"));
+	}else if( r == SOCKET_ERROR ) {
+		HANDLE_EINTR(handshake_again);
+		hx::Throw(HX_CSTRING("ssl network error"));
 	}else if( r != 0 )
 		ssl_error(r);
 }
@@ -241,6 +247,8 @@ void _hx_ssl_handshake( Dynamic hssl ) {
 int net_read( void *fd, unsigned char *buf, size_t len ){
 	hx::EnterGCFreeZone();
 	int r = recv((SOCKET)(socket_int)fd, (char *)buf, len, 0);
+ 	if( r == SOCKET_ERROR && is_block_error() )
+ 		r = MBEDTLS_ERR_SSL_WANT_READ;
 	hx::ExitGCFreeZone();
 	return r;
 }
@@ -248,6 +256,8 @@ int net_read( void *fd, unsigned char *buf, size_t len ){
 int net_write( void *fd, const unsigned char *buf, size_t len ){
 	hx::EnterGCFreeZone();
 	int r = send((SOCKET)(socket_int)fd, (char *)buf, len, 0);
+	if( r == SOCKET_ERROR && is_block_error() )
+ 		r = MBEDTLS_ERR_SSL_WANT_WRITE;
 	hx::ExitGCFreeZone();
 	return r;
 }
@@ -303,9 +313,12 @@ int _hx_ssl_send( Dynamic hssl, Array<unsigned char> buf, int p, int l ) {
 	POSIX_LABEL(send_again);
 	const unsigned char *base = (const unsigned char *)&buf[0];
 	dlen = mbedtls_ssl_write( ssl->s, base + p, l );
-	if( dlen == SOCKET_ERROR ) {
+	if ( is_ssl_blocking(dlen) ) {
 		HANDLE_EINTR(send_again);
-		block_error();
+		hx::Throw(HX_CSTRING("Blocking"));
+	}else if( dlen == SOCKET_ERROR ) {
+		HANDLE_EINTR(send_again);
+		hx::Throw(HX_CSTRING("ssl network error"));
 	}
 	return dlen;
 }
@@ -317,9 +330,12 @@ void _hx_ssl_write( Dynamic hssl, Array<unsigned char> buf ) {
 	while( len > 0 ) {
 		POSIX_LABEL( write_again );
 		int slen = mbedtls_ssl_write( ssl->s, cdata, len );
-		if( slen == SOCKET_ERROR ) {
+		if ( is_ssl_blocking(slen) ) {
 			HANDLE_EINTR( write_again );
-			block_error();
+			hx::Throw(HX_CSTRING("Blocking"));
+		}else if( slen == SOCKET_ERROR ) {
+			HANDLE_EINTR( write_again );
+			hx::Throw(HX_CSTRING("ssl network error"));
 		}
 		cdata += slen;
 		len -= slen;
@@ -344,9 +360,12 @@ int _hx_ssl_recv( Dynamic hssl, Array<unsigned char> buf, int p, int l ) {
 	unsigned char *base = &buf[0];
 	POSIX_LABEL(recv_again);
 	dlen = mbedtls_ssl_read( ssl->s, base + p, l );
-	if( dlen == SOCKET_ERROR ) {
+	if ( is_ssl_blocking(dlen) ) {
 		HANDLE_EINTR(recv_again);
-		block_error();
+		hx::Throw(HX_CSTRING("Blocking"));
+	}else if( dlen == SOCKET_ERROR ) {
+		HANDLE_EINTR(recv_again);
+		hx::Throw(HX_CSTRING("ssl network error"));
 	}
 	if( dlen < 0 ) {  
                 if( dlen == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY ) {
@@ -366,9 +385,12 @@ Array<unsigned char> _hx_ssl_read( Dynamic hssl ) {
 	while( true ) {
 		POSIX_LABEL(read_again);
 		int len = mbedtls_ssl_read( ssl->s, buf, 256 );
-		if( len == SOCKET_ERROR ) {
+		if ( is_ssl_blocking(len) ) {
 			HANDLE_EINTR(read_again);
-			block_error();
+			hx::Throw(HX_CSTRING("Blocking"));
+		}else if( len == SOCKET_ERROR ) {
+			HANDLE_EINTR(read_again);
+			hx::Throw(HX_CSTRING("ssl network error"));
 		}
                 if( len == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY ) {
                   mbedtls_ssl_close_notify( ssl->s );

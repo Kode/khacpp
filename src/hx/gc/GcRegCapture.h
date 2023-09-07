@@ -10,11 +10,11 @@
    #include <setjmp.h>
 #else
 
-   #if defined(HX_WINDOWS) && !defined(HXCPP_M64)
+   #if (defined(HX_WINDOWS) || (defined(HX_LINUX) && defined(__i386__))) && !defined(HXCPP_M64)
       #define HXCPP_CAPTURE_x86
    #endif
 
-   #if ((defined(HX_MACOS) && defined(__x86_64)) || (defined(HX_WINDOWS) && !defined(HX_WINRT)) || defined(_XBOX_ONE) || defined(KORE_PS4) || defined(KORE_PS5) || defined(KORE_XBOX_ONE) || defined(KORE_XBOX_SCARLETT)) && defined(HXCPP_M64)
+   #if ((defined(HX_MACOS) && defined(__x86_64)) || (defined(HX_WINDOWS) && !defined(HX_WINRT)) || defined(_XBOX_ONE) || (defined(HX_LINUX) && defined(__x86_64__)) || defined(KORE_PS4) || defined(KORE_PS5) || defined(KORE_XBOX_ONE) || defined(KORE_XBOX_SCARLETT)) && defined(HXCPP_M64)
       #define HXCPP_CAPTURE_x64
    #endif
 

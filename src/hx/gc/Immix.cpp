@@ -7,6 +7,7 @@
 #include "GcRegCapture.h"
 #include <hx/Unordered.h>
 
+#include <string>
 #include <stdlib.h>
 
 #include <kinc/log.h>
@@ -109,7 +110,7 @@ static size_t sgMaximumFreeSpace  = 1024*1024*1024;
 #endif
 
 #ifdef EMSCRIPTEN
-#define HXCPP_STACK_UP
+// #define HXCPP_STACK_UP
 #endif
 
 
@@ -189,7 +190,7 @@ static bool sGcVerifyGenerational = false;
 #endif
 
 
-#if HX_HAS_ATOMIC && (HXCPP_GC_DEBUG_LEVEL==0) && !defined(HX_GC_VERIFY) && false
+#if HX_HAS_ATOMIC && (HXCPP_GC_DEBUG_LEVEL==0) && !defined(HX_GC_VERIFY) && !defined(EMSCRIPTEN) && false
   #if defined(KORE_PS4) || defined(KORE_PS5) || defined(KORE_XBOX_ONE) || defined(KORE_XBOX_SCARLETT)
   enum { MAX_GC_THREADS = 4 };
   #elif defined(HX_MACOS) || defined(HX_WINDOWS) || defined(HX_LINUX)
