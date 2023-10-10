@@ -1,3 +1,6 @@
+#define PCRE2_CODE_UNIT_WIDTH 16
+#define SUPPORT_PCRE2_16
+
 /* src/config.h.  Generated from config.h.in by configure.  */
 /* src/config.h.in.  Generated from configure.ac by autoheader.  */
 

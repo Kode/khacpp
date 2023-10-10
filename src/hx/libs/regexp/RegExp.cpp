@@ -2,9 +2,10 @@
 #include <string.h>
 
 //#define PCRE2_STATIC
-//#define PCRE2_CODE_UNIT_WIDTH 0
+#define PCRE2_CODE_UNIT_WIDTH 0
 
-#include <pcre2.h>
+//#include <pcre2.h>
+#include "../../../../project/thirdparty/pcre2-10.42-8/src/pcre2.h"
 
 #define PCRE(o)      ((pcredata*)o.mPtr)
 
