@@ -5,7 +5,7 @@
 #error "Please include hxcpp.h, not hx/Object.h"
 #endif
 
-#if defined(KORE_LINUX) && __cplusplus < 201103L
+#if defined(KINC_LINUX) && __cplusplus < 201103L
 #include <math.h>
 #endif
 
@@ -221,7 +221,7 @@ public:
    virtual String __ToString() const;
 
    virtual int __ToInt() const { return 0; }
-#if defined(KORE_LINUX) && __cplusplus < 201103L
+#if defined(KINC_LINUX) && __cplusplus < 201103L
    virtual double __ToDouble() const { return NAN; }
 #else
    virtual double __ToDouble() const { return std::numeric_limits<double>::quiet_NaN(); }

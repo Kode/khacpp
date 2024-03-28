@@ -66,7 +66,7 @@ static void threading_mutex_init_pthread( mbedtls_threading_mutex_t *mutex )
 {
     if( mutex == NULL )
         return;
-#ifdef KORE_CONSOLE
+#ifdef KINC_CONSOLE
 	mutex->is_valid = 1;
 #else
     /* A nonzero value of is_valid indicates a successfully initialized
@@ -84,7 +84,7 @@ static void threading_mutex_free_pthread( mbedtls_threading_mutex_t *mutex )
     if( mutex == NULL || !mutex->is_valid )
         return;
 
-#ifndef KORE_CONSOLE
+#ifndef KINC_CONSOLE
     (void) pthread_mutex_destroy( &mutex->mutex );
 #endif
     mutex->is_valid = 0;
@@ -95,7 +95,7 @@ static int threading_mutex_lock_pthread( mbedtls_threading_mutex_t *mutex )
     if( mutex == NULL || ! mutex->is_valid )
         return( MBEDTLS_ERR_THREADING_BAD_INPUT_DATA );
 
-#ifndef KORE_CONSOLE
+#ifndef KINC_CONSOLE
     if( pthread_mutex_lock( &mutex->mutex ) != 0 )
         return( MBEDTLS_ERR_THREADING_MUTEX_ERROR );
 #endif
@@ -108,7 +108,7 @@ static int threading_mutex_unlock_pthread( mbedtls_threading_mutex_t *mutex )
     if( mutex == NULL || ! mutex->is_valid )
         return( MBEDTLS_ERR_THREADING_BAD_INPUT_DATA );
 
-#ifndef KORE_CONSOLE
+#ifndef KINC_CONSOLE
     if( pthread_mutex_unlock( &mutex->mutex ) != 0 )
         return( MBEDTLS_ERR_THREADING_MUTEX_ERROR );
 #endif
@@ -124,7 +124,7 @@ int (*mbedtls_mutex_unlock)( mbedtls_threading_mutex_t * ) = threading_mutex_unl
 /*
  * With pthreads we can statically initialize mutexes
  */
-#ifdef KORE_CONSOLE
+#ifdef KINC_CONSOLE
 #define MUTEX_INIT  = { 0, 1 }
 #else
 #define MUTEX_INIT  = { PTHREAD_MUTEX_INITIALIZER, 1 }

@@ -68,7 +68,7 @@
 #if !defined(_WIN32) || defined(EFIX64) || defined(EFI32)
 #include <sys/types.h>
 #include <sys/stat.h>
-#ifndef KORE_CONSOLE
+#ifndef KINC_CONSOLE
 #include <dirent.h>
 #endif
 #include <errno.h>
@@ -1545,7 +1545,7 @@ int mbedtls_x509_crt_parse_file( mbedtls_x509_crt *chain, const char *path )
 int mbedtls_x509_crt_parse_path( mbedtls_x509_crt *chain, const char *path )
 {
     int ret = 0;
-#if defined(_WIN32) && !defined(EFIX64) && !defined(EFI32) && !defined(KORE_CONSOLE) && !defined(KORE_WINDOWSAPP)
+#if defined(_WIN32) && !defined(EFIX64) && !defined(EFI32) && !defined(KINC_CONSOLE) && !defined(KINC_WINDOWSAPP)
     int w_ret;
     WCHAR szDir[MAX_PATH];
     char filename[MAX_PATH];
@@ -1605,7 +1605,7 @@ int mbedtls_x509_crt_parse_path( mbedtls_x509_crt *chain, const char *path )
 
 cleanup:
     FindClose( hFind );
-#elif !defined(KORE_CONSOLE) && !defined(KORE_WINDOWSAPP) /* _WIN32 */
+#elif !defined(KINC_CONSOLE) && !defined(KINC_WINDOWSAPP) /* _WIN32 */
     int t_ret;
     int snp_ret;
     struct stat sb;

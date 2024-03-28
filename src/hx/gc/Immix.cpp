@@ -191,7 +191,7 @@ static bool sGcVerifyGenerational = false;
 
 
 #if HX_HAS_ATOMIC && (HXCPP_GC_DEBUG_LEVEL==0) && !defined(HX_GC_VERIFY) && !defined(EMSCRIPTEN) && false
-  #if defined(KORE_PS4) || defined(KORE_PS5) || defined(KORE_XBOX_ONE) || defined(KORE_XBOX_SCARLETT)
+  #if defined(KINC_PS4) || defined(KINC_PS5) || defined(KINC_XBOX_ONE) || defined(KINC_XBOX_SERIES)
   enum { MAX_GC_THREADS = 4 };
   #elif defined(HX_MACOS) || defined(HX_WINDOWS) || defined(HX_LINUX)
   enum { MAX_MARK_THREADS = 4 };
@@ -574,7 +574,7 @@ typedef HxMutex ThreadPoolLock;
 static ThreadPoolLock sThreadPoolLock;
 
 #if !defined(HX_WINDOWS) && !defined(EMSCRIPTEN) && \
-   !defined(__SNC__) && !defined(__ORBIS__) && !defined(KORE_CONSOLE) && false
+   !defined(__SNC__) && !defined(__ORBIS__) && !defined(KINC_CONSOLE) && false
 #define HX_GC_PTHREADS
 typedef pthread_cond_t ThreadPoolSignal;
 inline void WaitThreadLocked(ThreadPoolSignal &ioSignal)

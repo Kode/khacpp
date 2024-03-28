@@ -1254,7 +1254,7 @@
  *
  * Uncomment this macro to disable the built-in platform entropy functions.
  */
-#if defined(KORE_WINDOWSAPP) || defined(KORE_CONSOLE)
+#if defined(KINC_WINDOWSAPP) || defined(KINC_CONSOLE)
 #define MBEDTLS_NO_PLATFORM_ENTROPY
 #endif
 

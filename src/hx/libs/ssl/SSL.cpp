@@ -1,6 +1,6 @@
 #include <string.h>
 
-#ifndef KORE_CONSOLE
+#ifndef KINC_CONSOLE
 
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wparentheses"
@@ -477,7 +477,7 @@ void _hx_ssl_conf_set_servername_callback( Dynamic hconf, Dynamic cb ){
 }
 
 Dynamic _hx_ssl_cert_load_defaults(){
-#if defined(NEKO_WINDOWS) && !defined(KORE_WINDOWSAPP)
+#if defined(NEKO_WINDOWS) && !defined(KINC_WINDOWSAPP)
 	HCERTSTORE store;
 	PCCERT_CONTEXT cert;
 	sslcert *chain = NULL;

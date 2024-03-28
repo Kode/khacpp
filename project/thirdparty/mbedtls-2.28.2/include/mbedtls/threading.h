@@ -44,7 +44,7 @@ extern "C" {
 /** Locking / unlocking / free failed with error code. */
 #define MBEDTLS_ERR_THREADING_MUTEX_ERROR                 -0x001E
 
-#ifdef KORE_CONSOLE
+#ifdef KINC_CONSOLE
 typedef struct
 {
 	int mutex;

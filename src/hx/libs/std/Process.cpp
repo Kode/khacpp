@@ -11,9 +11,9 @@
 #   include <memory.h>
 #   include <errno.h>
 #   include <signal.h>
-#   if (defined(ANDROID) || defined(BLACKBERRY) || defined(EMSCRIPTEN) || defined(__FreeBSD__)) && !defined(KORE_CONSOLE)
+#   if (defined(ANDROID) || defined(BLACKBERRY) || defined(EMSCRIPTEN) || defined(__FreeBSD__)) && !defined(KINC_CONSOLE)
 #      include <sys/wait.h>
-#   elif !defined(NEKO_MAC) && !defined(KORE_CONSOLE)
+#   elif !defined(NEKO_MAC) && !defined(KINC_CONSOLE)
 #      include <wait.h>
 #   endif
 #endif
@@ -29,7 +29,7 @@ namespace
 #ifndef NEKO_WINDOWS
 static int do_close( int fd )
 {
-#ifndef KORE_CONSOLE
+#ifndef KINC_CONSOLE
    POSIX_LABEL(close_again);
    if( close(fd) != 0 ) {
       HANDLE_EINTR(close_again);
@@ -193,7 +193,7 @@ static String quoteString(String v)
 **/
 Dynamic _hx_std_process_run( String cmd, Array<String> vargs, int inShowParam )
 {
-   #if defined(APPLETV) || defined(HX_APPLEWATCH) || defined(KORE_CONSOLE)
+   #if defined(APPLETV) || defined(HX_APPLEWATCH) || defined(KINC_CONSOLE)
    return null();
 
    #else
@@ -360,14 +360,14 @@ int _hx_std_process_stdout_read( Dynamic handle, Array<unsigned char> buf, int p
    DWORD nbytes = 0;
    if( !ReadFile(p->oread,dest+pos,len,&nbytes,0) )
       nbytes = 0;
-   #elif !defined(KORE_CONSOLE)
+   #elif !defined(KINC_CONSOLE)
    int nbytes = read(p->oread,dest + pos,len);
    if( nbytes <= 0 )
       nbytes = 0;
    #endif
 
    hx::ExitGCFreeZone();
-#ifdef KORE_CONSOLE
+#ifdef KINC_CONSOLE
    return 0;
 #else
    return nbytes;
@@ -395,14 +395,14 @@ int _hx_std_process_stderr_read( Dynamic handle, Array<unsigned char> buf, int p
    DWORD nbytes = 0;
    if( !ReadFile(p->eread,dest+pos,len,&nbytes,0) )
       nbytes = 0;
-   #elif !defined(KORE_CONSOLE)
+   #elif !defined(KINC_CONSOLE)
    int nbytes = read(p->eread,dest + pos,len);
    if( nbytes <= 0 )
       nbytes = 0;
    #endif
 
    hx::ExitGCFreeZone();
-#ifdef KORE_CONSOLE
+#ifdef KINC_CONSOLE
    return 0;
 #else
    return nbytes;
@@ -431,14 +431,14 @@ int _hx_std_process_stdin_write( Dynamic handle, Array<unsigned char> buf, int p
    DWORD nbytes =0;
    if( !WriteFile(p->iwrite,src+pos,len,&nbytes,0) )
       nbytes = 0;
-   #elif !defined(KORE_CONSOLE)
+   #elif !defined(KINC_CONSOLE)
    int nbytes = write(p->iwrite,src+pos,len);
    if( nbytes == -1 )
       nbytes = 0;
    #endif
 
    hx::ExitGCFreeZone();
-#ifdef KORE_CONSOLE
+#ifdef KINC_CONSOLE
    return 0;
 #else
    return nbytes;
@@ -538,7 +538,7 @@ int _hx_std_process_exit( Dynamic handle )
          return 0;
       return rval;
    }
-   #elif !defined(KORE_CONSOLE)
+   #elif !defined(KINC_CONSOLE)
    int rval=0;
    while( waitpid(p->pid,&rval,0) != p->pid )
    {

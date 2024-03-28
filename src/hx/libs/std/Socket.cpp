@@ -1,4 +1,4 @@
-#if !defined(HX_WINRT) && !defined(EPPC) && !defined(KORE_CONSOLE)
+#if !defined(HX_WINRT) && !defined(EPPC) && !defined(KINC_CONSOLE)
 #include <hxcpp.h>
 #include <hx/OS.h>
 

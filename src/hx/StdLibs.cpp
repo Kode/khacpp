@@ -3,7 +3,7 @@
 #include <hx/Memory.h>
 #include <hx/Thread.h>
 
-#ifdef KORE_CONSOLE
+#ifdef KINC_CONSOLE
 
 #elif defined(HX_WINDOWS)
 #include <windows.h>
@@ -244,7 +244,7 @@ int __hxcpp_irand(int inMax)
 
 void __hxcpp_stdlibs_boot()
 {
-   #if defined(_MSC_VER) && !defined(HX_WINRT) && !defined(KORE_CONSOLE)
+   #if defined(_MSC_VER) && !defined(HX_WINRT) && !defined(KINC_CONSOLE)
    HMODULE kernel32 = LoadLibraryA("kernel32");
    if (kernel32)
    {
@@ -317,7 +317,7 @@ void __hxcpp_exit(int inExitCode)
 
 double  __time_stamp()
 {
-#if defined(KORE_CONSOLE)
+#if defined(KINC_CONSOLE)
    return 0;
 #elif defined(HX_WINDOWS)
    static __int64 t0=0;
@@ -551,7 +551,7 @@ Array<String> __get_args()
    // TODO: Get from java
    #elif defined(__linux__)
    char buf[80];
-#if defined(KORE_CONSOLE) || defined(KORE_PI)
+#if defined(KINC_CONSOLE) || defined(KINC_PI)
    sprintf(buf, "/proc/%d/cmdline", 0);
 #else
    sprintf(buf, "/proc/%d/cmdline", getpid());

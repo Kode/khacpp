@@ -286,7 +286,7 @@ THREAD_FUNC_TYPE hxThreadFunc( void *inInfo )
 	THREAD_FUNC_RET
 }
 
-#ifdef KORE_CONSOLE
+#ifdef KINC_CONSOLE
 Dynamic __hxcpp_thread_create(Dynamic inStart)
 {
 	return hx::Throw(HX_CSTRING("Threads are not yet supported on consoles"));

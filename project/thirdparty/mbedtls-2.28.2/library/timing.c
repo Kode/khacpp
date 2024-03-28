@@ -52,7 +52,7 @@ struct _hr_time
 
 #include <unistd.h>
 #include <sys/types.h>
-#ifndef KORE_CONSOLE
+#ifndef KINC_CONSOLE
 #include <signal.h>
 #endif
 /* time.h should be included independently of MBEDTLS_HAVE_TIME. If the
@@ -287,7 +287,7 @@ void mbedtls_set_alarm( int seconds )
 
 unsigned long mbedtls_timing_get_timer( struct mbedtls_timing_hr_time *val, int reset )
 {
-#ifdef KORE_CONSOLE
+#ifdef KINC_CONSOLE
 	return 0;
 #else
     //unsigned long delta;
@@ -311,7 +311,7 @@ unsigned long mbedtls_timing_get_timer( struct mbedtls_timing_hr_time *val, int 
 #endif
 }
 
-#ifndef KORE_CONSOLE
+#ifndef KINC_CONSOLE
 static void sighandler( int signum )
 {
     mbedtls_timing_alarmed = 1;
@@ -322,7 +322,7 @@ static void sighandler( int signum )
 void mbedtls_set_alarm( int seconds )
 {
     mbedtls_timing_alarmed = 0;
-#ifndef KORE_CONSOLE
+#ifndef KINC_CONSOLE
     signal( SIGALRM, sighandler );
     alarm( seconds );
 #endif

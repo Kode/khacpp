@@ -8,7 +8,7 @@
 #include <windows.h>
 #elif defined(HX_WINDOWS)
 #include <process.h>
-#elif !defined(KORE_CONSOLE)
+#elif !defined(KINC_CONSOLE)
 #include <unistd.h>
 #include <sys/time.h>
 #endif
@@ -147,11 +147,11 @@ void Math_obj::__boot()
 
 #if defined(HX_WINDOWS) || defined(__SNC__)
    unsigned int t = clock();
-#elif !defined(KORE_CONSOLE)
+#elif !defined(KINC_CONSOLE)
    struct timeval tv;
    gettimeofday(&tv,0);
    unsigned int t = tv.tv_sec * 1000000 + tv.tv_usec;
-#elif defined(KORE_CONSOLE)
+#elif defined(KINC_CONSOLE)
    unsigned int t = 0;
 #endif
 
@@ -165,7 +165,7 @@ void Math_obj::__boot()
   #else
    int pid = _getpid();
   #endif
-#elif !defined(KORE_CONSOLE)
+#elif !defined(KINC_CONSOLE)
    int pid = getpid();
 #else
    int pid = (int)(intptr_t)&t; // As a last resort, rely on ASLR.

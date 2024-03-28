@@ -7,11 +7,11 @@
 #ifndef HX_TLS_INCLUDED
 #define HX_TLS_INCLUDED
 
-#if defined(HX_WINDOWS) || defined(KORE_CONSOLE)
+#if defined(HX_WINDOWS) || defined(KINC_CONSOLE)
 
   #if defined(HX_WINRT)
     // Nothing
-  #elif defined(KORE_CONSOLE)
+  #elif defined(KINC_CONSOLE)
 
 #include <kinc/threads/threadlocal.h>
 

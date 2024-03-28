@@ -22,7 +22,7 @@
    #include <locale.h>
 #else
    #include <errno.h>
-   #if !defined(EPPC) && !defined(KORE_CONSOLE)
+   #if !defined(EPPC) && !defined(KINC_CONSOLE)
       #include <unistd.h>
       #include <dirent.h>
       #include <termios.h>
@@ -32,7 +32,7 @@
    #include <limits.h>
    #ifndef ANDROID
       #include <locale.h>
-      #if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0) && !defined(__GLIBC__) && !defined(KORE_CONSOLE)
+      #if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0) && !defined(__GLIBC__) && !defined(KINC_CONSOLE)
          #include <xlocale.h>
       #endif
    #endif
@@ -79,7 +79,7 @@
 
 String _hx_std_get_env( String v )
 {
-   #if defined(HX_WINRT) || defined(KORE_CONSOLE)
+   #if defined(HX_WINRT) || defined(KINC_CONSOLE)
       return String();
    #else
       #if defined(NEKO_WINDOWS) && defined(HX_SMART_STRINGS)
@@ -98,7 +98,7 @@ String _hx_std_get_env( String v )
 **/
 void _hx_std_put_env( String e, String v )
 {
-#if defined(HX_WINRT) || defined(KORE_CONSOLE)
+#if defined(HX_WINRT) || defined(KINC_CONSOLE)
    // Do nothing
 #elif defined(NEKO_WINDOWS)
    String set = e + HX_CSTRING("=") + (v != null()?v:"");
@@ -127,7 +127,7 @@ void _hx_std_sys_sleep( double f )
    hx::EnterGCFreeZone();
 #if defined(NEKO_WINDOWS)
    Sleep((DWORD)(f * 1000));
-#elif defined(EPPC) || defined(KORE_CONSOLE)
+#elif defined(EPPC) || defined(KINC_CONSOLE)
 //TODO: Implement sys_sleep for EPPC
 #else
    {
@@ -155,7 +155,7 @@ void _hx_std_sys_sleep( double f )
 **/
 bool _hx_std_set_time_locale( String l )
 {
-#if defined(ANDROID) || defined(GCW0) || defined(KORE_CONSOLE)
+#if defined(ANDROID) || defined(GCW0) || defined(KINC_CONSOLE)
     return false;
 #else
 
@@ -190,7 +190,7 @@ bool _hx_std_set_time_locale( String l )
 **/
 String _hx_std_get_cwd()
 {
-   #if defined(HX_WINRT) || defined(KORE_CONSOLE)
+   #if defined(HX_WINRT) || defined(KINC_CONSOLE)
    return HX_CSTRING("ms-appdata:///local/");
    #elif defined(EPPC)
    return String();
@@ -226,7 +226,7 @@ String _hx_std_get_cwd()
 **/
 bool _hx_std_set_cwd( String d )
 {
-   #if !defined(HX_WINRT) && !defined(EPPC) && !defined(KORE_CONSOLE)
+   #if !defined(HX_WINRT) && !defined(EPPC) && !defined(KINC_CONSOLE)
 #ifdef NEKO_WINDOWS
    return SetCurrentDirectoryW(d.wchar_str()) == 0;
 #else
@@ -252,8 +252,8 @@ bool _hx_std_set_cwd( String d )
 **/
 String _hx_std_sys_string()
 {
-#if defined(KORE_CONSOLE)
-   return HX_CSTRING("Kore Console");
+#if defined(KINC_CONSOLE)
+   return HX_CSTRING("Kinc Console");
 #elif defined(HX_WINRT)
    return HX_CSTRING("WinRT");
 #elif defined(NEKO_WINDOWS)
@@ -300,7 +300,7 @@ bool _hx_std_sys_is64()
 **/
 int _hx_std_sys_command( String cmd )
 {
-   #if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(IPHONE) || defined(APPLETV) || defined(HX_APPLEWATCH) || defined(KORE_CONSOLE)
+   #if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(IPHONE) || defined(APPLETV) || defined(HX_APPLEWATCH) || defined(KINC_CONSOLE)
    return -1;
    #else
    if( !cmd.raw_ptr() || !cmd.length )
@@ -350,7 +350,7 @@ void _hx_std_sys_exit( int code )
 **/
 bool _hx_std_sys_exists( String path )
 {
-   #if defined(EPPC) || defined(KORE_CONSOLE)
+   #if defined(EPPC) || defined(KINC_CONSOLE)
    return true;
    #else
 
@@ -376,7 +376,7 @@ bool _hx_std_sys_exists( String path )
 **/
 void _hx_std_file_delete( String path )
 {
-   #if !defined(EPPC) && !defined(KORE_CONSOLE)
+   #if !defined(EPPC) && !defined(KINC_CONSOLE)
    hx::EnterGCFreeZone();
 
    bool err = false;
@@ -403,7 +403,7 @@ void _hx_std_file_delete( String path )
 **/
 void  _hx_std_sys_rename( String path, String newname )
 {
-#ifdef KORE_CONSOLE
+#ifdef KINC_CONSOLE
 	bool err = true;
 #else
    hx::EnterGCFreeZone();
@@ -442,7 +442,7 @@ void  _hx_std_sys_rename( String path, String newname )
 **/
 Dynamic _hx_std_sys_stat( String path )
 {
-   #if defined(EPPC) || defined(KORE_CONSOLE)
+   #if defined(EPPC) || defined(KINC_CONSOLE)
    return null();
    #else
    hx::EnterGCFreeZone();
@@ -508,7 +508,7 @@ String _hx_std_sys_file_type( String path )
 {
    if (path==null())
       return String();
-   #if defined(EPPC) || defined(KORE_CONSOLE)
+   #if defined(EPPC) || defined(KINC_CONSOLE)
    return String();
    #else
    hx::EnterGCFreeZone();
@@ -562,7 +562,7 @@ String _hx_std_sys_file_type( String path )
 **/
 bool _hx_std_sys_create_dir( String path, int mode )
 {
-   #if defined(EPPC) || defined(KORE_CONSOLE)
+   #if defined(EPPC) || defined(KINC_CONSOLE)
    return true;
    #else
 #ifdef NEKO_WINDOWS
@@ -585,7 +585,7 @@ bool _hx_std_sys_create_dir( String path, int mode )
 **/
 void _hx_std_sys_remove_dir( String path )
 {
-   #if defined(EPPC) || defined(KORE_CONSOLE)
+   #if defined(EPPC) || defined(KINC_CONSOLE)
    
    #else
    hx::EnterGCFreeZone();
@@ -628,7 +628,7 @@ double _hx_std_sys_time()
     ui.LowPart = ft.dwLowDateTime;
     ui.HighPart = ft.dwHighDateTime;
    return ( ((double)ui.QuadPart) / 10000000.0 - EPOCH_DIFF );
-#elif defined(EPPC) || defined(KORE_CONSOLE)
+#elif defined(EPPC) || defined(KINC_CONSOLE)
    time_t tod;
    time(&tod);
    return ((double)tod);
@@ -655,7 +655,7 @@ double _hx_std_sys_cpu_time()
    if( !GetProcessTimes(GetCurrentProcess(),&unused,&unused,&stime,&utime) )
       return 0;
    return ( ((double)(utime.dwHighDateTime+stime.dwHighDateTime)) * 65.536 * 6.5536 + (((double)utime.dwLowDateTime + (double)stime.dwLowDateTime) / 10000000) );
-#elif defined(EPPC) || defined(KORE_CONSOLE)
+#elif defined(EPPC) || defined(KINC_CONSOLE)
     return ((double)clock()/(double)CLOCKS_PER_SEC);
 #else
    struct tms t;
@@ -720,7 +720,7 @@ Array<String> _hx_std_sys_read_dir( String p )
          break;
    }
    FindClose(handle);
-#elif !defined(EPPC) && !defined(KORE_CONSOLE)
+#elif !defined(EPPC) && !defined(KINC_CONSOLE)
    const char *name = p.utf8_str();
    hx::EnterGCFreeZone();
    DIR *d = opendir(name);
@@ -762,7 +762,7 @@ String _hx_std_file_full_path( String path )
    if( GetFullPathNameW(path.wchar_str(&wbuf),MAX_PATH+1,buf,NULL) == 0 )
       return null();
    return String::create(buf);
-#elif defined(EPPC) || defined(KORE_CONSOLE)
+#elif defined(EPPC) || defined(KINC_CONSOLE)
    return path;
 #else
    char buf[PATH_MAX];
@@ -794,7 +794,7 @@ String _hx_std_sys_exe_path()
    if( _NSGetExecutablePath(path, &path_len) )
       return null();
    return String::create(path);
-#elif defined(EPPC) || defined(KORE_CONSOLE)
+#elif defined(EPPC) || defined(KINC_CONSOLE)
    return HX_CSTRING("");
 #else
    {
@@ -831,7 +831,7 @@ extern char **environ;
 Array<String> _hx_std_sys_env()
 {
    Array<String> result = Array_obj<String>::__new();
-   #if !defined(HX_WINRT) && !defined(KORE_CONSOLE)
+   #if !defined(HX_WINRT) && !defined(KINC_CONSOLE)
    char **e = environ;
    while( *e )
    {
@@ -872,7 +872,7 @@ Array<String> _hx_std_sys_env()
 **/
 int _hx_std_sys_getch( bool b )
 {
-#if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(KORE_CONSOLE) || defined(__FreeBSD__)
+#if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(KINC_CONSOLE) || defined(__FreeBSD__)
    return 0;
 #elif defined(NEKO_WINDOWS)
    hx::EnterGCFreeZone();
@@ -907,7 +907,7 @@ int _hx_std_sys_get_pid()
 {
 #   ifdef NEKO_WINDOWS
    return (int)(GetCurrentProcessId());
-#elif defined(EPPC) || defined(KORE_CONSOLE)
+#elif defined(EPPC) || defined(KINC_CONSOLE)
    return (1);
 #   else
    return (getpid());

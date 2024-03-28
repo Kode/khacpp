@@ -84,7 +84,7 @@
 
 #endif /* bits in mbedtls_mpi_uint */
 
-#ifdef KORE_ANDROID
+#ifdef KINC_ANDROID
 #undef MBEDTLS_HAVE_ASM
 #endif
 

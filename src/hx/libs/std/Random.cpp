@@ -8,7 +8,7 @@
 #ifdef HX_WINDOWS
 #   include <windows.h>
 #   include <process.h>
-#elif defined(EPPC) || defined(KORE_CONSOLE)
+#elif defined(EPPC) || defined(KINC_CONSOLE)
 #   include <time.h>
 #else
 #   include <sys/time.h>
@@ -82,13 +82,13 @@ Dynamic _hx_std_random_new()
 {
    rnd *r = new rnd();
 
-#if defined(NEKO_WINDOWS) && !defined(KORE_CONSOLE)
+#if defined(NEKO_WINDOWS) && !defined(KINC_CONSOLE)
   #if defined(HX_WINRT) && defined(__cplusplus_winrt)
    int pid = Windows::Security::Cryptography::CryptographicBuffer::GenerateRandomNumber();
   #else
    int pid = GetCurrentProcessId();
   #endif
-#elif defined(EPPC) || defined(KORE_CONSOLE)
+#elif defined(EPPC) || defined(KINC_CONSOLE)
    int pid = 1;
 #else
    int pid = getpid();
@@ -97,9 +97,9 @@ Dynamic _hx_std_random_new()
    unsigned int t;
 #ifdef HX_WINRT
    t = (unsigned int)GetTickCount64();
-#elif defined(NEKO_WINDOWS) && !defined(KORE_CONSOLE)
+#elif defined(NEKO_WINDOWS) && !defined(KINC_CONSOLE)
    t = GetTickCount();
-#elif defined(EPPC) || defined(KORE_CONSOLE)
+#elif defined(EPPC) || defined(KINC_CONSOLE)
    time_t tod;
    time(&tod);
    t = (double)tod;

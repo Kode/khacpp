@@ -18,7 +18,7 @@
          #define USE_GETTIMEOFDAY
       #endif
    #endif
-   #if defined(KORE_SONY)
+   #if defined(KINC_SONY)
       // fill in for a missing localtime_r with localtime_s
       #define localtime_r localtime_s
       #define gmtime_r gmtime_s
@@ -74,12 +74,12 @@ double __hxcpp_time_stamp()
 #else
    #if defined(IPHONE) || defined(APPLETV)
       double t = CACurrentMediaTime();
-   #elif defined(USE_GETTIMEOFDAY) && !defined(KORE_CONSOLE)
+   #elif defined(USE_GETTIMEOFDAY) && !defined(KINC_CONSOLE)
       struct timeval tv;
       if( gettimeofday(&tv,NULL) )
          return 0;
       double t =  ( tv.tv_sec + ((double)tv.tv_usec) / 1000000.0 );
-   #elif defined(USE_CLOCK_GETTIME) && !defined(KORE_CONSOLE)
+   #elif defined(USE_CLOCK_GETTIME) && !defined(KINC_CONSOLE)
       struct timespec ts;
       clock_gettime(CLOCK_MONOTONIC, &ts);
       double t =  ( ts.tv_sec + ((double)ts.tv_nsec)*1e-9  );
@@ -310,7 +310,7 @@ int __hxcpp_get_utc_day(double inSeconds)
  */
 double __hxcpp_date_now()
 {
-   #ifdef KORE_CONSOLE
+   #ifdef KINC_CONSOLE
    return 0;
    #elif defined(HX_WINDOWS)
    typedef unsigned __int64 uint64_t;
@@ -362,7 +362,7 @@ double __hxcpp_timezone_offset(double inSeconds)
    struct tm localTime;
    __internal_localtime( inSeconds, &localTime);
 
-   #if defined(HX_WINDOWS) || defined(__SNC__) || defined(__ORBIS__) || defined(KORE_CONSOLE)
+   #if defined(HX_WINDOWS) || defined(__SNC__) || defined(__ORBIS__) || defined(KINC_CONSOLE)
    struct tm gmTime;
    __internal_gmtime(inSeconds, &gmTime );
 
